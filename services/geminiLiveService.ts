@@ -8,6 +8,7 @@ import { agentSkillService } from './agentSkillService';
 import githubSkill from '../skills/githubSkill';
 import knowledgeSkill from '../skills/knowledgeSkill';
 import ghostSkill from '../skills/ghostSkill';
+import fileGenSkill from '../skills/fileGenSkill';
 import { summaryService } from './summaryService';
 import { personalizedLearning } from './personalizedLearningService';
 
@@ -139,6 +140,7 @@ export class GeminiLiveService {
       agentSkillService.registerSkill(githubSkill);
       agentSkillService.registerSkill(knowledgeSkill);
       agentSkillService.registerSkill(ghostSkill);
+      agentSkillService.registerSkill(fileGenSkill);
 
       // Initialize tools
       const memoryContext = generateContextString();
