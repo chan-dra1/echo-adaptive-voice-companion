@@ -1,0 +1,7 @@
+{
+  "name": "Echo - Adaptive Voice Companion",
+  "description": "A deeply personalized AI voice companion that learns from your conversations using local memory and the Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
