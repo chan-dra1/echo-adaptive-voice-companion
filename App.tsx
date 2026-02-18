@@ -379,7 +379,7 @@ export default function App() {
           {/* Main Application Area */}
 
           {/* Backdrop Overlay for Sidebars */}
-          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showInterviewMode || isHistoryOpen || isSettingsOpen) && (
+          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showInterviewMode) && (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 transition-opacity duration-300"
               onClick={() => {
@@ -389,8 +389,6 @@ export default function App() {
                 setShowMobileMenu(false);
                 setShowPersonalizedLearning(false);
                 setShowInterviewMode(false);
-                setIsHistoryOpen(false);
-                setIsSettingsOpen(false);
               }}
               aria-hidden="true"
             />
