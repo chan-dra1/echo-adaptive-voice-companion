@@ -1,3 +1,4 @@
+import { Type } from "@google/genai";
 /**
  * Proactive AI Service
  *
@@ -17,14 +18,14 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'search_web',
     description: 'Search the internet for information, deals, products, or services',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         query: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Search query to find information'
         },
         searchType: {
-          type: 'string',
+          type: Type.STRING,
           enum: ['general', 'shopping', 'flights', 'hotels', 'restaurants'],
           description: 'Type of search to perform'
         }
@@ -36,14 +37,14 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'check_coupon_codes',
     description: 'Find and verify working coupon codes for a specific store or product',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         store: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Store name (e.g., "Amazon", "Nike", "Best Buy")'
         },
         product: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Optional: specific product to find coupons for'
         }
       },
@@ -54,14 +55,14 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'find_product_from_image',
     description: 'Find similar or exact products from an uploaded image, including price comparison',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         imageUrl: {
-          type: 'string',
+          type: Type.STRING,
           description: 'URL or base64 of the image to search'
         },
         findCheapest: {
-          type: 'boolean',
+          type: Type.BOOLEAN,
           description: 'Whether to find the cheapest option',
           default: true
         }
@@ -73,32 +74,32 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'set_reminder',
     description: 'Set a reminder for the user with optional recurring schedule',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         title: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Reminder title (e.g., "Go to gym", "Take medicine")'
         },
         description: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Detailed description of the reminder'
         },
         time: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Time for reminder (ISO 8601 format or natural language)'
         },
         recurring: {
-          type: 'object',
+          type: Type.OBJECT,
           properties: {
             frequency: {
-              type: 'string',
+              type: Type.STRING,
               enum: ['daily', 'weekly', 'monthly', 'custom'],
               description: 'How often to repeat'
             },
             days: {
-              type: 'array',
+              type: Type.ARRAY,
               items: {
-                type: 'string',
+                type: Type.STRING,
                 enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
               },
               description: 'Days to repeat (for weekly)'
@@ -113,28 +114,28 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'create_workout_plan',
     description: 'Create a personalized workout plan with exercises and schedule',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         goals: {
-          type: 'array',
+          type: Type.ARRAY,
           items: {
-            type: 'string'
+            type: Type.STRING
           },
           description: 'Fitness goals (e.g., "build muscle", "lose weight", "cardio")'
         },
         daysPerWeek: {
-          type: 'number',
+          type: Type.NUMBER,
           description: 'Number of workout days per week'
         },
         exercises: {
-          type: 'array',
+          type: Type.ARRAY,
           items: {
-            type: 'object',
+            type: Type.OBJECT,
             properties: {
-              name: { type: 'string' },
-              sets: { type: 'number' },
-              reps: { type: 'number' },
-              day: { type: 'string' }
+              name: { type: Type.STRING },
+              sets: { type: Type.NUMBER },
+              reps: { type: Type.NUMBER },
+              day: { type: Type.STRING }
             }
           }
         }
@@ -146,31 +147,31 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'search_flights',
     description: 'Search for flight options between two locations with dates',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         from: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Departure airport or city'
         },
         to: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Arrival airport or city'
         },
         departDate: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Departure date (YYYY-MM-DD)'
         },
         returnDate: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Return date (YYYY-MM-DD) for round trip'
         },
         passengers: {
-          type: 'number',
+          type: Type.NUMBER,
           description: 'Number of passengers',
           default: 1
         },
         class: {
-          type: 'string',
+          type: Type.STRING,
           enum: ['economy', 'premium', 'business', 'first'],
           description: 'Cabin class',
           default: 'economy'
@@ -183,16 +184,16 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'browse_website',
     description: 'Browse and extract information from a specific website',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         url: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Website URL to browse'
         },
         extractInfo: {
-          type: 'array',
+          type: Type.ARRAY,
           items: {
-            type: 'string'
+            type: Type.STRING
           },
           description: 'What information to extract (e.g., "prices", "reviews", "availability")'
         }
@@ -204,16 +205,16 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'compare_prices',
     description: 'Compare prices for a product across multiple stores',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         productName: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Name of the product to compare'
         },
         stores: {
-          type: 'array',
+          type: Type.ARRAY,
           items: {
-            type: 'string'
+            type: Type.STRING
           },
           description: 'Specific stores to check (optional)'
         }
@@ -225,18 +226,18 @@ export const PROACTIVE_AI_TOOLS = [
     name: 'schedule_task',
     description: 'Schedule a task or action to be performed at a specific time',
     parameters: {
-      type: 'object',
+      type: Type.OBJECT,
       properties: {
         task: {
-          type: 'string',
+          type: Type.STRING,
           description: 'Task to perform'
         },
         scheduledTime: {
-          type: 'string',
+          type: Type.STRING,
           description: 'When to perform the task'
         },
         action: {
-          type: 'string',
+          type: Type.STRING,
           description: 'What action to take (e.g., "send_notification", "execute_search")'
         }
       },
