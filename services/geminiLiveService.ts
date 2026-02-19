@@ -113,6 +113,14 @@ export class GeminiLiveService {
       this.outputAnalyser = this.outputAudioContext.createAnalyser();
       this.outputAnalyser.fftSize = 256;
 
+      // Resume AudioContexts (Critical for iOS/Mobile)
+      if (this.inputAudioContext.state === 'suspended') {
+        await this.inputAudioContext.resume();
+      }
+      if (this.outputAudioContext.state === 'suspended') {
+        await this.outputAudioContext.resume();
+      }
+
       // Create Gain Node for volume control
       this.outputGainNode = this.outputAudioContext.createGain();
       this.outputGainNode.gain.value = 1.0; // Default to full volume

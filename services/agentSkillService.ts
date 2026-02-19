@@ -1,14 +1,7 @@
 import { FunctionDeclaration } from "@google/genai";
 
-export interface ToolDefinition {
-    name: string;
-    description: string;
-    parameters: {
-        type: string;
-        properties: Record<string, any>;
-        required?: string[];
-    };
-}
+// Export ToolDefinition as an alias for FunctionDeclaration to ensure compatibility
+export type ToolDefinition = FunctionDeclaration;
 
 export interface Skill {
     name: string;
