@@ -131,7 +131,8 @@ export default function App() {
 
   const handleConnect = useCallback(async () => {
     if (!apiKey) {
-      error("Please enter a valid API Key to continue");
+      error("Please enter your API Key in the Settings Vault to continue");
+      setIsSettingsOpen(true);
       return;
     }
 
@@ -693,7 +694,53 @@ export default function App() {
             <div className={`sm:hidden absolute top-20 left-4 z-40 w-64 transition-all duration-300 pointer-events-auto ${showMobileMenu ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
               <div className="bg-echo-surface/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl">
                 <h3 className="text-sm font-semibold text-white mb-3">Settings</h3>
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-2">
+                    {/* Compact Grid for Mobile Toggles */}
+                    <button
+                      onClick={() => { setIsHistoryOpen(true); setShowMobileMenu(false); }}
+                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
+                    >
+                      <Clock size={16} />
+                      <span className="text-[10px]">History</span>
+                    </button>
+                    <button
+                      onClick={() => { setIsSettingsOpen(true); setShowMobileMenu(false); }}
+                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
+                    >
+                      <User size={16} />
+                      <span className="text-[10px]">Settings</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowVoiceVault(true); setShowMobileMenu(false); }}
+                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
+                    >
+                      <Lock size={16} />
+                      <span className="text-[10px]">Vault</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowChat(true); setShowMobileMenu(false); }}
+                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
+                    >
+                      <MessageSquare size={16} />
+                      <span className="text-[10px]">Chat</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowPersonalizedLearning(true); setShowMobileMenu(false); }}
+                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
+                    >
+                      <Brain size={16} />
+                      <span className="text-[10px]">Learn</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowInterviewMode(true); setShowMobileMenu(false); }}
+                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
+                    >
+                      <Ghost size={16} />
+                      <span className="text-[10px]">Ghost</span>
+                    </button>
+                  </div>
+
                   <div>
                     <label htmlFor="mobile-voice-select" className="block text-xs text-gray-400 mb-1">Voice</label>
                     <select

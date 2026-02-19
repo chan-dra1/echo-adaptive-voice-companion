@@ -105,7 +105,7 @@ export class GeminiLiveService {
 
   public async connect(config?: ConnectConfig) {
     try {
-      this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
       this.inputAnalyser = this.inputAudioContext.createAnalyser();
@@ -527,20 +527,58 @@ ${learningContext}
     return Math.sqrt(sum / data.length);
   }
 
+  private downsampleBuffer(buffer: Float32Array, inputRate: number, outputRate: number = 16000): Float32Array {
+    if (outputRate >= inputRate) return buffer;
+
+    const ratio = inputRate / outputRate;
+    const newLength = Math.round(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+
+    let offsetResult = 0;
+    let offsetBuffer = 0;
+
+    while (offsetResult < newLength) {
+      const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+      let accum = 0, count = 0;
+      for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+        accum += buffer[i];
+        count++;
+      }
+      result[offsetResult] = count > 0 ? accum / count : 0;
+      offsetResult++;
+      offsetBuffer = nextOffsetBuffer;
+    }
+    return result;
+  }
+
   private startAudioInput() {
     if (!this.inputAudioContext || !this.stream) return;
 
     const source = this.inputAudioContext.createMediaStreamSource(this.stream);
     if (this.inputAnalyser) source.connect(this.inputAnalyser);
 
-    // 2048 samples is approx 128ms latency bucket
-    this.inputProcessor = this.inputAudioContext.createScriptProcessor(2048, 1, 1);
+    // 2048 samples is approx 128ms latency bucket at 16k, but varies at 48k
+    // We'll stick to 2048 or 4096 for stability
+    const bufferSize = this.inputAudioContext.sampleRate > 30000 ? 4096 : 2048;
+    this.inputProcessor = this.inputAudioContext.createScriptProcessor(bufferSize, 1, 1);
 
     this.inputProcessor.onaudioprocess = (e) => {
       if (this.isMuted) return;
 
       const inputData = e.inputBuffer.getChannelData(0);
-      const rms = this.calculateRMS(inputData);
+      const inputRate = this.inputAudioContext?.sampleRate || 16000;
+
+      // Downsample if needed (target 16000Hz)
+      const targetRate = 16000;
+      const needsDownsampling = inputRate > 24000;
+
+      const processedData = needsDownsampling
+        ? this.downsampleBuffer(inputData, inputRate, targetRate)
+        : inputData;
+
+      const finalRate = needsDownsampling ? targetRate : inputRate;
+
+      const rms = this.calculateRMS(processedData);
       const isCurrentFrameSpeech = rms > this.silenceThreshold;
 
       // VAD Logic
@@ -548,24 +586,22 @@ ${learningContext}
         this.silenceFrameCount = 0;
 
         if (!this.isSpeechActive) {
-          // console.log('Speech detected. Flushing pre-roll.');
           this.isSpeechActive = true;
-          this.flushPreRoll();
+          this.flushPreRoll(finalRate);
         }
 
-        this.sendAudioChunk(inputData);
+        this.sendAudioChunk(processedData, finalRate);
       } else {
         // Silence detected
         if (this.isSpeechActive) {
           this.silenceFrameCount++;
           if (this.silenceFrameCount <= this.maxSilenceFrames) {
-            this.sendAudioChunk(inputData);
+            this.sendAudioChunk(processedData, finalRate);
           } else {
             this.isSpeechActive = false;
-            // Stop sending on silence
           }
         } else {
-          this.addToPreRoll(inputData);
+          this.addToPreRoll(processedData);
         }
       }
     };
@@ -582,16 +618,16 @@ ${learningContext}
     }
   }
 
-  private flushPreRoll() {
+  private flushPreRoll(sampleRate: number = 16000) {
     if (this.preRollBuffer.length === 0) return;
     for (const buffer of this.preRollBuffer) {
-      this.sendAudioChunk(buffer);
+      this.sendAudioChunk(buffer, sampleRate);
     }
     this.preRollBuffer = [];
   }
 
-  private sendAudioChunk(data: Float32Array) {
-    const pcmBlob = createPcmBlob(data);
+  private sendAudioChunk(data: Float32Array, sampleRate: number = 16000) {
+    const pcmBlob = createPcmBlob(data, sampleRate);
     this.sessionPromise?.then((session) => {
       session.sendRealtimeInput({ media: pcmBlob });
     });
