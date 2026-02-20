@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# ── Gravity Claw (subdirectory) ──────────────
+# Gravity Claw has its own package.json; exclude its deps and secrets
+gravity-claw/node_modules
+gravity-claw/.env
+gravity-claw/dist
