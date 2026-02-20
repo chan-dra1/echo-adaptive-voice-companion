@@ -16,6 +16,9 @@ function requireEnv(name: string): string {
 export const config = {
     telegramToken: requireEnv("TELEGRAM_BOT_TOKEN"),
     anthropicApiKey: requireEnv("ANTHROPIC_API_KEY"),
+    openaiApiKey: requireEnv("OPENAI_API_KEY"),
+    elevenlabsApiKey: requireEnv("ELEVENLABS_API_KEY"),
+    elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM", // Default to 'Rachel'
 
     // Parse as integer — Telegram user IDs are numbers
     allowedUserId: (() => {
