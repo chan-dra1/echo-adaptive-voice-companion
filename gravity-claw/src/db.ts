@@ -12,7 +12,7 @@ import fs from "node:fs";
 // Ensure data directory exists
 const DATA_DIR = path.resolve(process.cwd(), "data");
 if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 const DB_PATH = path.join(DATA_DIR, "gravity-claw.db");
@@ -28,7 +28,7 @@ db.pragma("journal_mode = WAL"); // Better concurrent performance and safety
  * 2. messages_fts: The FTS5 virtual table for lightning-fast keyword search
  */
 function initDb() {
-    db.exec(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -75,27 +75,44 @@ const deleteUserStmt = db.prepare(`
   DELETE FROM messages WHERE user_id = ?
 `);
 
+const searchMemoryStmt = db.prepare(`
+  SELECT content, timestamp
+  FROM messages_fts
+  WHERE user_id = ? AND messages_fts MATCH ?
+  ORDER BY rank
+  LIMIT 5
+`);
+
 // ── Exported API ──────────────────────────────────────────────────────────────
 
 /**
  * Record a new message into persistent memory.
  */
 export function addMessage(userId: number, role: "user" | "assistant", content: string) {
-    insertStmt.run(userId, role, content);
+  insertStmt.run(userId, role, content);
 }
 
 /**
  * Fetch the last N messages chronologically to provide immediate conversational context.
  */
 export function getRecentContext(userId: number, limit: number = 10): Message[] {
-    // SQLite returns DESC (newest first). We need ASC (oldest first) for Claude.
-    const rows = selectRecentStmt.all(userId, limit) as { role: "user" | "assistant"; content: string }[];
-    return rows.reverse();
+  // SQLite returns DESC (newest first). We need ASC (oldest first) for Claude.
+  const rows = selectRecentStmt.all(userId, limit) as { role: "user" | "assistant"; content: string }[];
+  return rows.reverse();
 }
 
 /**
  * Delete all conversation history for a user (used by /reset).
  */
 export function clearHistory(userId: number) {
-    deleteUserStmt.run(userId);
+  deleteUserStmt.run(userId);
+}
+
+/**
+ * Search past conversation history using FTS5 semantic matching.
+ */
+export function searchMemory(userId: number, query: string): { content: string, timestamp: string }[] {
+  // FTS5 MATCH syntax uses quotes for literal phrases
+  const safeQuery = `"${query.replace(/"/g, '""')}"`;
+  return searchMemoryStmt.all(userId, safeQuery) as { content: string, timestamp: string }[];
 }

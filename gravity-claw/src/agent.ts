@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { config } from "./config.js";
 import type { AgentContext, Message } from "./types.js";
 import { addMessage, getRecentContext } from "./db.js";
+import { tools, executeTool } from "./tools/index.js";
 
 const anthropic = new Anthropic({
     apiKey: config.openrouterApiKey,
@@ -29,11 +30,12 @@ const SYSTEM_PROMPT = `You are Gravity Claw, a lean, intelligent personal AI ass
 You run locally on your owner's machine and communicate exclusively through Telegram.
 You are direct, precise, and helpful. You have a slightly dry wit.
 You never make up facts. When you don't know something, you say so.
-You are speaking to your owner — the only person who can reach you.`;
+You are speaking to your owner — the only person who can reach you.
+When a user asks about the past, use your search_memory tool to recall it.`;
 
 /**
  * Process a user message and return the assistant's reply.
- * Reads conversation context from SQLite and writes the new turns to disk.
+ * Handles the Agentic Tool Loop (max 5 iterations).
  */
 export async function processMessage(
     ctx: AgentContext,
@@ -42,34 +44,74 @@ export async function processMessage(
     // 1. Fetch recent context from database (e.g., last 20 messages)
     const recentHistory = getRecentContext(ctx.userId, 20);
 
-    // 2. Append the new user turn for this API request
-    const messages: Message[] = [
+    // 2. We build the active memory for this run
+    let currentMessages: Message[] = [
         ...recentHistory,
         { role: "user", content: userText }
     ];
 
+    let iteration = 0;
+    const MAX_ITERATIONS = 5; // Safety fallback
+
     try {
-        const response = await anthropic.messages.create({
-            model: MODEL,
-            max_tokens: MAX_TOKENS,
-            system: SYSTEM_PROMPT,
-            messages: messages,
-        });
+        while (iteration < MAX_ITERATIONS) {
+            iteration++;
+            console.log(`[Agent] Iteration ${iteration}...`);
 
-        const assistantMessage = response.content
-            .filter((block) => block.type === "text")
-            .map((block) => block.text)
-            .join("\n");
+            const response = await anthropic.messages.create({
+                model: MODEL,
+                max_tokens: MAX_TOKENS,
+                system: SYSTEM_PROMPT,
+                messages: currentMessages,
+                tools: tools,
+            });
 
-        // 3. Persist the turn to SQLite *only after* a successful API call
-        addMessage(ctx.userId, "user", userText);
-        addMessage(ctx.userId, "assistant", assistantMessage);
+            // If Claude decided to use a tool
+            if (response.stop_reason === "tool_use") {
+                // Record Claude's tool_use commands in the active message history
+                currentMessages.push({ role: "assistant", content: response.content });
 
-        return assistantMessage;
+                // We must map the tool executions into a single user turn containing tool_results
+                const toolResults: any[] = [];
+
+                for (const block of response.content) {
+                    if (block.type === "tool_use") {
+                        const resultText = await executeTool(block.name, block.input, ctx.userId);
+                        toolResults.push({
+                            type: "tool_result",
+                            tool_use_id: block.id,
+                            content: resultText,
+                        });
+                    }
+                }
+
+                // Feed the tool results back into the model in the next loop Iteration
+                currentMessages.push({ role: "user", content: toolResults });
+
+                // Continue loop...
+
+            } else {
+                // The loop is done — Claude produced a final text response.
+                const assistantMessageText = response.content
+                    .filter((block) => block.type === "text")
+                    .map((block) => block.text)
+                    .join("\n");
+
+                // 3. Persist the *initial start* and *final end* to the permanent DB
+                // We do not save intermediate tool thoughts to the long-term DB to keep it clean.
+                addMessage(ctx.userId, "user", userText);
+                addMessage(ctx.userId, "assistant", assistantMessageText);
+
+                return assistantMessageText;
+            }
+        }
+
+        return "⚠️ I had to stop thinking because I hit my maximum loop iterations.";
+
     } catch (error) {
         const message =
             error instanceof Error ? error.message : "Unknown error from Claude";
-        console.error("[Agent] Claude API error:", message);
+        console.error("[Agent] API error:", message);
         return `⚠️ Error reaching Claude: ${message}`;
     }
 }
