@@ -9,10 +9,17 @@ import { config } from "./config.js";
 import type { AgentContext, Message } from "./types.js";
 import { addMessage, getRecentContext } from "./db.js";
 
-const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+const anthropic = new Anthropic({
+    apiKey: config.openrouterApiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+        "HTTP-Referer": "https://gravity-claw.local",
+        "X-Title": "Gravity Claw"
+    }
+});
 
-/** Claude model to use. claude-3-5-haiku is fast & cost-efficient for chat. */
-const MODEL = "claude-3-5-haiku-20241022";
+/** Claude model to use via OpenRouter. */
+const MODEL = "anthropic/claude-3-5-haiku-20241022";
 
 /** Maximum tokens in a single response. */
 const MAX_TOKENS = 1024;
