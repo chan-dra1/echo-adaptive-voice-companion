@@ -6,7 +6,8 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "./config.js";
-import type { AgentContext } from "./types.js";
+import type { AgentContext, Message } from "./types.js";
+import { addMessage, getRecentContext } from "./db.js";
 
 const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
 
@@ -25,37 +26,40 @@ You are speaking to your owner — the only person who can reach you.`;
 
 /**
  * Process a user message and return the assistant's reply.
- * Mutates ctx.history to maintain conversation continuity within a session.
+ * Reads conversation context from SQLite and writes the new turns to disk.
  */
 export async function processMessage(
     ctx: AgentContext,
     userText: string
 ): Promise<string> {
-    // Append the new user turn
-    ctx.history.push({ role: "user", content: userText });
+    // 1. Fetch recent context from database (e.g., last 20 messages)
+    const recentHistory = getRecentContext(ctx.userId, 20);
+
+    // 2. Append the new user turn for this API request
+    const messages: Message[] = [
+        ...recentHistory,
+        { role: "user", content: userText }
+    ];
 
     try {
         const response = await anthropic.messages.create({
             model: MODEL,
             max_tokens: MAX_TOKENS,
             system: SYSTEM_PROMPT,
-            messages: ctx.history,
+            messages: messages,
         });
 
-        // Extract text content from the response
         const assistantMessage = response.content
             .filter((block) => block.type === "text")
             .map((block) => block.text)
             .join("\n");
 
-        // Append assistant turn to history for multi-turn continuity
-        ctx.history.push({ role: "assistant", content: assistantMessage });
+        // 3. Persist the turn to SQLite *only after* a successful API call
+        addMessage(ctx.userId, "user", userText);
+        addMessage(ctx.userId, "assistant", assistantMessage);
 
         return assistantMessage;
     } catch (error) {
-        // Remove the failed user turn so history stays consistent
-        ctx.history.pop();
-
         const message =
             error instanceof Error ? error.message : "Unknown error from Claude";
         console.error("[Agent] Claude API error:", message);

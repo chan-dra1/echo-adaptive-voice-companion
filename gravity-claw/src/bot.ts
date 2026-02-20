@@ -7,23 +7,9 @@
 import { Bot } from "grammy";
 import { config, isAllowed } from "./config.js";
 import { processMessage } from "./agent.js";
-import type { AgentContext } from "./types.js";
+import { clearHistory } from "./db.js";
 
 export const bot = new Bot(config.telegramToken);
-
-/**
- * In-memory session store: userId → AgentContext
- * Level 2 will replace this with SQLite persistence.
- */
-const sessions = new Map<number, AgentContext>();
-
-function getOrCreateSession(userId: number): AgentContext {
-    if (!sessions.has(userId)) {
-        sessions.set(userId, { userId, history: [] });
-    }
-    // Non-null assertion is safe: we just set it above
-    return sessions.get(userId)!;
-}
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -32,7 +18,7 @@ bot.command("start", async (ctx) => {
     if (!isAllowed(userId)) return; // Silent drop
 
     await ctx.reply(
-        "⚡ Gravity Claw online.\n\nSend me any message and I'll respond via Claude.\nYour conversation history is kept within this session."
+        "⚡ Gravity Claw online.\n\nSend me any message and I'll respond via Claude.\nYour conversation history is persisted securely on disk."
     );
 });
 
@@ -41,9 +27,9 @@ bot.command("reset", async (ctx) => {
     if (!isAllowed(userId)) return;
 
     if (userId !== undefined) {
-        sessions.delete(userId);
+        clearHistory(userId);
     }
-    await ctx.reply("🔄 Session reset. Fresh conversation started.");
+    await ctx.reply("🔄 Persistent memory wiped. Starting fresh.");
 });
 
 bot.on("message:text", async (ctx) => {
@@ -59,8 +45,8 @@ bot.on("message:text", async (ctx) => {
     // Show typing indicator while Claude thinks
     await ctx.replyWithChatAction("typing");
 
-    const session = getOrCreateSession(userId!);
-    const reply = await processMessage(session, userText);
+    // Pass the minimal context (history is now handled by agent/db)
+    const reply = await processMessage({ userId: userId! }, userText);
 
     await ctx.reply(reply);
 });

@@ -11,6 +11,4 @@ export type Message = Anthropic.MessageParam;
 export interface AgentContext {
     /** Telegram user ID of the owner (already verified as allowed by bot.ts). */
     userId: number;
-    /** Running conversation history for this session (in-memory, Level 2 adds persistence). */
-    history: Message[];
 }
