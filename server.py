@@ -10,6 +10,7 @@ import os
 import io
 import base64
 import uuid
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -169,6 +170,36 @@ def exec_command():
         })
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Command timed out"}), 408
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/llm/anthropic', methods=['POST'])
+def proxy_anthropic():
+    # Proxies requests to Anthropic API to bypass browser CORS
+    api_key = request.headers.get('x-api-key')
+    if not api_key:
+        return jsonify({"error": "x-api-key header is required"}), 401
+
+    try:
+        data = request.json
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+        
+        # Return exact status and JSON from Anthropic
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Request to Anthropic API timed out"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -70,7 +70,7 @@ You are "Echo," a deeply personalized AI companion and sophisticated thought par
 `;
 
 
-export const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
+export const MODEL_NAME = 'gemini-2.5-flash-native-audio-latest';
 
 export const VOICE_OPTIONS = [
     { id: 'Aoede', name: 'Aoede (Female - Calm)', gender: 'female' },

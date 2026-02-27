@@ -26,9 +26,15 @@ import HistorySidebar from './components/HistorySidebar';
 import SettingsVault from './components/SettingsVault';
 import RecentChatsWidget from './components/RecentChatsWidget';
 import KnowledgeDropZone from './components/KnowledgeDropZone';
+import TextChatBar from './components/TextChatBar';
 
 export default function App() {
-  const [apiKey, setApiKey] = useState(localStorage.getItem('echo_api_key') || process.env.API_KEY || '');
+  // Check if ANY provider key is available
+  const hasAnyApiKey = () => {
+    return !!(localStorage.getItem('echo_api_key') || localStorage.getItem('echo_openai_key') || localStorage.getItem('echo_anthropic_key') || localStorage.getItem('echo_groq_key') || localStorage.getItem('echo_nvidia_key') || localStorage.getItem('echo_openrouter_key'));
+  };
+  const [apiKey, setApiKey] = useState(localStorage.getItem('echo_api_key') || '');
+  const [hasKey, setHasKey] = useState(hasAnyApiKey());
   const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -228,7 +234,7 @@ export default function App() {
       }
 
       await service.connect({
-        voiceName: selectedVoice,
+        voiceName: selectedVoice.id,
         useLocalVoice: isLocalVoiceEnabled || isStealthMode,
         systemInstruction,
         speechConfig: {
@@ -990,9 +996,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* API Key Modal */}
+        {/* API Key Modal — only if NO provider key exists at all */}
         {
-          (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') && (
+          !hasKey && (
             <div
               className="absolute inset-0 z-50 flex items-center justify-center bg-echo-dark/90 backdrop-blur-xl p-4"
               role="dialog"
@@ -1006,22 +1012,43 @@ export default function App() {
                     <Terminal size={32} className="text-echo-primary" />
                   </div>
                   <h2 id="api-key-modal-title" className="text-2xl font-bold text-white">Welcome to Echo</h2>
-                  <p id="api-key-modal-description" className="text-gray-400 mb-4">To get started, please enter your Gemini API Key.</p>
+                  <p id="api-key-modal-description" className="text-gray-400 mb-4">Enter any API key to get started. Gemini key is only needed for voice chat; text chat works with any provider.</p>
 
-                  <label htmlFor="api-key-input" className="sr-only">Gemini API Key</label>
+                  <label htmlFor="api-key-input" className="sr-only">API Key</label>
                   <input
                     id="api-key-input"
                     type="password"
-                    placeholder="Enter Gemini API Key"
+                    placeholder="Enter any API Key (Gemini, OpenAI, Groq, NVIDIA…)"
                     autoFocus
                     className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus-visible:border-echo-primary focus-visible:ring-2 focus-visible:ring-echo-primary transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const val = (e.target as HTMLInputElement).value;
                         if (val.length > 20) {
-                          setApiKey(val);
-                          localStorage.setItem('echo_api_key', val);
-                          success("API key saved successfully");
+                          // Smart-detect provider from key prefix
+                          if (val.startsWith('sk-or-v1-')) {
+                            localStorage.setItem('echo_openrouter_key', val);
+                            localStorage.setItem('echo_llm_provider', 'openrouter');
+                          } else if (val.startsWith('sk-ant-')) {
+                            localStorage.setItem('echo_anthropic_key', val);
+                            localStorage.setItem('echo_llm_provider', 'anthropic');
+                          } else if (val.startsWith('sk-proj-') || val.startsWith('sk-')) {
+                            localStorage.setItem('echo_openai_key', val);
+                            localStorage.setItem('echo_llm_provider', 'openai');
+                          } else if (val.startsWith('gsk_')) {
+                            localStorage.setItem('echo_groq_key', val);
+                            localStorage.setItem('echo_llm_provider', 'groq');
+                          } else if (val.startsWith('nvapi-')) {
+                            localStorage.setItem('echo_nvidia_key', val);
+                            localStorage.setItem('echo_llm_provider', 'nvidia');
+                          } else {
+                            // Default to Gemini
+                            setApiKey(val);
+                            localStorage.setItem('echo_api_key', val);
+                            localStorage.setItem('echo_llm_provider', 'gemini');
+                          }
+                          setHasKey(true);
+                          success("API key saved! Provider auto-detected.");
                         } else {
                           error("API key appears too short. Please enter a valid key.");
                         }
@@ -1031,22 +1058,32 @@ export default function App() {
                     aria-describedby="api-key-help"
                   />
                   <p id="api-key-help" className="text-xs text-gray-500 mt-2">
-                    Get your key at{' '}
-                    <a
-                      href="https://aistudio.google.com/app/apikey"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-echo-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary rounded"
-                    >
-                      Google AI Studio
-                    </a>
+                    Free options: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-echo-primary hover:underline">Gemini</a>
+                    {' • '}<a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-echo-primary hover:underline">Groq</a>
+                    {' • '}<a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-echo-primary hover:underline">OpenRouter</a>
                   </p>
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="text-xs text-gray-500 hover:text-echo-primary transition-colors mt-1"
+                  >
+                    Or open Settings Vault for more options →
+                  </button>
                 </div>
               </div>
             </div>
           )
         }
       </KnowledgeDropZone>
+
+      {/* Floating Text Chat Bar */}
+      <TextChatBar
+        onApiKeyMissing={() => setIsSettingsOpen(true)}
+        onNewMessage={(role, text) => {
+          if (currentConvoId) {
+            addMessageToConversation(currentConvoId, role === 'assistant' ? 'ai' : 'user', text);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -13,6 +13,12 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     const [githubToken, setGithubToken] = useState('');
     const [serpApiKey, setSerpApiKey] = useState('');
     const [geminiApiKey, setGeminiApiKey] = useState('');
+    const [openaiApiKey, setOpenaiApiKey] = useState('');
+    const [anthropicApiKey, setAnthropicApiKey] = useState('');
+    const [groqApiKey, setGroqApiKey] = useState('');
+    const [nvidiaApiKey, setNvidiaApiKey] = useState('');
+    const [openrouterApiKey, setOpenrouterApiKey] = useState('');
+    const [llmProvider, setLlmProvider] = useState('gemini');
 
     // Load existing keys (masked)
     useEffect(() => {
@@ -20,6 +26,12 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             setGithubToken(localStorage.getItem('echo_github_token') || '');
             setSerpApiKey(localStorage.getItem('VITE_SERP_API_KEY') || ''); // Note: usually env, but supporting override
             setGeminiApiKey(localStorage.getItem('echo_api_key') || '');
+            setOpenaiApiKey(localStorage.getItem('echo_openai_key') || '');
+            setAnthropicApiKey(localStorage.getItem('echo_anthropic_key') || '');
+            setGroqApiKey(localStorage.getItem('echo_groq_key') || '');
+            setNvidiaApiKey(localStorage.getItem('echo_nvidia_key') || '');
+            setOpenrouterApiKey(localStorage.getItem('echo_openrouter_key') || '');
+            setLlmProvider(localStorage.getItem('echo_llm_provider') || 'gemini');
         }
     }, [isOpen]);
 
@@ -28,6 +40,12 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             if (githubToken) localStorage.setItem('echo_github_token', githubToken);
             if (serpApiKey) localStorage.setItem('VITE_SERP_API_KEY', serpApiKey); // This won't override vite env but can be used as fallback
             if (geminiApiKey) localStorage.setItem('echo_api_key', geminiApiKey);
+            if (openaiApiKey) localStorage.setItem('echo_openai_key', openaiApiKey);
+            if (anthropicApiKey) localStorage.setItem('echo_anthropic_key', anthropicApiKey);
+            if (groqApiKey) localStorage.setItem('echo_groq_key', groqApiKey);
+            if (nvidiaApiKey) localStorage.setItem('echo_nvidia_key', nvidiaApiKey);
+            if (openrouterApiKey) localStorage.setItem('echo_openrouter_key', openrouterApiKey);
+            localStorage.setItem('echo_llm_provider', llmProvider);
 
             success('Settings saved securely');
             onClose();
@@ -44,6 +62,11 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         if (key === 'echo_github_token') setGithubToken('');
         if (key === 'VITE_SERP_API_KEY') setSerpApiKey('');
         if (key === 'echo_api_key') setGeminiApiKey('');
+        if (key === 'echo_openai_key') setOpenaiApiKey('');
+        if (key === 'echo_anthropic_key') setAnthropicApiKey('');
+        if (key === 'echo_groq_key') setGroqApiKey('');
+        if (key === 'echo_nvidia_key') setNvidiaApiKey('');
+        if (key === 'echo_openrouter_key') setOpenrouterApiKey('');
         success('Key cleared');
     };
 
@@ -126,6 +149,31 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                             </div>
                         </div>
 
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Cpu size={16} />
+                                <span>Preferred Text Chat Provider</span>
+                            </label>
+                            <div className="relative">
+                                <select
+                                    value={llmProvider}
+                                    onChange={(e) => setLlmProvider(e.target.value)}
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
+                                    style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
+                                >
+                                    <option value="gemini">Google Gemini (Default)</option>
+                                    <option value="openai">OpenAI (ChatGPT)</option>
+                                    <option value="anthropic">Anthropic (Claude)</option>
+                                    <option value="groq">Groq (Llama/Mixtral) — Free</option>
+                                    <option value="nvidia">NVIDIA Build (Free Tier)</option>
+                                    <option value="openrouter">OpenRouter (Free Models)</option>
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <svg width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Gemini API Key */}
                         <div className="space-y-2">
                             <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
@@ -152,7 +200,135 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                             </div>
                         </div>
 
-                        {/* SerpAPI Key */}
+                        {/* OpenAI API Key */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Cpu size={16} />
+                                <span>OpenAI API Key</span>
+                            </label>
+                            <div className="relative group">
+                                <input
+                                    type="password"
+                                    value={openaiApiKey}
+                                    onChange={(e) => setOpenaiApiKey(e.target.value)}
+                                    placeholder="sk-proj-..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-10 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono"
+                                />
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={16} />
+                                {openaiApiKey && (
+                                    <button
+                                        onClick={() => handleClear('echo_openai_key')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Anthropic API Key */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Cpu size={16} />
+                                <span>Anthropic API Key</span>
+                            </label>
+                            <div className="relative group">
+                                <input
+                                    type="password"
+                                    value={anthropicApiKey}
+                                    onChange={(e) => setAnthropicApiKey(e.target.value)}
+                                    placeholder="sk-ant-..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-10 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono"
+                                />
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={16} />
+                                {anthropicApiKey && (
+                                    <button
+                                        onClick={() => handleClear('echo_anthropic_key')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Groq API Key */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Cpu size={16} />
+                                <span>Groq API Key</span>
+                            </label>
+                            <div className="relative group">
+                                <input
+                                    type="password"
+                                    value={groqApiKey}
+                                    onChange={(e) => setGroqApiKey(e.target.value)}
+                                    placeholder="gsk_..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-10 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono"
+                                />
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={16} />
+                                {groqApiKey && (
+                                    <button
+                                        onClick={() => handleClear('echo_groq_key')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* NVIDIA Build API Key */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Cpu size={16} />
+                                <span>NVIDIA Build API Key</span>
+                            </label>
+                            <div className="relative group">
+                                <input
+                                    type="password"
+                                    value={nvidiaApiKey}
+                                    onChange={(e) => setNvidiaApiKey(e.target.value)}
+                                    placeholder="nvapi-..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-10 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono"
+                                />
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={16} />
+                                {nvidiaApiKey && (
+                                    <button
+                                        onClick={() => handleClear('echo_nvidia_key')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* OpenRouter API Key */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Globe size={16} />
+                                <span>OpenRouter API Key</span>
+                            </label>
+                            <div className="relative group">
+                                <input
+                                    type="password"
+                                    value={openrouterApiKey}
+                                    onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                                    placeholder="sk-or-v1-..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-10 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono"
+                                />
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={16} />
+                                {openrouterApiKey && (
+                                    <button
+                                        onClick={() => handleClear('echo_openrouter_key')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                         <div className="space-y-2">
                             <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
                                 <Globe size={16} />
