@@ -22,9 +22,6 @@ import { useToast } from './hooks/useToast';
 import { createConversation, getConversations, getActiveConversationId, setActiveConversationId, buildKnowledgeContext, Conversation, deleteConversation, getConversation, addMessageToConversation } from './services/conversationService';
 import StealthPanel from './components/StealthPanel';
 import TranslationPanel from './components/TranslationPanel';
-import HistorySidebar from './components/HistorySidebar';
-import SettingsVault from './components/SettingsVault';
-import RecentChatsWidget from './components/RecentChatsWidget';
 import KnowledgeDropZone from './components/KnowledgeDropZone';
 import TextChatBar from './components/TextChatBar';
 
@@ -56,7 +53,6 @@ export default function App() {
   const [isLocalVoiceEnabled, setIsLocalVoiceEnabled] = useState(false);
   const [isStealthMode, setIsStealthMode] = useState(false);
   const [isTranslationMode, setIsTranslationMode] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -328,7 +324,6 @@ export default function App() {
     setActiveConversationId(id);
     setCurrentConvoId(id);
     setChatHistory(convo.messages);
-    setIsHistoryOpen(false);
     success(`Resumed: ${convo.title}`);
   };
 
@@ -410,15 +405,7 @@ export default function App() {
             />
           )}
 
-          {/* History Sidebar */}
-          <HistorySidebar
-            isOpen={isHistoryOpen}
-            onClose={() => setIsHistoryOpen(false)}
-            conversations={conversations}
-            activeId={currentConvoId}
-            onSelect={handleSelectConversation}
-            onDelete={handleDeleteConversation}
-          />
+
 
           <SettingsVault
             isOpen={isSettingsOpen}
@@ -544,19 +531,7 @@ export default function App() {
                   </button>
                 </Tooltip>
 
-                {/* History Toggle */}
-                <Tooltip content="History / Memory Bank">
-                  <button
-                    onClick={() => {
-                      loadConversations();
-                      setIsHistoryOpen(true);
-                    }}
-                    className="p-3 rounded-xl transition-all duration-300 border backdrop-blur-md bg-black/20 border-white/5 text-gray-400 hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
-                    aria-label="Toggle history"
-                  >
-                    <Clock size={20} />
-                  </button>
-                </Tooltip>
+
 
                 {/* Settings Vault Toggle */}
                 <Tooltip content="Settings / Keys">
@@ -704,13 +679,6 @@ export default function App() {
                   <div className="grid grid-cols-4 gap-2">
                     {/* Compact Grid for Mobile Toggles */}
                     <button
-                      onClick={() => { setIsHistoryOpen(true); setShowMobileMenu(false); }}
-                      className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
-                    >
-                      <Clock size={16} />
-                      <span className="text-[10px]">History</span>
-                    </button>
-                    <button
                       onClick={() => { setIsSettingsOpen(true); setShowMobileMenu(false); }}
                       className="flex flex-col items-center gap-1 p-2 rounded-lg bg-black/20 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
                     >
@@ -790,14 +758,6 @@ export default function App() {
                   outputVolume={volumeState.outputVolume}
                   isActive={status === ConnectionStatus.CONNECTED}
                 />
-                {/* Recent Chats Overlay (Empty State) */}
-                {status !== ConnectionStatus.CONNECTED && chatHistory.length === 0 && (
-                  <RecentChatsWidget
-                    conversations={conversations}
-                    onSelect={handleSelectConversation}
-                    onViewAll={() => setIsHistoryOpen(true)}
-                  />
-                )}
               </div>
             </div>
 

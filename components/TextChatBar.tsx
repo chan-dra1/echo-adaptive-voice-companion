@@ -33,14 +33,8 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage }: TextChatB
         if (!text || isLoading) return;
 
         // Determine which provider and key to use
-        const provider = localStorage.getItem('echo_llm_provider') || 'gemini';
-        let apiKey = '';
-        if (provider === 'gemini') apiKey = localStorage.getItem('echo_api_key') || '';
-        else if (provider === 'openai') apiKey = localStorage.getItem('echo_openai_key') || '';
-        else if (provider === 'anthropic') apiKey = localStorage.getItem('echo_anthropic_key') || '';
-        else if (provider === 'groq') apiKey = localStorage.getItem('echo_groq_key') || '';
-        else if (provider === 'nvidia') apiKey = localStorage.getItem('echo_nvidia_key') || '';
-        else if (provider === 'openrouter') apiKey = localStorage.getItem('echo_openrouter_key') || '';
+        const provider = 'gemini';
+        const apiKey = localStorage.getItem('echo_api_key') || '';
 
         if (!apiKey) {
             onApiKeyMissing();
