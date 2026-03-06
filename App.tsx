@@ -1042,15 +1042,7 @@ export default function App() {
         }
       </KnowledgeDropZone>
 
-      {/* Floating Text Chat Bar */}
-      <TextChatBar
-        onApiKeyMissing={() => setIsSettingsOpen(true)}
-        onNewMessage={(role, text) => {
-          if (currentConvoId) {
-            addMessageToConversation(currentConvoId, role === 'assistant' ? 'ai' : 'user', text);
-          }
-        }}
-      />
+      {/* Text Chat is now embedded inside the Transcript sidebar */}
     </div>
   );
 }
