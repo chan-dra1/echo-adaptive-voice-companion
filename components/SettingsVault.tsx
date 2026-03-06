@@ -14,7 +14,6 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     const [serpApiKey, setSerpApiKey] = useState('');
     const [geminiApiKey, setGeminiApiKey] = useState('');
     const [llmProvider, setLlmProvider] = useState('gemini');
-    const [llmProvider, setLlmProvider] = useState('gemini');
 
     // Load existing keys (masked)
     useEffect(() => {

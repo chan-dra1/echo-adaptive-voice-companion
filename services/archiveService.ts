@@ -1,4 +1,4 @@
-import { ChatTurn } from './echoChatService';
+import type { ChatTurn } from './echoChatService';
 
 const SERVER_URL = 'http://localhost:8000';
 

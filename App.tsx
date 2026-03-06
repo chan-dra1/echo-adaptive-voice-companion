@@ -24,6 +24,7 @@ import StealthPanel from './components/StealthPanel';
 import TranslationPanel from './components/TranslationPanel';
 import KnowledgeDropZone from './components/KnowledgeDropZone';
 import TextChatBar from './components/TextChatBar';
+import SettingsVault from './components/SettingsVault';
 
 export default function App() {
   // Check if ANY provider key is available
