@@ -5,9 +5,10 @@ import { echoChatService, ChatTurn } from '../services/echoChatService';
 interface TextChatBarProps {
     onApiKeyMissing: () => void;
     onNewMessage: (role: 'user' | 'assistant', text: string) => void;
+    embedded?: boolean;
 }
 
-export default function TextChatBar({ onApiKeyMissing, onNewMessage }: TextChatBarProps) {
+export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = false }: TextChatBarProps) {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<ChatTurn[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -17,24 +18,31 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage }: TextChatB
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !embedded) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [messages, isOpen]);
+    }, [messages, isOpen, embedded]);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen || embedded) {
             setTimeout(() => inputRef.current?.focus(), 150);
         }
-    }, [isOpen]);
+    }, [isOpen, embedded]);
 
     const handleSend = async () => {
         const text = input.trim();
         if (!text || isLoading) return;
 
         // Determine which provider and key to use
-        const provider = 'gemini';
-        const apiKey = localStorage.getItem('echo_api_key') || '';
+        const provider = localStorage.getItem('echo_llm_provider') || 'gemini';
+        let apiKey = '';
+        if (provider === 'gemini') apiKey = localStorage.getItem('echo_api_key') || '';
+        else if (provider === 'openai') apiKey = localStorage.getItem('echo_openai_key') || '';
+        else if (provider === 'anthropic') apiKey = localStorage.getItem('echo_anthropic_key') || '';
+        else if (provider === 'groq') apiKey = localStorage.getItem('echo_groq_key') || '';
+        else if (provider === 'nvidia') apiKey = localStorage.getItem('echo_nvidia_key') || '';
+        else if (provider === 'openrouter') apiKey = localStorage.getItem('echo_openrouter_key') || '';
+        else apiKey = localStorage.getItem('echo_api_key') || ''; // fallback
 
         if (!apiKey) {
             onApiKeyMissing();
@@ -66,6 +74,38 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage }: TextChatB
             handleSend();
         }
     };
+
+    if (embedded) {
+        return (
+            <div className="flex flex-col border-t border-white/10 bg-echo-surface/90 backdrop-blur-md p-4">
+                {error && (
+                    <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-2">
+                        ⚠ {error}
+                    </p>
+                )}
+                <div className="flex items-center gap-2 bg-black/40 rounded-xl px-4 py-3 border border-white/5 focus-within:border-echo-primary/50 transition-colors">
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Message Echo text AI..."
+                        className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm outline-none"
+                        disabled={isLoading}
+                    />
+                    <button
+                        onClick={handleSend}
+                        disabled={!input.trim() || isLoading}
+                        className="p-2 rounded-lg bg-[#00ff88]/15 text-[#00ff88] hover:bg-[#00ff88]/25 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        aria-label="Send text message"
+                    >
+                        {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4">

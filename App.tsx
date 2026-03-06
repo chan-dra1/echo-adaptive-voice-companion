@@ -482,6 +482,12 @@ export default function App() {
                 onHistoryClear={handleHistoryClear}
                 isThinking={isThinking}
                 onClose={() => setShowChat(false)}
+                onApiKeyMissing={() => setIsSettingsOpen(true)}
+                onNewMessage={(role, text) => {
+                  if (currentConvoId) {
+                    addMessageToConversation(currentConvoId, role === 'assistant' ? 'ai' : 'user', text);
+                  }
+                }}
               />
             </div>
           </div>
@@ -876,7 +882,7 @@ export default function App() {
                 </Tooltip>
 
                 {/* Stealth Mode Toggle */}
-                <Tooltip content={isStealthMode ? "Disable Interview Mode" : "Enable Interview Mode (Stealth)"}>
+                <Tooltip content={isStealthMode ? "Disable Ghost Mode" : "Enable Ghost Mode"}>
                   <button
                     onClick={() => {
                       if (status === ConnectionStatus.CONNECTED) {

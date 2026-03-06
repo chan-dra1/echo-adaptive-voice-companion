@@ -25,6 +25,17 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         }
     }, [isOpen]);
 
+    // Listen for Escape key to close the vault
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     const handleSave = () => {
         try {
             if (githubToken) localStorage.setItem('echo_github_token', githubToken);

@@ -4,15 +4,18 @@ import { MessageSquare, Trash2, Sparkles, X, Copy, Download, Check } from 'lucid
 import { clearHistory } from '../services/chatHistoryService';
 import Tooltip from './Tooltip';
 import Button from './Button';
+import TextChatBar from './TextChatBar';
 
 interface ChatPanelProps {
   history: ChatMessage[];
   onHistoryClear?: () => void;
   isThinking?: boolean;
   onClose: () => void;
+  onApiKeyMissing?: () => void;
+  onNewMessage?: (role: 'user' | 'assistant', text: string) => void;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinking, onClose }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinking, onClose, onApiKeyMissing, onNewMessage }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -169,6 +172,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
 
         <div ref={bottomRef} />
       </div>
+
+      {onApiKeyMissing && onNewMessage && (
+        <TextChatBar
+          embedded
+          onApiKeyMissing={onApiKeyMissing}
+          onNewMessage={onNewMessage}
+        />
+      )}
     </div>
   );
 };

@@ -5,6 +5,7 @@
 import { ECHO_SYSTEM_INSTRUCTION } from '../constants';
 import { getMemories } from './memoryService';
 import { archiveService } from './archiveService';
+import { buildKnowledgeContext } from './conversationService';
 
 export interface ChatTurn {
     role: 'user' | 'assistant';
@@ -45,7 +46,11 @@ class EchoChatService {
         const memContext = memories.length > 0
             ? '\n\n[LONG TERM MEMORY]\n' + memories.map(m => `${m.key}: ${m.value}`).join('\n')
             : '';
-        const systemInstruction = ECHO_SYSTEM_INSTRUCTION + memContext;
+        const globalKnowledge = buildKnowledgeContext();
+        const docContext = globalKnowledge.length > 0
+            ? `\n\n[UPLOADED FILE KNOWLEDGE]\n${globalKnowledge}`
+            : '';
+        const systemInstruction = ECHO_SYSTEM_INSTRUCTION + memContext + docContext;
 
         console.log(`[EchoChatService] Routing to: ${provider}`);
 
@@ -145,9 +150,10 @@ class EchoChatService {
             parts: [{ text: t.content }],
         }));
 
-        const body = {
+        const body: any = {
             system_instruction: { parts: [{ text: systemInstruction }] },
             contents,
+            tools: [{ googleSearch: {} }],
             generationConfig: {
                 temperature: 0.8,
                 maxOutputTokens: 2048,

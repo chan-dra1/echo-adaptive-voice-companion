@@ -48,8 +48,8 @@ const InterviewMode: React.FC<InterviewModeProps> = ({ onActivate, isActive }) =
               key={style}
               onClick={() => setConfig({ ...config, style })}
               className={`p-3 rounded-lg text-sm font-medium transition-all ${config.style === style
-                  ? 'bg-echo-primary text-white'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'bg-echo-primary text-white'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
             >
               {style.charAt(0).toUpperCase() + style.slice(1)}
