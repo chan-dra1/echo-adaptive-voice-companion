@@ -1,7 +1,7 @@
 import { Type } from "@google/genai";
 import { ToolDefinition } from "./agentSkillService";
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 export interface FileSystemNode {
     path: string;
