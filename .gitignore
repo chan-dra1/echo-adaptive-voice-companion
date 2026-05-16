@@ -42,6 +42,7 @@ venv/
 .env
 .env.local
 .python-version
+mock_server.py
 
 # ── Server Data (Cloned voices and generated audio) ──────────────
 server_data/
