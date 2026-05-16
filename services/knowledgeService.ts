@@ -231,6 +231,19 @@ class KnowledgeService {
         await db.clear('documents');
         await db.clear('vectors');
     }
+
+    async deleteDocument(documentId: string) {
+        const db = await this.dbPromise;
+        const tx = db.transaction(['documents', 'vectors'], 'readwrite');
+        await tx.objectStore('documents').delete(documentId);
+        const index = tx.objectStore('vectors').index('by-doc');
+        let cursor = await index.openCursor(IDBKeyRange.only(documentId));
+        while (cursor) {
+            await cursor.delete();
+            cursor = await cursor.continue();
+        }
+        await tx.done;
+    }
 }
 
 export const knowledgeService = new KnowledgeService();

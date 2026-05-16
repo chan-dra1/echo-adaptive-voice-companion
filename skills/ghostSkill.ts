@@ -17,9 +17,7 @@ const ghostSkill: Skill = {
                 case "write_file":
                     const result = await ghostAgent.writeFile(args.path, args.content);
                     return result;
-                case "run_command":
-                    const execResult = await ghostAgent.execCommand(args.command, args.cwd);
-                    return execResult;
+
                 default:
                     throw new Error(`Unknown tool: ${toolName}`);
             }

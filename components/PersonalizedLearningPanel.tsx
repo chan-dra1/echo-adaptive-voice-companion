@@ -92,25 +92,24 @@ const PersonalizedLearningPanel: React.FC<PersonalizedLearningPanelProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-echo-surface/95 backdrop-blur-xl border-l border-white/10 shadow-2xl">
+    <div className="h-full flex flex-col bg-black/95 backdrop-blur-xl border-l border-[#00ff41]/20 shadow-2xl font-mono text-[#00ff41]">
       {/* Header */}
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-echo-primary/20 to-echo-accent/20 rounded-xl flex items-center justify-center">
-              <Brain size={20} className="text-echo-primary" />
+            <div className="w-10 h-10 bg-[#00ff41]/10 rounded-xl flex items-center justify-center border border-[#00ff41]/20">
+              <Brain size={20} className="text-[#00ff41]" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Personal AI Learning</h2>
+              <h2 className="text-lg font-bold text-[#00ff41] tracking-widest">NEURAL_ADAPT</h2>
               <p className="text-xs text-gray-400">Learns how YOU communicate</p>
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+            className="text-[#00ff41]/60 hover:text-[#00ff41] p-3 rounded-full hover:bg-[#00ff41]/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00ff41] bg-black/40 border border-[#00ff41]/20"
             aria-label="Close panel"
           >
-            <Trash2 size={20} />
+            <X size={24} />
           </button>
         </div>
 

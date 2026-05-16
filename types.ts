@@ -3,6 +3,8 @@ export interface MemoryItem {
   key: string;
   value: string;
   timestamp: number;
+  /** Where this memory is allowed to leave the device. Defaults to 'cloud_ok'. */
+  sensitivity?: 'cloud_ok' | 'local_only';
 }
 
 export enum ConnectionStatus {

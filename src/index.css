@@ -1,26 +1,64 @@
+/* MOBILE-AGENT: PWA / mobile-only additive styles. Imported first so @import is the first rule. */
+@import './mobile.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-
     html,
     body {
         height: 100%;
+        height: 100dvh;
         margin: 0;
-    }
-
-    body {
-        background-color: #0f172a;
+        padding: 0;
+        background-color: #050505;
         color: #f8fafc;
         overflow: hidden;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overscroll-behavior: none;
+    }
+
+    #root {
+        height: 100%;
+        height: 100dvh;
     }
 }
 
 @layer utilities {
+    .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .pt-safe {
+        padding-top: env(safe-area-inset-top);
+    }
+}
 
-    /* Custom scrollbar for panels */
+:root {
+    --echo-primary: #0ae2ff;
+    --echo-secondary: #ff3c96;
+    --echo-accent: #ffc80a;
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.5rem;
+}
+
+@layer utilities {
     .scrollbar-hide::-webkit-scrollbar {
         display: none;
     }
@@ -29,99 +67,41 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
     }
-
-    /* Screen reader only class */
-    .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border-width: 0;
-    }
 }
 
-/* Global Styles */
-*:focus {
-    outline: none;
+/* Animations */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
-*:focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-    border-radius: 4px;
+.animate-spin-slow {
+    animation: spin-slow 12s linear infinite;
 }
 
-/* Smooth focus transitions */
-button,
-a,
-input,
-select,
-textarea {
-    transition: outline 0.2s ease, box-shadow 0.2s ease;
+@keyframes pulse-gentle {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.05); }
 }
 
-/* Custom animations */
-@keyframes slideInDown {
-    0% {
-        transform: translateY(-100%);
-        opacity: 0;
-    }
-
-    100% {
-        transform: translateY(0);
-        opacity: 1;
-    }
+.animate-pulse-gentle {
+    animation: pulse-gentle 4s ease-in-out infinite;
 }
 
-@keyframes fadeIn {
-    0% {
-        opacity: 0;
-    }
-
-    100% {
-        opacity: 1;
-    }
+/* Custom Scrollbar for translucent panels */
+::-webkit-scrollbar {
+    width: 4px;
 }
 
-@keyframes shimmer {
-    0% {
-        background-position: -1000px 0;
-    }
-
-    100% {
-        background-position: 1000px 0;
-    }
+::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-/* Reduce motion for users who prefer it */
-@media (prefers-reduced-motion: reduce) {
-
-    *,
-    *::before,
-    *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        max-height: 100vh;
-    }
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
 }
 
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-
-    button,
-    a {
-        border: 2px solid currentColor;
-    }
-}
-
-/* Print styles */
-@media print {
-    .no-print {
-        display: none !important;
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }

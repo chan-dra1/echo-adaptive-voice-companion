@@ -114,21 +114,21 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-echo-surface/50 border-l border-white/10 backdrop-blur-md w-80 max-w-full" role="region" aria-label="Memory panel">
+    <div className="h-full flex flex-col bg-black/95 border-l border-[#00ff41]/20 backdrop-blur-md w-full sm:w-80 max-w-full font-mono text-[#00ff41]" role="region" aria-label="Memory panel">
       <div className="p-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex flex-col">
-          <h2 className="text-lg font-mono font-semibold text-echo-primary flex items-center gap-2 mb-2">
+          <h2 className="text-lg font-mono font-semibold text-[#00ff41] flex items-center gap-2 mb-2">
             <Database size={18} aria-hidden="true" />
-            MEMORY_LOG
+            MEMORY_CACHE
           </h2>
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('facts')}
-              className={`text-[10px] px-2 py-1 rounded transition-colors ${activeTab === 'facts' ? 'bg-echo-primary/20 text-echo-primary' : 'text-gray-400 hover:text-white'}`}
+              className={`text-[10px] px-2 py-1 rounded transition-colors ${activeTab === 'facts' ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'text-gray-400 hover:text-white'}`}
             >FACTS</button>
             <button
               onClick={() => setActiveTab('summaries')}
-              className={`text-[10px] px-2 py-1 rounded transition-colors ${activeTab === 'summaries' ? 'bg-echo-primary/20 text-echo-primary' : 'text-gray-400 hover:text-white'}`}
+              className={`text-[10px] px-2 py-1 rounded transition-colors ${activeTab === 'summaries' ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'text-gray-400 hover:text-white'}`}
             >LTM</button>
           </div>
         </div>
@@ -166,10 +166,10 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
           <Tooltip content="Close panel">
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="p-3 hover:bg-[#00ff41]/10 rounded-full transition-colors text-[#00ff41]/60 hover:text-[#00ff41] focus:outline-none focus-visible:ring-2 focus-visible:ring-white bg-black/40 border border-[#00ff41]/20"
               aria-label="Close memory panel"
             >
-              <X size={20} />
+              <X size={24} />
             </button>
           </Tooltip>
         </div>

@@ -29,7 +29,7 @@ const MatrixVisualizer: React.FC<MatrixVisualizerProps> = ({ outputVolume, input
             const height = canvas.height;
 
             // Clear canvas with fade effect for trails? No, crisp for matrix.
-            ctx.fillStyle = '#0f172a'; // Match background
+            ctx.fillStyle = '#000000'; 
             ctx.clearRect(0, 0, width, height);
 
             // Center of grid
@@ -45,8 +45,8 @@ const MatrixVisualizer: React.FC<MatrixVisualizerProps> = ({ outputVolume, input
             const baseBulge = isActive ? 0.2 : 0;
             const bulgeAmount = baseBulge + intensity * 2.0;
 
-            ctx.fillStyle = isActive ? '#10b981' : '#334155'; // Emerald-500 or Slate-700
-            ctx.strokeStyle = isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(51, 65, 85, 0.2)';
+            ctx.fillStyle = isActive ? '#00ff41' : '#003b00'; 
+            ctx.strokeStyle = isActive ? 'rgba(0, 255, 65, 0.2)' : 'rgba(0, 59, 0, 0.2)';
 
             for (let i = 0; i < cols; i++) {
                 for (let j = 0; j < rows; j++) {

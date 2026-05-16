@@ -87,9 +87,9 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top', 
           className={`absolute ${positionClasses[position]} z-50 pointer-events-none`}
           role="tooltip"
         >
-          <div className="bg-gray-800 text-white text-xs px-3 py-2 rounded-lg shadow-xl border border-white/10 whitespace-nowrap">
+          <div className="bg-black text-[#00ff41] text-[10px] font-mono px-3 py-1.5 rounded-md shadow-[0_0_15px_rgba(0,255,65,0.2)] border border-[#00ff41]/30 whitespace-nowrap uppercase tracking-widest">
             {content}
-            <div className={`absolute ${arrowClasses[position]} w-0 h-0 border-4`} />
+            <div className={`absolute ${arrowClasses[position]} w-0 h-0 border-4 opacity-50`} />
           </div>
         </div>
       )}

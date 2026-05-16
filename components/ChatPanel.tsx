@@ -59,12 +59,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
   }, [history]);
 
   return (
-    <div className="h-full flex flex-col bg-echo-surface/90 border-r border-white/10 backdrop-blur-md w-96 max-w-full shadow-2xl" role="region" aria-label="Chat history">
+    <div className="h-full flex flex-col bg-black/95 border-r border-[#00ff41]/20 backdrop-blur-md w-full sm:w-96 max-w-full shadow-2xl font-mono text-[#00ff41]" role="region" aria-label="Chat history">
       <div className="p-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
-            <MessageSquare size={18} className="text-echo-primary" aria-hidden="true" />
-            <h2 className="text-lg font-mono font-semibold text-white">TRANSCRIPT</h2>
+            <MessageSquare size={18} className="text-[#00ff41]" aria-hidden="true" />
+            <h2 className="text-lg font-mono font-semibold text-[#00ff41]">TERMINAL_LOG</h2>
           </div>
           {isThinking && (
             <div className="flex items-center gap-1.5 mt-1 animate-pulse" role="status" aria-live="polite">
@@ -99,10 +99,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
           <Tooltip content="Close panel">
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white p-2 rounded-md hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="text-[#00ff41]/60 hover:text-[#00ff41] p-3 rounded-full hover:bg-[#00ff41]/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00ff41] bg-black/40 border border-[#00ff41]/20"
               aria-label="Close chat panel"
             >
-              <X size={20} />
+              <X size={24} />
             </button>
           </Tooltip>
         </div>

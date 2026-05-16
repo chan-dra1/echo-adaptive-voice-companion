@@ -169,16 +169,16 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
     // Login Screen
     if (!isUnlocked) {
         return (
-            <div className="flex flex-col items-center justify-center p-8 h-full space-y-6 text-center">
-                <div className="w-16 h-16 bg-echo-primary/10 rounded-full flex items-center justify-center">
-                    <Lock size={32} className="text-echo-primary" />
+            <div className="flex flex-col items-center justify-center p-8 h-full space-y-6 text-center font-mono text-[#00ff41] bg-black">
+                <div className="w-16 h-16 bg-[#00ff41]/10 rounded-full flex items-center justify-center border border-[#00ff41]/20">
+                    <Lock size={32} className="text-[#00ff41]" />
                 </div>
-                <h2 className="text-2xl font-bold">Voice Vault</h2>
-                <p className="text-gray-400">Enter a secure local password to encrypt your voice data.</p>
+                <h2 className="text-2xl font-bold tracking-widest uppercase">Vault_Locked</h2>
+                <p className="text-[#00ff41]/60 text-xs">ENTER_ENCRYPTION_KEY_FOR_VOICE_CACHE</p>
                 <input
                     type="password"
-                    placeholder="Set Encryption Password"
-                    className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-center focus:outline-none focus:border-echo-primary"
+                    placeholder="KEY_REQUIRED"
+                    className="bg-black border border-[#00ff41]/20 rounded-xl px-4 py-3 text-[#00ff41] text-center focus:outline-none focus:border-[#00ff41] font-mono"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
@@ -186,9 +186,15 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                 <button
                     onClick={handleUnlock}
                     disabled={password.length < 4}
-                    className="bg-echo-primary text-white px-8 py-3 rounded-xl disabled:opacity-50 hover:bg-echo-accent transition-all"
+                    className="bg-[#00ff41] text-black px-8 py-3 rounded-xl disabled:opacity-20 hover:bg-[#00ff41]/80 transition-all font-bold"
                 >
-                    Access Vault
+                    ACCESS_VAULT
+                </button>
+                <button 
+                  onClick={onClose}
+                  className="mt-4 text-[#00ff41]/40 hover:text-[#00ff41] text-xs underline uppercase"
+                >
+                  Return_To_Terminal
                 </button>
             </div>
         );
@@ -197,12 +203,22 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
     return (
         <div className="h-full flex flex-col p-6 space-y-6 overflow-y-auto" role="region" aria-label="Voice vault">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Lock size={20} className="text-echo-primary" aria-hidden="true" /> Voice Vault
-                </h2>
-                <span className="text-xs text-gray-500 bg-black/30 px-2 py-1 rounded" role="status">
-                    Local & Encrypted
-                </span>
+                <div className="flex items-center gap-2">
+                    <Lock size={20} className="text-[#00ff41]" aria-hidden="true" />
+                    <h2 className="text-xl font-bold tracking-widest uppercase">VOICE_CACHE</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[#00ff41]/60 bg-[#00ff41]/10 px-2 py-1 rounded border border-[#00ff41]/20" role="status">
+                        ENCRYPTED_LOCAL
+                    </span>
+                    <button 
+                      onClick={onClose}
+                      className="p-2 hover:bg-[#00ff41]/10 rounded-full text-[#00ff41] border border-[#00ff41]/20"
+                      aria-label="Close"
+                    >
+                      <X size={20} />
+                    </button>
+                </div>
             </div>
 
             {/* Error Display */}

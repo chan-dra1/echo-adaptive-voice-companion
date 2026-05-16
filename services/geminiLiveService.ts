@@ -9,8 +9,20 @@ import githubSkill from '../skills/githubSkill';
 import knowledgeSkill from '../skills/knowledgeSkill';
 import ghostSkill from '../skills/ghostSkill';
 import fileGenSkill from '../skills/fileGenSkill';
+import reminderSkill from '../skills/reminderSkill';
+import flightSkill from '../skills/flightSkill';
+import webSkill from '../skills/webSkill';
+import resumeSkill from '../skills/resumeSkill';
+import taskMissionSkill from '../skills/taskMissionSkill';
+import projectOpsSkill from '../skills/projectOpsSkill';
+import marketingPlannerSkill from '../skills/marketingPlannerSkill';
+import calcSkill from '../skills/calcSkill';
+import screenIntelSkill from '../skills/screenIntelSkill';
 import { summaryService } from './summaryService';
 import { personalizedLearning } from './personalizedLearningService';
+import { bootstrapAgent } from './agentBootstrap';
+// MOBILE-AGENT: additive hook — lifecycle/idle/silence/hard-cap timers.
+import { sessionLifecycleService } from './sessionLifecycleService';
 
 interface LiveServiceCallbacks {
   onConnect: () => void;
@@ -35,6 +47,10 @@ const memoryToolDeclaration: FunctionDeclaration = {
         type: Type.STRING,
         description: 'The detail to remember.',
       },
+      sensitivity: {
+        type: Type.STRING,
+        description: "Optional. 'cloud_ok' (default) means this memory can be sent to cloud providers. 'local_only' means it must NEVER leave the device — use for passwords, addresses, health info, private secrets, etc.",
+      },
     },
     required: ['key', 'value'],
   },
@@ -46,7 +62,7 @@ const timeToolDeclaration: FunctionDeclaration = {
 };
 
 // Google Search grounding for real-world data (sports, stocks, weather, news)
-const googleSearchTool = { googleSearch: {} };
+const googleSearchTool = { google_search: {} };
 
 export interface ConnectConfig {
   voiceName?: string;
@@ -88,11 +104,16 @@ export class GeminiLiveService {
   private currentRole: 'user' | 'assistant' = 'user';
   private currentTranscript: string = '';
 
-  // Screen Share state
+  // Screen/Camera Share state
   private screenStream: MediaStream | null = null;
   private screenShareInterval: number | null = null;
+  private cameraStream: MediaStream | null = null;
+  private cameraInterval: number | null = null;
   private videoCanvas: HTMLCanvasElement | null = null;
   private videoElement: HTMLVideoElement | null = null;
+
+  public getCameraStream() { return this.cameraStream; }
+  public getScreenStream() { return this.screenStream; }
 
   constructor(apiKey: string, callbacks: LiveServiceCallbacks) {
     this.ai = new GoogleGenAI({ apiKey });
@@ -144,21 +165,43 @@ export class GeminiLiveService {
 
       this.useLocalVoice = !!config?.useLocalVoice;
 
-      // Register Agent Skills
-      agentSkillService.registerSkill(githubSkill);
-      agentSkillService.registerSkill(knowledgeSkill);
-      agentSkillService.registerSkill(ghostSkill);
-      agentSkillService.registerSkill(fileGenSkill);
+      // Skills are registered globally on app boot via bootstrapAgent().
+      // We call it again defensively (it's idempotent) so the service still
+      // works if used outside the normal App.tsx lifecycle.
+      try {
+        await bootstrapAgent();
+      } catch (e) {
+        console.warn("Bootstrap failed, falling back to static skills…", e);
+        try {
+          agentSkillService.registerSkill(githubSkill);
+          agentSkillService.registerSkill(knowledgeSkill);
+          agentSkillService.registerSkill(ghostSkill);
+          agentSkillService.registerSkill(fileGenSkill);
+          agentSkillService.registerSkill(reminderSkill);
+          agentSkillService.registerSkill(flightSkill);
+          agentSkillService.registerSkill(webSkill);
+          agentSkillService.registerSkill(resumeSkill);
+          agentSkillService.registerSkill(taskMissionSkill);
+          agentSkillService.registerSkill(projectOpsSkill);
+          agentSkillService.registerSkill(marketingPlannerSkill);
+          agentSkillService.registerSkill(calcSkill);
+          agentSkillService.registerSkill(screenIntelSkill);
+        } catch { /* swallow */ }
+      }
 
-      // Initialize tools
-      const memoryContext = generateContextString();
-      const learningContext = personalizedLearning.generatePersonalizedPrompt();
+      // Initialize tools. If the caller already supplied a system instruction
+      // (e.g. App.tsx now builds the full context via modelContextBuilder),
+      // we don't re-append memory/knowledge here to avoid duplication.
       const summaryContext = await summaryService.getContextString();
+      const learningContext = personalizedLearning.generatePersonalizedPrompt();
 
-      const baseInstruction = config?.systemInstruction || ECHO_SYSTEM_INSTRUCTION;
-
-      const fullSystemInstruction = `
-${baseInstruction}
+      let fullSystemInstruction: string;
+      if (config?.systemInstruction) {
+        fullSystemInstruction = `${config.systemInstruction}\n\n${summaryContext}\n\n${learningContext}`;
+      } else {
+        const memoryContext = generateContextString('cloud');
+        fullSystemInstruction = `
+${ECHO_SYSTEM_INSTRUCTION}
 
 ${memoryContext}
 
@@ -166,9 +209,12 @@ ${summaryContext}
 
 ${learningContext}
 `;
+      }
       const voiceName = config?.voiceName || 'Fenrir';
-
-      console.log(`Connecting with voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
+      console.log(`[GeminiLive] Connecting with voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
+      console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars`);
+      const toolsCount = (agentSkillService.getTools()?.length || 0) + 2 + PROACTIVE_AI_TOOLS.length;
+      console.log(`[GeminiLive] Total Tools: ${toolsCount}`);
 
       this.sessionPromise = this.ai.live.connect({
         model: MODEL_NAME,
@@ -186,21 +232,34 @@ ${learningContext}
           outputAudioTranscription: {},
         },
         callbacks: {
-          onopen: this.handleOpen.bind(this),
+          onopen: () => {
+            console.log('Gemini Live WebSocket opened successfully');
+            this.handleOpen();
+          },
           onmessage: this.handleMessage.bind(this),
           onerror: (e) => {
-            console.error(e);
-            this.callbacks.onError(new Error('Connection error'));
+            console.error('[GeminiLive] WebSocket Error Object:', e);
+            const err = new Error(`WebSocket Error: ${e instanceof Error ? e.message : 'Check console for details'}`);
+            this.callbacks.onError(err);
           },
-          onclose: () => {
-            console.log('Session closed');
+          onclose: (event) => {
+            console.warn(`[GeminiLive] WebSocket closed | Code: ${event.code} | Reason: ${event.reason || 'No reason provided'} | WasClean: ${event.wasClean}`);
             this.callbacks.onDisconnect();
             this.stopScreenShare();
+            this.stopCamera();
+            
+            // Auto-reconnect logic for unexpected closures
+            // 1000: Normal, 1001: Going Away, 1005: No Status, 1006: Abnormal
+            if (event.code !== 1000 && event.code !== 1001) {
+              console.log(`[GeminiLive] Unexpected closure (${event.code}). Attempting to reconnect in 3 seconds...`);
+              setTimeout(() => this.connect(config), 3000);
+            }
           },
         },
       });
 
       this.startVolumeMonitoring();
+      this.setupMediaSession();
     } catch (error) {
       this.callbacks.onError(error instanceof Error ? error : new Error('Failed to connect'));
     }
@@ -313,12 +372,79 @@ ${learningContext}
       this.screenStream.getTracks().forEach(t => t.stop());
       this.screenStream = null;
     }
-    if (this.videoElement) {
+    if (this.videoElement && !this.cameraStream) {
       this.videoElement.srcObject = null;
       this.videoElement = null;
+      this.videoCanvas = null;
     }
-    this.videoCanvas = null; ``
   }
+
+  public async startCamera() {
+    if (this.cameraStream) return;
+
+    try {
+      this.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640, max: 640 },
+          height: { ideal: 480, max: 480 },
+          facingMode: 'user'
+        },
+        audio: false
+      });
+
+      if (!this.videoElement) {
+        this.videoElement = document.createElement('video');
+        this.videoElement.muted = true;
+        this.videoElement.playsInline = true;
+      }
+      this.videoElement.srcObject = this.cameraStream;
+
+      const track = this.cameraStream.getVideoTracks()[0];
+      track.onended = () => {
+        this.stopCamera();
+      };
+
+      this.videoElement.addEventListener('loadeddata', () => {
+        if (!this.videoCanvas) {
+          this.videoCanvas = document.createElement('canvas');
+        }
+        this.captureAndSendFrame();
+
+        this.sendTextMessage(
+          '[SYSTEM] Camera is now active. You can see the user and their environment. ' +
+          'Be conversational and react to what you see. ' +
+          'Respond quickly and concisely.'
+        );
+
+        this.cameraInterval = window.setInterval(() => {
+          this.captureAndSendFrame();
+        }, 1000); // 1 FPS for camera to save bandwidth
+      }, { once: true });
+
+      await this.videoElement.play();
+
+    } catch (e) {
+      console.error("Error starting camera:", e);
+      throw e;
+    }
+  }
+
+  public stopCamera() {
+    if (this.cameraInterval) {
+      clearInterval(this.cameraInterval);
+      this.cameraInterval = null;
+    }
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach(t => t.stop());
+      this.cameraStream = null;
+    }
+    if (this.videoElement && !this.screenStream) {
+      this.videoElement.srcObject = null;
+      this.videoElement = null;
+      this.videoCanvas = null;
+    }
+  }
+
 
   private captureAndSendFrame() {
     if (!this.videoElement || !this.videoCanvas) return;
@@ -421,6 +547,8 @@ ${learningContext}
   public async sendTextMessage(text: string): Promise<void> {
     const session = await this.sessionPromise;
     if (!session) return;
+    // MOBILE-AGENT: any explicit user input counts as activity.
+    try { sessionLifecycleService.noteActivity(); } catch { /* ignore */ }
     session.sendClientContent({ turns: [{ role: 'user', parts: [{ text }] }] });
   }
 
@@ -525,6 +653,9 @@ ${learningContext}
   private handleOpen() {
     this.callbacks.onConnect();
     this.startAudioInput();
+    this.updateMediaSession('connected');
+    // MOBILE-AGENT: start lifecycle timers (idle/silence/hard-cap).
+    try { sessionLifecycleService.start(); } catch (e) { console.warn('[lifecycle.start]', e); }
   }
 
   private calculateRMS(data: Float32Array): number {
@@ -596,7 +727,11 @@ ${learningContext}
         if (!this.isSpeechActive) {
           this.isSpeechActive = true;
           this.flushPreRoll(finalRate);
+          this.updateMediaSession('listening');
         }
+
+        // MOBILE-AGENT: feed lifecycle service "user is here" signal.
+        try { sessionLifecycleService.noteAudioActivity(); } catch { /* ignore */ }
 
         this.sendAudioChunk(processedData, finalRate);
       } else {
@@ -616,6 +751,46 @@ ${learningContext}
 
     source.connect(this.inputProcessor);
     this.inputProcessor.connect(this.inputAudioContext.destination);
+  }
+
+  private setupMediaSession() {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Echo Agent',
+        artist: 'Personal AI Companion',
+        album: 'Adaptive Voice Live',
+        artwork: [
+          { src: 'https://echo-adaptive-voice-companion.vercel.app/logo192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'https://echo-adaptive-voice-companion.vercel.app/logo512.png', sizes: '512x512', type: 'image/png' },
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        this.setMuted(false);
+        this.updateMediaSession('listening');
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        this.setMuted(true);
+        this.updateMediaSession('paused');
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        this.callbacks.onDisconnect();
+      });
+    }
+  }
+
+  private updateMediaSession(state: 'connected' | 'listening' | 'speaking' | 'paused') {
+    if ('mediaSession' in navigator) {
+      const statusText = state.charAt(0).toUpperCase() + state.slice(1);
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: `Echo Agent - ${statusText}`,
+        artist: 'Personal AI Companion',
+        album: 'Live Session'
+      });
+      
+      // We use the playbackState to reflect the AI's "activity" on the lock screen
+      navigator.mediaSession.playbackState = (state === 'speaking' || state === 'listening') ? 'playing' : 'paused';
+    }
   }
 
   private addToPreRoll(data: Float32Array) {
@@ -677,8 +852,9 @@ ${learningContext}
       const responses: any[] = [];
       for (const fc of message.toolCall.functionCalls) {
         if (fc.name === 'updateMemory') {
-          const { key, value } = fc.args as any;
-          const newItem = saveMemory(key, value);
+          const { key, value, sensitivity } = fc.args as any;
+          const safeSensitivity = sensitivity === 'local_only' ? 'local_only' : 'cloud_ok';
+          const newItem = saveMemory(key, value, safeSensitivity);
           this.callbacks.onMemoryUpdate(newItem);
 
           responses.push({
@@ -747,6 +923,7 @@ ${learningContext}
     if (base64Audio && this.outputAudioContext && this.outputAnalyser) {
       const audioBytes = base64ToArrayBuffer(base64Audio);
       const audioBuffer = await decodeAudioData(new Uint8Array(audioBytes), this.outputAudioContext);
+      this.updateMediaSession('speaking');
 
       const now = this.outputAudioContext.currentTime;
       if (this.nextStartTime < now) {
@@ -806,7 +983,10 @@ ${learningContext}
   }
 
   public async disconnect() {
+    // MOBILE-AGENT: stop lifecycle timers on disconnect.
+    try { sessionLifecycleService.stop(); } catch { /* ignore */ }
     this.stopScreenShare();
+    this.stopCamera();
     if (this.inputProcessor) {
       this.inputProcessor.disconnect();
       this.inputProcessor.onaudioprocess = null;

@@ -1,4 +1,5 @@
 import { Type } from "@google/genai";
+import { reminderService } from "./reminderService";
 /**
  * Proactive AI Service
  *
@@ -70,46 +71,7 @@ export const PROACTIVE_AI_TOOLS = [
       required: ['imageUrl']
     }
   },
-  {
-    name: 'set_reminder',
-    description: 'Set a reminder for the user with optional recurring schedule',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        title: {
-          type: Type.STRING,
-          description: 'Reminder title (e.g., "Go to gym", "Take medicine")'
-        },
-        description: {
-          type: Type.STRING,
-          description: 'Detailed description of the reminder'
-        },
-        time: {
-          type: Type.STRING,
-          description: 'Time for reminder (ISO 8601 format or natural language)'
-        },
-        recurring: {
-          type: Type.OBJECT,
-          properties: {
-            frequency: {
-              type: Type.STRING,
-              enum: ['daily', 'weekly', 'monthly', 'custom'],
-              description: 'How often to repeat'
-            },
-            days: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.STRING,
-                enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-              },
-              description: 'Days to repeat (for weekly)'
-            }
-          }
-        }
-      },
-      required: ['title', 'time']
-    }
-  },
+  // Removed duplicate set_reminder declaration — reminderSkill owns it now.
   {
     name: 'create_workout_plan',
     description: 'Create a personalized workout plan with exercises and schedule',
@@ -141,43 +103,6 @@ export const PROACTIVE_AI_TOOLS = [
         }
       },
       required: ['goals', 'daysPerWeek']
-    }
-  },
-  {
-    name: 'search_flights',
-    description: 'Search for flight options between two locations with dates',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        from: {
-          type: Type.STRING,
-          description: 'Departure airport or city'
-        },
-        to: {
-          type: Type.STRING,
-          description: 'Arrival airport or city'
-        },
-        departDate: {
-          type: Type.STRING,
-          description: 'Departure date (YYYY-MM-DD)'
-        },
-        returnDate: {
-          type: Type.STRING,
-          description: 'Return date (YYYY-MM-DD) for round trip'
-        },
-        passengers: {
-          type: Type.NUMBER,
-          description: 'Number of passengers',
-          default: 1
-        },
-        class: {
-          type: Type.STRING,
-          enum: ['economy', 'premium', 'business', 'first'],
-          description: 'Cabin class',
-          default: 'economy'
-        }
-      },
-      required: ['from', 'to', 'departDate']
     }
   },
   {
@@ -256,19 +181,19 @@ export class ProactiveAIService {
   }
 
   /**
-   * Initialize background service to monitor and execute tasks
+   * Initialize background service.
+   *
+   * Reminder firing/rescheduling is now owned by the unified reminderService.
+   * We still keep a minute-granular loop here only as a safety net for any
+   * legacy entries still living in the local Map.
    */
   private initializeBackgroundService() {
-    // Check reminders every minute
     setInterval(() => {
       if (this.isActive) {
         this.checkReminders();
         this.checkScheduledTasks();
       }
-    }, 60000); // Every minute
-
-    // Load reminders from localStorage
-    this.loadReminders();
+    }, 60000);
   }
 
   /**
@@ -294,7 +219,7 @@ export class ProactiveAIService {
         return await this.createWorkoutPlan(args);
 
       case 'search_flights':
-        return await this.searchFlights(args);
+        return await agentSkillService.executeTool('search_flights', args);
 
       case 'browse_website':
         return await this.browseWebsite(args.url, args.extractInfo);
@@ -415,30 +340,20 @@ export class ProactiveAIService {
   }
 
   /**
-   * Set a reminder for the user
+   * Set a reminder for the user (delegates to unified reminderService).
    */
   private async setReminder(reminder: any): Promise<any> {
-    const id = crypto.randomUUID();
-    const reminderData = {
-      id,
-      ...reminder,
-      createdAt: Date.now(),
-      status: 'active'
-    };
-
-    this.reminders.set(id, reminderData);
-    this.saveReminders();
-
-    // Request notification permission if not granted
-    if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
-    }
-
+    const r = await reminderService.create({
+      title: reminder.title,
+      time: reminder.time,
+      description: reminder.description,
+      recurring: reminder.recurring,
+    });
     return {
       success: true,
-      reminderId: id,
-      message: `Reminder set: "${reminder.title}" at ${reminder.time}`,
-      reminder: reminderData
+      reminderId: r.id,
+      message: `Reminder set: "${r.title}" at ${r.time}`,
+      reminder: r,
     };
   }
 
@@ -586,24 +501,18 @@ export class ProactiveAIService {
   }
 
   /**
-   * Schedule a task for later execution
+   * Schedule a task for later execution (encrypted, delegates to reminderService).
    */
   private async scheduleTask(args: any): Promise<any> {
-    const taskId = crypto.randomUUID();
-    const task = {
-      id: taskId,
-      ...args,
-      createdAt: Date.now(),
-      status: 'scheduled'
-    };
-
-    this.backgroundTasks.set(taskId, task);
-    this.saveBackgroundTasks();
-
+    const t = reminderService.createTask({
+      task: args.task,
+      scheduledTime: args.scheduledTime,
+      action: args.action,
+    });
     return {
       success: true,
-      taskId,
-      message: `Task scheduled: "${args.task}" at ${args.scheduledTime}`
+      taskId: t.id,
+      message: `Task scheduled: "${t.task}" at ${t.scheduledTime}`,
     };
   }
 
@@ -713,32 +622,14 @@ export class ProactiveAIService {
     return nextDate.toISOString();
   }
 
-  /**
-   * Save reminders to localStorage
-   */
-  private saveReminders() {
-    const remindersArray = Array.from(this.reminders.entries());
-    localStorage.setItem('echo_reminders', JSON.stringify(remindersArray));
-  }
+  /** No-op: reminderService owns encrypted persistence now. */
+  private saveReminders() { /* deprecated */ }
 
-  /**
-   * Load reminders from localStorage
-   */
-  private loadReminders() {
-    const stored = localStorage.getItem('echo_reminders');
-    if (stored) {
-      const remindersArray = JSON.parse(stored);
-      this.reminders = new Map(remindersArray);
-    }
-  }
+  /** No-op: reminderService owns encrypted persistence now. */
+  private loadReminders() { /* deprecated */ }
 
-  /**
-   * Save background tasks to localStorage
-   */
-  private saveBackgroundTasks() {
-    const tasksArray = Array.from(this.backgroundTasks.entries());
-    localStorage.setItem('echo_background_tasks', JSON.stringify(tasksArray));
-  }
+  /** No-op: reminderService owns encrypted persistence now. */
+  private saveBackgroundTasks() { /* deprecated */ }
 
   /**
    * Enable/disable background service

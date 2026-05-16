@@ -32,11 +32,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = 'inline-flex items-center justify-center gap-2 font-medium transition-all duration-300 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-echo-dark disabled:opacity-50 disabled:cursor-not-allowed';
 
     const variantStyles = {
-      primary: 'bg-echo-primary text-white hover:bg-blue-600 focus-visible:ring-echo-primary shadow-lg shadow-echo-primary/20',
-      secondary: 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 hover:text-white hover:border-white/20 focus-visible:ring-white/50',
+      primary: 'bg-echo-primary text-black hover:bg-echo-primary/80 focus-visible:ring-echo-primary shadow-lg shadow-echo-primary/20',
+      secondary: 'bg-white/5 text-[#00ff41]/80 border border-[#00ff41]/10 hover:bg-[#00ff41]/10 hover:text-[#00ff41] hover:border-[#00ff41]/30 focus-visible:ring-[#00ff41]/50',
       danger: 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 focus-visible:ring-red-500/50',
-      ghost: 'bg-transparent text-gray-400 hover:bg-white/5 hover:text-white focus-visible:ring-white/30',
-      success: 'bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500/50 focus-visible:ring-green-500/50',
+      ghost: 'bg-transparent text-[#00ff41]/60 hover:bg-[#00ff41]/10 hover:text-[#00ff41] focus-visible:ring-[#00ff41]/30',
+      success: 'bg-[#00ff41]/10 text-[#00ff41] border border-[#00ff41]/30 hover:bg-[#00ff41]/20 hover:border-[#00ff41]/50 focus-visible:ring-[#00ff41]/50',
     };
 
     const sizeStyles = {

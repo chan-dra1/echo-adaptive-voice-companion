@@ -11,6 +11,12 @@ import io
 import base64
 import uuid
 import requests
+import torch
+
+# Fix for newer torch versions where weights_only=True is the default
+import torch
+orig_load = torch.load
+torch.load = lambda *args, **kwargs: orig_load(*args, **{**kwargs, 'weights_only': False})
 
 app = Flask(__name__)
 CORS(app)
@@ -143,35 +149,8 @@ def write_file():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/system/exec', methods=['POST'])
-def exec_command():
-    import subprocess
-    data = request.json
-    command = data.get('command')
-    cwd = data.get('cwd', os.getcwd())
-    
-    if not command:
-        return jsonify({"error": "No command provided"}), 400
-        
-    try:
-        print(f"👻 Ghost Agent Executing: {command}")
-        result = subprocess.run(
-            command, 
-            shell=True, 
-            cwd=cwd, 
-            capture_output=True, 
-            text=True,
-            timeout=30 # Safety timeout
-        )
-        return jsonify({
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "returncode": result.returncode
-        })
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "Command timed out"}), 408
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+
+# [SECURITY] Removed /system/exec to prevent arbitrary command execution.
 
 @app.route('/llm/anthropic', methods=['POST'])
 def proxy_anthropic():

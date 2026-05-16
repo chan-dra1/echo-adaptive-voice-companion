@@ -19,11 +19,7 @@ const knowledgeSkill: Skill = {
         },
         {
             name: 'list_documents',
-            description: 'List all documents currently in the knowledge base.',
-            parameters: {
-                type: 'object',
-                properties: {}
-            }
+            description: 'List all documents currently in the knowledge base.'
         }
     ],
     execute: async (toolName, args) => {

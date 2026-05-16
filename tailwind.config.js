@@ -15,10 +15,10 @@ export default {
             },
             colors: {
                 echo: {
-                    dark: '#0f172a',
-                    primary: '#3b82f6',
-                    accent: '#8b5cf6',
-                    surface: '#1e293b',
+                    dark: '#000000',
+                    primary: '#00ff41',
+                    accent: '#008f11',
+                    surface: '#0d0d0d',
                 }
             },
             animation: {

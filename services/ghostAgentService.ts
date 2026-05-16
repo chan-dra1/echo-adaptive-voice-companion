@@ -13,7 +13,7 @@ export interface GhostAgentService {
     listFiles: (path?: string) => Promise<string[]>;
     readFile: (path: string) => Promise<string>;
     writeFile: (path: string, content: string) => Promise<{ status: string; path: string }>;
-    execCommand: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; returncode: number }>;
+
 }
 
 class GhostAgentServiceImpl implements GhostAgentService {
@@ -58,15 +58,7 @@ class GhostAgentServiceImpl implements GhostAgentService {
         return await res.json();
     }
 
-    async execCommand(command: string, cwd?: string): Promise<{ stdout: string; stderr: string; returncode: number }> {
-        const res = await fetch(`${API_URL}/system/exec`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command, cwd })
-        });
-        if (!res.ok) throw new Error(await res.text());
-        return await res.json();
-    }
+
 }
 
 export const ghostAgent = new GhostAgentServiceImpl();
@@ -75,13 +67,7 @@ export const ghostAgent = new GhostAgentServiceImpl();
 export const GHOST_TOOLS: ToolDefinition[] = [
     {
         name: "list_files",
-        description: "List all files in the project. Use this to understand the project structure.",
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                path: { type: Type.STRING, description: "Path to list (defaults to root)" }
-            }
-        }
+        description: "List all files in the project. Use this to understand the project structure."
     },
     {
         name: "read_file",
@@ -106,16 +92,5 @@ export const GHOST_TOOLS: ToolDefinition[] = [
             required: ["path", "content"]
         }
     },
-    {
-        name: "run_command",
-        description: "Execute a shell command. Use this to run tests, install packages, or build.",
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                command: { type: Type.STRING, description: "Shell command to execute" },
-                cwd: { type: Type.STRING, description: "Working directory (optional)" }
-            },
-            required: ["command"]
-        }
-    }
+
 ];

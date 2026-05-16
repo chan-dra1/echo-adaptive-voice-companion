@@ -7,7 +7,9 @@ export default defineConfig(({ mode }) => {
   return {
     server: {
       port: 3000,
-      host: '0.0.0.0',
+      // 127.0.0.1 avoids Node `os.networkInterfaces()` crashes in some sandboxes / restricted
+      // environments. For phone-on-LAN testing: `npm run dev -- --host 0.0.0.0`
+      host: process.env.VITE_DEV_HOST || '127.0.0.1',
     },
     plugins: [react()],
     define: {

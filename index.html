@@ -3,10 +3,36 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Echo - Adaptive AI Companion</title>
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Echo" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/logo192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/logo192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="/logo512.png" />
+
+  <!-- Android / Chrome PWA -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="application-name" content="Echo" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- Theme colour: light + dark via media query -->
+  <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#050505" media="(prefers-color-scheme: light)" />
+  <meta name="color-scheme" content="dark" />
+
+  <!-- Maskable icon for Android adaptive launcher (same PNG, system masks it) -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/logo192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/logo512.png" />
+  <link rel="mask-icon" href="/logo192.png" color="#00ff41" />
+
+  <title>Echo Agent</title>
+  <link rel="manifest" href="/manifest.json" />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
 
 

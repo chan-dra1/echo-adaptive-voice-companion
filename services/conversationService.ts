@@ -1,6 +1,5 @@
-import CryptoJS from 'crypto-js';
+import { getCached, setCached } from './cryptoService';
 
-// ... interfaces ...
 export interface Conversation {
     id: string;
     title: string;
@@ -26,27 +25,6 @@ export interface SharedKnowledge {
 const CONVERSATIONS_KEY = 'echo_conversations';
 const ACTIVE_CONVO_KEY = 'echo_active_conversation';
 const SHARED_KNOWLEDGE_KEY = 'echo_shared_knowledge';
-const ENCRYPTION_KEY = 'echo_secure_storage_v1';
-
-function encrypt(data: any): string {
-    return CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
-}
-
-function decrypt<T>(ciphertext: string | null, fallback: T): T {
-    if (!ciphertext) return fallback;
-    try {
-        const bytes = CryptoJS.AES.decrypt(ciphertext, ENCRYPTION_KEY);
-        const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-        return JSON.parse(decrypted);
-    } catch (e) {
-        // Fallback for unencrypted legacy data
-        try {
-            return JSON.parse(ciphertext);
-        } catch {
-            return fallback;
-        }
-    }
-}
 
 function generateId(): string {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -54,15 +32,15 @@ function generateId(): string {
 
 /** Get all conversations */
 export function getConversations(): Conversation[] {
-    return decrypt<Conversation[]>(localStorage.getItem(CONVERSATIONS_KEY), []);
+    return getCached<Conversation[]>(CONVERSATIONS_KEY, []);
 }
 
 /** Save conversations list */
 function saveConversations(conversations: Conversation[]): void {
-    localStorage.setItem(CONVERSATIONS_KEY, encrypt(conversations));
+    setCached(CONVERSATIONS_KEY, conversations);
 }
 
-/** Get the active conversation ID */
+/** Get the active conversation ID — kept in plain localStorage (not sensitive). */
 export function getActiveConversationId(): string | null {
     return localStorage.getItem(ACTIVE_CONVO_KEY);
 }
@@ -98,7 +76,7 @@ export function getConversation(id: string): Conversation | undefined {
 export function addMessageToConversation(
     convoId: string,
     role: 'user' | 'ai',
-    text: string
+    text: string,
 ): void {
     const all = getConversations();
     const convo = all.find(c => c.id === convoId);
@@ -107,10 +85,7 @@ export function addMessageToConversation(
     convo.messages.push({ role, text, timestamp: Date.now() });
     convo.updatedAt = Date.now();
 
-    // Auto-title from first user message
-    if (!convo.title.startsWith('Chat ') || convo.messages.length > 1) {
-        // keep existing title
-    } else if (role === 'user' && convo.messages.length === 1) {
+    if (convo.title.startsWith('Chat ') && role === 'user' && convo.messages.length === 1) {
         convo.title = text.slice(0, 40) + (text.length > 40 ? '...' : '');
     }
 
@@ -133,9 +108,9 @@ export function deleteConversation(id: string): void {
 
 /** Get shared knowledge */
 export function getSharedKnowledge(): SharedKnowledge {
-    return decrypt<SharedKnowledge>(
-        localStorage.getItem(SHARED_KNOWLEDGE_KEY),
-        { facts: [], preferences: [], topics: [] }
+    return getCached<SharedKnowledge>(
+        SHARED_KNOWLEDGE_KEY,
+        { facts: [], preferences: [], topics: [] },
     );
 }
 
@@ -144,11 +119,10 @@ export function addSharedKnowledge(type: 'facts' | 'preferences' | 'topics', val
     const knowledge = getSharedKnowledge();
     if (!knowledge[type].includes(value)) {
         knowledge[type].push(value);
-        // Keep last 50 of each type
         if (knowledge[type].length > 50) {
             knowledge[type] = knowledge[type].slice(-50);
         }
-        localStorage.setItem(SHARED_KNOWLEDGE_KEY, encrypt(knowledge));
+        setCached(SHARED_KNOWLEDGE_KEY, knowledge);
     }
 }
 

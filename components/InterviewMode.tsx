@@ -3,12 +3,12 @@ import { Ghost, User, Settings } from 'lucide-react';
 import Button from './Button';
 import Tooltip from './Tooltip';
 
-interface InterviewModeProps {
-  onActivate: (config: InterviewConfig) => void;
+interface GhostModeProps {
+  onActivate: (config: GhostConfig) => void;
   isActive: boolean;
 }
 
-export interface InterviewConfig {
+export interface GhostConfig {
   style: 'casual' | 'professional' | 'technical';
   allowInterruptions: boolean;
   useFillerWords: boolean;
@@ -16,8 +16,8 @@ export interface InterviewConfig {
   conversationMemory: boolean;
 }
 
-const InterviewMode: React.FC<InterviewModeProps> = ({ onActivate, isActive }) => {
-  const [config, setConfig] = useState<InterviewConfig>({
+const GhostMode: React.FC<GhostModeProps> = ({ onActivate, isActive }) => {
+  const [config, setConfig] = useState<GhostConfig>({
     style: 'professional',
     allowInterruptions: true,
     useFillerWords: true,
@@ -132,4 +132,4 @@ const InterviewMode: React.FC<InterviewModeProps> = ({ onActivate, isActive }) =
   );
 };
 
-export default InterviewMode;
+export default GhostMode;

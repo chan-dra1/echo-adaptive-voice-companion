@@ -1,72 +1,80 @@
 import { MemoryItem } from '../types';
-import CryptoJS from 'crypto-js';
+import { getCached, setCached, removeCached } from './cryptoService';
 
 const STORAGE_KEY = 'echo_long_term_memory';
-const ENCRYPTION_KEY = 'echo_secure_storage_v1';
 
-function encrypt(data: any): string {
-  return CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
+export type MemorySensitivity = 'cloud_ok' | 'local_only';
+
+export interface MemoryItemExt extends MemoryItem {
+    sensitivity?: MemorySensitivity;
 }
 
-function decrypt<T>(ciphertext: string | null, fallback: T): T {
-  if (!ciphertext) return fallback;
-  try {
-    const bytes = CryptoJS.AES.decrypt(ciphertext, ENCRYPTION_KEY);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    return JSON.parse(decrypted);
-  } catch (e) {
-    // Fallback for unencrypted legacy data
-    try {
-      return JSON.parse(ciphertext);
-    } catch {
-      return fallback;
-    }
-  }
-}
-
-export const getMemories = (): MemoryItem[] => {
-  return decrypt<MemoryItem[]>(localStorage.getItem(STORAGE_KEY), []);
+export const getMemories = (): MemoryItemExt[] => {
+    const items = getCached<MemoryItemExt[]>(STORAGE_KEY, []);
+    return items.map(m => ({ sensitivity: 'cloud_ok' as MemorySensitivity, ...m }));
 };
 
-export const saveMemory = (key: string, value: string): MemoryItem => {
-  const memories = getMemories();
+export const saveMemory = (
+    key: string,
+    value: string,
+    sensitivity: MemorySensitivity = 'cloud_ok',
+): MemoryItemExt => {
+    const memories = getMemories();
+    const existingIndex = memories.findIndex(m => m.key.toLowerCase() === key.toLowerCase());
+    const newItem: MemoryItemExt = {
+        id: crypto.randomUUID(),
+        key,
+        value,
+        timestamp: Date.now(),
+        sensitivity,
+    };
 
-  // Update if key exists, otherwise add new
-  const existingIndex = memories.findIndex(m => m.key.toLowerCase() === key.toLowerCase());
-  const newItem: MemoryItem = {
-    id: crypto.randomUUID(),
-    key,
-    value,
-    timestamp: Date.now()
-  };
+    if (existingIndex >= 0) {
+        // preserve existing sensitivity unless explicitly overridden
+        newItem.sensitivity = sensitivity ?? memories[existingIndex].sensitivity ?? 'cloud_ok';
+        memories[existingIndex] = newItem;
+    } else {
+        memories.push(newItem);
+    }
 
-  if (existingIndex >= 0) {
-    memories[existingIndex] = newItem;
-  } else {
-    memories.push(newItem);
-  }
+    setCached(STORAGE_KEY, memories);
+    return newItem;
+};
 
-  localStorage.setItem(STORAGE_KEY, encrypt(memories));
-  return newItem;
+export const updateMemorySensitivity = (id: string, sensitivity: MemorySensitivity): void => {
+    const memories = getMemories();
+    const idx = memories.findIndex(m => m.id === id);
+    if (idx < 0) return;
+    memories[idx] = { ...memories[idx], sensitivity };
+    setCached(STORAGE_KEY, memories);
 };
 
 export const deleteMemory = (id: string): void => {
-  const memories = getMemories();
-  const filtered = memories.filter(m => m.id !== id);
-  localStorage.setItem(STORAGE_KEY, encrypt(filtered));
+    const memories = getMemories();
+    const filtered = memories.filter(m => m.id !== id);
+    setCached(STORAGE_KEY, filtered);
 };
 
 export const clearMemories = (): void => {
-  localStorage.removeItem(STORAGE_KEY);
+    removeCached(STORAGE_KEY);
 };
 
-export const generateContextString = (): string => {
-  const memories = getMemories();
-  if (memories.length === 0) return '';
+/**
+ * Build a memory context string. By default all memories are included
+ * (legacy behavior used by the live audio session, which runs against
+ * Gemini Live — i.e. cloud). For more granular filtering use
+ * `modelContextBuilder.buildSystemContext()` instead.
+ */
+export const generateContextString = (destination: 'cloud' | 'local' = 'cloud'): string => {
+    const memories = getMemories();
+    const filtered = destination === 'cloud'
+        ? memories.filter(m => (m.sensitivity || 'cloud_ok') !== 'local_only')
+        : memories;
+    if (filtered.length === 0) return '';
 
-  return `
+    return `
 [LONG TERM MEMORY / LOCAL CONTEXT]
 The following list is your memory of this user. Use it to verify facts before asking questions.
-${memories.map(m => `- ${m.key}: ${m.value}`).join('\n')}
+${filtered.map(m => `- ${m.key}: ${m.value}`).join('\n')}
 `;
 };
