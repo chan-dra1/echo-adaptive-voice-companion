@@ -2,7 +2,7 @@
 // v2 — adds offline shell, GET-only handling, cross-origin pass-through (so
 // Gemini/Groq/OpenRouter calls are never intercepted), and SKIP_WAITING msg.
 
-const CACHE_NAME = 'echo-cache-v2';
+const CACHE_NAME = 'echo-cache-v3';
 const OFFLINE_SHELL = '/index.html';
 const ASSETS_TO_CACHE = [
   '/',
@@ -48,19 +48,17 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-
-  // Otherwise: cache-first, then network, then ignore failure
+  // Otherwise: Network-First strategy (try network, fallback to cache)
   event.respondWith(
-    caches.match(req).then((cached) =>
-      cached || fetch(req).then((res) => {
-        // Opportunistically cache same-origin successful GETs
+    fetch(req)
+      .then((res) => {
         if (res && res.ok && res.type === 'basic') {
           const clone = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => { });
         }
         return res;
-      }).catch(() => cached || Response.error())
-    )
+      })
+      .catch(() => caches.match(req).then((cached) => cached || Response.error()))
   );
 });
 
