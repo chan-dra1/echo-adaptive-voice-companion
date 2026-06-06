@@ -426,8 +426,7 @@ export default function App() {
       });
 
       if (effectiveStealth) {
-        await service.startInterviewMode();
-        success("Ghost Mode Active: Listening to System Audio");
+        success("Ghost Mode Active");
       }
     } catch (err: any) {
       console.error('Connection failed:', err);
