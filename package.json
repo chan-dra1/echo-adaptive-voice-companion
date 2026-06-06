@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.40.0",
+    "@google/genai": "^2.8.0",
     "@octokit/rest": "^22.0.1",
     "crypto-js": "^4.2.0",
     "docx": "^9.6.1",

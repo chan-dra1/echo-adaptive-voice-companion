@@ -467,7 +467,7 @@ ${learningContext}
     const base64 = this.videoCanvas.toDataURL('image/jpeg', 0.5).split(',')[1];
 
     this.sessionPromise?.then(session => {
-      session.sendRealtimeInput([{ mimeType: 'image/jpeg', data: base64 }]);
+      session.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
     });
   }
 
@@ -494,7 +494,7 @@ ${learningContext}
     // ── Images ──
     if (GeminiLiveService.IMAGE_TYPES.some(t => mime.startsWith(t.split('/')[0])) || mime.startsWith('image/')) {
       const base64 = await this.compressImageFile(file, 1024, 0.7);
-      session.sendRealtimeInput([{ mimeType: 'image/jpeg', data: base64 }]);
+      session.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
       if (prefix) {
         await this.sendTextMessage(prefix + `I just sent you an image: "${file.name}". Please analyze it according to my instruction above.`);
       }
@@ -516,7 +516,7 @@ ${learningContext}
       }
       // Fallback: send as raw base64 if text extraction fails
       const b64 = await this.fileToBase64(file);
-      session.sendRealtimeInput([{ mimeType: 'application/pdf', data: b64 }]);
+      session.sendRealtimeInput({ media: { mimeType: 'application/pdf', data: b64 } });
       return `📄 PDF: ${file.name}`;
     }
 
@@ -536,7 +536,7 @@ ${learningContext}
 
     // ── Fallback: send raw bytes for any other type ──
     const b64 = await this.fileToBase64(file);
-    session.sendRealtimeInput([{ mimeType: mime || 'application/octet-stream', data: b64 }]);
+    session.sendRealtimeInput({ media: { mimeType: mime || 'application/octet-stream', data: b64 } });
     if (prefix) {
       await this.sendTextMessage(prefix + `I sent a file: "${file.name}" (${mime}). Please analyze it.`);
     }
@@ -566,7 +566,7 @@ ${learningContext}
     }
     const session = await this.sessionPromise;
     if (!session) return;
-    session.sendRealtimeInput([{ mimeType: 'image/jpeg', data: base64 }]);
+    session.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
   }
 
   private compressImageFile(file: File | Blob, maxDim: number, quality: number): Promise<string> {
@@ -812,7 +812,7 @@ ${learningContext}
   private sendAudioChunk(data: Float32Array, sampleRate: number = 16000) {
     const pcmBlob = createPcmBlob(data, sampleRate);
     this.sessionPromise?.then((session) => {
-      session.sendRealtimeInput({ media: pcmBlob });
+      session.sendRealtimeInput({ audio: pcmBlob });
     });
   }
 
