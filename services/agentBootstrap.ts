@@ -25,6 +25,7 @@ import projectOpsSkill from '../skills/projectOpsSkill';
 import marketingPlannerSkill from '../skills/marketingPlannerSkill';
 import calcSkill from '../skills/calcSkill';
 import screenIntelSkill from '../skills/screenIntelSkill';
+import jobHuntSkill from '../skills/jobHuntSkill';
 import { dynamicSkillService, DynamicSkill } from './dynamicSkillService';
 import { reminderService } from './reminderService';
 import { taskMissionService } from './taskMissionService';
@@ -147,6 +148,7 @@ export async function bootstrapAgent(): Promise<void> {
         agentSkillService.registerSkill(marketingPlannerSkill);
         agentSkillService.registerSkill(calcSkill);
         agentSkillService.registerSkill(screenIntelSkill);
+        agentSkillService.registerSkill(jobHuntSkill);
         agentSkillService.registerSkill(proposeNewSkillImplementation);
     } catch (e) {
         console.warn('[agentBootstrap] Some static skills failed to register:', e);

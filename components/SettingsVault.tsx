@@ -313,6 +313,46 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                         </label>
                     </div>
 
+                    {/* Mobile voice */}
+                    <div className="space-y-2 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                        <p className="text-[10px] uppercase tracking-widest text-cyan-400/80">Mobile voice</p>
+                        <label className="block text-xs text-gray-300">
+                            Interrupt style
+                            <select
+                                value={(() => {
+                                    try {
+                                        const m = localStorage.getItem('echo_interrupt_mode');
+                                        return m === 'polite' || m === 'eager' ? m : 'balanced';
+                                    } catch { return 'balanced'; }
+                                })()}
+                                onChange={(e) => {
+                                    const v = e.target.value as 'polite' | 'balanced' | 'eager';
+                                    localStorage.setItem('echo_interrupt_mode', v);
+                                }}
+                                className="mt-1 w-full bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                            >
+                                <option value="polite">Polite — rarely talks over you</option>
+                                <option value="balanced">Balanced</option>
+                                <option value="eager">Eager — quick barge-in</option>
+                            </select>
+                        </label>
+                        <label className="block text-xs text-gray-300 mt-2">
+                            Live voice model
+                            <select
+                                defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.0-flash-exp'}
+                                onChange={(e) => localStorage.setItem('echo_live_model', e.target.value)}
+                                className="mt-1 w-full bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-xs text-white font-mono"
+                            >
+                                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (default)</option>
+                                <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio-preview-12-2025</option>
+                                <option value="gemini-2.0-flash-live-preview-04-09">gemini-2.0-flash-live-preview-04-09</option>
+                            </select>
+                        </label>
+                        <p className="text-[10px] text-cyan-400/50">
+                            Hands-free + native app (Capacitor) required for mic while screen locked. See mobile/README.md.
+                        </p>
+                    </div>
+
                     {/* Style examples */}
                     <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
                         <label className="flex items-center gap-2 text-sm font-medium text-[#00ff41]">

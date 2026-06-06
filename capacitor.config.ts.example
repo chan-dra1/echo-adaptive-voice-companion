@@ -1,0 +1,35 @@
+// After copying to capacitor.config.ts and installing @capacitor/cli:
+//   npm run build && npx cap sync
+
+const config = {
+  appId: 'com.echo.agent',
+  appName: 'Echo',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https',
+    iosScheme: 'https',
+  },
+  plugins: {
+    SplashScreen: {
+      launchAutoHide: true,
+      backgroundColor: '#000000',
+    },
+  },
+  ios: {
+    contentInset: 'automatic',
+    backgroundColor: '#000000',
+  },
+  android: {
+    backgroundColor: '#000000',
+  },
+};
+
+export default config;
+
+// After copying to capacitor.config.ts:
+//   npm run build
+//   npx cap add ios && npx cap add android
+//   npx cap sync
+//
+// iOS: enable UIBackgroundModes audio in Info.plist (see mobile/README.md)
+// Android: RECORD_AUDIO + foreground service for mic while screen off

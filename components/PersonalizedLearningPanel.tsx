@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Download, Upload, Trash2, Lock, TrendingUp, MessageCircle, Zap } from 'lucide-react';
+import { Brain, Download, Upload, Trash2, Lock, TrendingUp, MessageCircle, Zap, X } from 'lucide-react';
 import Button from './Button';
 import Tooltip from './Tooltip';
 import { personalizedLearning } from '../services/personalizedLearningService';

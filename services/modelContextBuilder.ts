@@ -12,6 +12,9 @@ import { ECHO_SYSTEM_INSTRUCTION } from '../constants';
 import { getMemories } from './memoryService';
 import { buildKnowledgeContext } from './conversationService';
 import { getCached } from './cryptoService';
+import { getCompanionModeInstruction, getPersonalityInstruction } from './companionPersonaService';
+import { buildLifeCoachContext } from './lifeCoachService';
+import { buildDeadlineContext } from './deadlineGuardianService';
 
 const STYLE_EXAMPLES_KEY = 'echo_style_examples';
 
@@ -75,9 +78,23 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
 
     const extra = opts.extraInstructions ? `\n\n${opts.extraInstructions}` : '';
 
+    // Companion persona — always local (contains personal data)
+    const companionInstruction = `\n\n[COMPANION PERSONA]\n${getCompanionModeInstruction()}\n${getPersonalityInstruction()}`;
+
+    // Life coach context (habits, goals, mood) — local_only equivalent, never filter
+    const lifeCoachCtx = buildLifeCoachContext();
+    const lifeCoachBlock = lifeCoachCtx ? `\n\n${lifeCoachCtx}` : '';
+
+    // Deadline guardian — critical context
+    const deadlineCtx = buildDeadlineContext();
+    const deadlineBlock = deadlineCtx ? `\n\n${deadlineCtx}` : '';
+
     const systemInstruction =
         ECHO_SYSTEM_INSTRUCTION +
+        companionInstruction +
         memContext +
+        lifeCoachBlock +
+        deadlineBlock +
         knowledge +
         styleBlock +
         extra;

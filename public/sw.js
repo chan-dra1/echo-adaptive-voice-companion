@@ -1,6 +1,6 @@
 // MOBILE-AGENT: minimal, dependency-free service worker for Echo PWA.
-// v2 — adds offline shell, GET-only handling, cross-origin pass-through (so
-// Gemini/Groq/OpenRouter calls are never intercepted), and SKIP_WAITING msg.
+// v3 — adds companion background heartbeat: periodic reminders + deadline
+// nudges sent as push-style notifications even when the tab is backgrounded.
 
 const CACHE_NAME = 'echo-cache-v3';
 const OFFLINE_SHELL = '/index.html';
@@ -62,15 +62,77 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Allow the page to force an update
+// Allow the page to force an update + companion message passing
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (!event.data) return;
+
+  if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+    return;
+  }
+
+  // COMPANION: schedule a background notification
+  // Payload: { type: 'SCHEDULE_NOTIFICATION', title, body, delayMs, tag }
+  if (event.data.type === 'SCHEDULE_NOTIFICATION') {
+    const { title, body, delayMs = 0, tag = 'echo-companion' } = event.data;
+    setTimeout(async () => {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const hasFocused = clients.some(c => c.focused);
+      if (hasFocused) {
+        clients.filter(c => c.focused).forEach(c => c.postMessage({ type: 'IN_APP_NOTIFY', title, body, tag }));
+        return;
+      }
+      if (self.registration && self.registration.showNotification) {
+        await self.registration.showNotification(title, {
+          body,
+          icon: '/ai-avatar.png',
+          badge: '/logo192.png',
+          tag,
+          renotify: false,
+          data: { url: '/' },
+        });
+      }
+    }, delayMs);
+    return;
+  }
+
+  if (event.data.type === 'CANCEL_NOTIFICATION') {
+    const { tag } = event.data;
+    if (tag && self.registration) {
+      self.registration.getNotifications({ tag }).then(ns => ns.forEach(n => n.close()));
+    }
+    return;
   }
 });
 
-// Push notifications for reminders (existing behaviour preserved)
+// Notification click — open or focus the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow('/'));
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      const existing = clients.find(c => c.url.includes(self.location.origin));
+      if (existing) return existing.focus();
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
+// Periodic background sync — heartbeat nudge (Android Chrome only)
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'echo-companion-heartbeat') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+        const hasActive = clients.some(c => c.visibilityState === 'visible');
+        if (!hasActive && self.registration) {
+          self.registration.showNotification('Echo is here 💙', {
+            body: 'Tap to check in — your habits and goals are waiting.',
+            icon: '/ai-avatar.png',
+            tag: 'echo-heartbeat',
+            renotify: false,
+          });
+        }
+      })
+    );
+  }
 });

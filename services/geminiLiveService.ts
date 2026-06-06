@@ -2,7 +2,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Type, FunctionDeclaration } f
 import { MemoryItem, ChatMessage } from '../types';
 import { saveMemory, generateContextString } from './memoryService';
 import { createPcmBlob, decodeAudioData, base64ToArrayBuffer } from './audioUtils';
-import { MODEL_NAME, ECHO_SYSTEM_INSTRUCTION } from '../constants';
+import { getLiveModelName, ECHO_SYSTEM_INSTRUCTION } from '../constants';
 import { PROACTIVE_AI_TOOLS, proactiveAI } from './proactiveAIService';
 import { agentSkillService } from './agentSkillService';
 import githubSkill from '../skills/githubSkill';
@@ -18,11 +18,18 @@ import projectOpsSkill from '../skills/projectOpsSkill';
 import marketingPlannerSkill from '../skills/marketingPlannerSkill';
 import calcSkill from '../skills/calcSkill';
 import screenIntelSkill from '../skills/screenIntelSkill';
+import jobHuntSkill from '../skills/jobHuntSkill';
 import { summaryService } from './summaryService';
 import { personalizedLearning } from './personalizedLearningService';
 import { bootstrapAgent } from './agentBootstrap';
 // MOBILE-AGENT: additive hook — lifecycle/idle/silence/hard-cap timers.
 import { sessionLifecycleService } from './sessionLifecycleService';
+import {
+  conversationPolicyService,
+  InterruptMode,
+  loadInterruptMode,
+} from './conversationPolicyService';
+import { mobileAudioBridge } from './mobileAudioBridge';
 
 interface LiveServiceCallbacks {
   onConnect: () => void;
@@ -72,6 +79,8 @@ export interface ConnectConfig {
   }
   useLocalVoice?: boolean;
   systemInstruction?: string;
+  /** polite | balanced | eager — when to duck / barge-in / defer during overlap */
+  interruptMode?: InterruptMode;
 }
 
 export class GeminiLiveService {
@@ -85,6 +94,8 @@ export class GeminiLiveService {
   private nextStartTime = 0;
   private sources = new Set<AudioBufferSourceNode>();
   private sessionPromise: Promise<any> | null = null;
+  private intentionalDisconnect = false;
+  private sessionOpened = false;
   private inputAnalyser: AnalyserNode | null = null;
   private outputAnalyser: AnalyserNode | null = null;
   private volumeInterval: number | null = null;
@@ -98,6 +109,12 @@ export class GeminiLiveService {
   private isSpeechActive = false;
   private silenceFrameCount = 0;
   private maxSilenceFrames = 8; // Hangover: 8 * 128ms = ~1s
+
+  // Smart interrupt / ambient defer
+  private deferAiOutput = false;
+  private lastOutputRms = 0;
+  private interruptMode: InterruptMode = loadInterruptMode();
+  private normalOutputGain = 1.0;
 
   // Transcript state
   private currentTurnId: string | null = null;
@@ -150,7 +167,13 @@ export class GeminiLiveService {
       this.outputAnalyser.connect(this.outputGainNode);
       this.outputGainNode.connect(this.outputAudioContext.destination);
 
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
 
       // Apply Config
       if (config?.speechConfig) {
@@ -164,6 +187,20 @@ export class GeminiLiveService {
       }
 
       this.useLocalVoice = !!config?.useLocalVoice;
+      if (config?.interruptMode) {
+        this.interruptMode = config.interruptMode;
+        conversationPolicyService.setMode(config.interruptMode);
+      } else {
+        this.interruptMode = loadInterruptMode();
+        conversationPolicyService.setMode(this.interruptMode);
+      }
+      this.deferAiOutput = false;
+      conversationPolicyService.reset();
+
+      mobileAudioBridge.registerAudioContexts({
+        input: this.inputAudioContext,
+        output: this.outputAudioContext,
+      });
 
       // Skills are registered globally on app boot via bootstrapAgent().
       // We call it again defensively (it's idempotent) so the service still
@@ -186,6 +223,7 @@ export class GeminiLiveService {
           agentSkillService.registerSkill(marketingPlannerSkill);
           agentSkillService.registerSkill(calcSkill);
           agentSkillService.registerSkill(screenIntelSkill);
+          agentSkillService.registerSkill(jobHuntSkill);
         } catch { /* swallow */ }
       }
 
@@ -211,19 +249,23 @@ ${learningContext}
 `;
       }
       const voiceName = config?.voiceName || 'Fenrir';
-      console.log(`[GeminiLive] Connecting with voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
+      const liveModel = getLiveModelName();
+      console.log(`[GeminiLive] Model: ${liveModel}, voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
       console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars`);
       const toolsCount = (agentSkillService.getTools()?.length || 0) + 2 + PROACTIVE_AI_TOOLS.length;
       console.log(`[GeminiLive] Total Tools: ${toolsCount}`);
 
+      this.intentionalDisconnect = false;
+      this.sessionOpened = false;
+
       this.sessionPromise = this.ai.live.connect({
-        model: MODEL_NAME,
+        model: liveModel,
         config: {
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
             { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any)] },
-            googleSearchTool // Enables real-time search for sports, stocks, weather, news
+            googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName } }
@@ -234,6 +276,7 @@ ${learningContext}
         callbacks: {
           onopen: () => {
             console.log('Gemini Live WebSocket opened successfully');
+            this.sessionOpened = true;
             this.handleOpen();
           },
           onmessage: this.handleMessage.bind(this),
@@ -243,15 +286,38 @@ ${learningContext}
             this.callbacks.onError(err);
           },
           onclose: (event) => {
-            console.warn(`[GeminiLive] WebSocket closed | Code: ${event.code} | Reason: ${event.reason || 'No reason provided'} | WasClean: ${event.wasClean}`);
+            const reason = event.reason || 'No reason provided';
+            console.warn(
+              `[GeminiLive] WebSocket closed | Code: ${event.code} | Reason: ${reason} | WasClean: ${event.wasClean}`
+            );
+
+            const wasConnected = this.sessionOpened;
+            this.sessionOpened = false;
+
+            if (!this.intentionalDisconnect && !wasConnected) {
+              this.callbacks.onError(
+                new Error(
+                  `Could not connect (${event.code}): ${reason}. Verify Gemini API key and Live model "${getLiveModelName()}".`
+                )
+              );
+            } else if (!this.intentionalDisconnect && wasConnected && event.code !== 1000 && event.code !== 1001) {
+              this.callbacks.onError(
+                new Error(`Live session ended (${event.code}): ${reason}. Check API key, model (${getLiveModelName()}), and quota.`)
+              );
+            }
+
             this.callbacks.onDisconnect();
             this.stopScreenShare();
             this.stopCamera();
-            
-            // Auto-reconnect logic for unexpected closures
-            // 1000: Normal, 1001: Going Away, 1005: No Status, 1006: Abnormal
-            if (event.code !== 1000 && event.code !== 1001) {
-              console.log(`[GeminiLive] Unexpected closure (${event.code}). Attempting to reconnect in 3 seconds...`);
+
+            // Auto-reconnect only after a successful session, not on failed setup
+            if (
+              !this.intentionalDisconnect &&
+              wasConnected &&
+              event.code !== 1000 &&
+              event.code !== 1001
+            ) {
+              console.log(`[GeminiLive] Unexpected closure (${event.code}). Attempting to reconnect in 3 seconds…`);
               setTimeout(() => this.connect(config), 3000);
             }
           },
@@ -720,6 +786,39 @@ ${learningContext}
       const rms = this.calculateRMS(processedData);
       const isCurrentFrameSpeech = rms > this.silenceThreshold;
 
+      const aiSpeaking = this.sources.size > 0;
+      const policyAction = conversationPolicyService.evaluate({
+        userRms: rms,
+        outputRms: this.lastOutputRms,
+        aiSpeaking,
+        userSpeechActive: this.isSpeechActive,
+        deferOutput: this.deferAiOutput,
+      });
+      switch (policyAction.type) {
+        case 'duck':
+          this.setOutputDuck(policyAction.gain);
+          break;
+        case 'barge_in':
+          this.localInterruptPlayback();
+          break;
+        case 'defer_output':
+          this.deferAiOutput = true;
+          this.setOutputDuck(0.06);
+          try {
+            window.dispatchEvent(new CustomEvent('echo:ambient-busy', { detail: { active: true } }));
+          } catch { /* ignore */ }
+          break;
+        case 'resume_output':
+          this.deferAiOutput = false;
+          this.setOutputGain(this.normalOutputGain);
+          try {
+            window.dispatchEvent(new CustomEvent('echo:ambient-busy', { detail: { active: false } }));
+          } catch { /* ignore */ }
+          break;
+        default:
+          break;
+      }
+
       // VAD Logic
       if (isCurrentFrameSpeech) {
         this.silenceFrameCount = 0;
@@ -921,6 +1020,9 @@ ${learningContext}
 
     const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
     if (base64Audio && this.outputAudioContext && this.outputAnalyser) {
+      if (this.deferAiOutput) {
+        this.updateMediaSession('listening');
+      } else {
       const audioBytes = base64ToArrayBuffer(base64Audio);
       const audioBuffer = await decodeAudioData(new Uint8Array(audioBytes), this.outputAudioContext);
       this.updateMediaSession('speaking');
@@ -941,18 +1043,71 @@ ${learningContext}
       source.start(this.nextStartTime);
       this.nextStartTime += audioBuffer.duration;
       this.sources.add(source);
+      }
     }
 
     if (message.serverContent?.interrupted) {
-      this.sources.forEach(source => source.stop());
-      this.sources.clear();
-      this.nextStartTime = 0;
+      this.localInterruptPlayback();
       this.currentTurnId = null;
       this.isSpeechActive = false;
       this.silenceFrameCount = 0;
       this.preRollBuffer = [];
-      // Don't stop screen share on interrupt, just audio state
     }
+  }
+
+  /** Stop AI playback immediately (local barge-in or server interrupt). */
+  private localInterruptPlayback(): void {
+    this.sources.forEach((source) => {
+      try { source.stop(); } catch { /* ignore */ }
+    });
+    this.sources.clear();
+    this.nextStartTime = 0;
+    this.setOutputGain(this.normalOutputGain);
+    this.updateMediaSession('listening');
+    try {
+      window.dispatchEvent(new CustomEvent('echo:local-barge-in'));
+    } catch { /* ignore */ }
+  }
+
+  private setOutputGain(volume: number): void {
+    this.normalOutputGain = Math.max(0, Math.min(1, volume));
+    if (this.outputGainNode && this.outputAudioContext) {
+      this.outputGainNode.gain.setTargetAtTime(
+        this.normalOutputGain,
+        this.outputAudioContext.currentTime,
+        0.02
+      );
+    }
+  }
+
+  private setOutputDuck(duckGain: number): void {
+    if (this.outputGainNode && this.outputAudioContext) {
+      this.outputGainNode.gain.setTargetAtTime(
+        Math.max(0, Math.min(1, duckGain)),
+        this.outputAudioContext.currentTime,
+        0.03
+      );
+    }
+  }
+
+  public async resumeAudioContexts(): Promise<void> {
+    await mobileAudioBridge.resumeAudioContexts({
+      input: this.inputAudioContext,
+      output: this.outputAudioContext,
+    });
+  }
+
+  public setInterruptMode(mode: InterruptMode): void {
+    this.interruptMode = mode;
+    conversationPolicyService.setMode(mode);
+  }
+
+  public startHandsFreeKeepalive(): void {
+    mobileAudioBridge.startAudioKeepalive(this.outputAudioContext);
+  }
+
+  public stopHandsFreeKeepalive(): void {
+    mobileAudioBridge.stopAudioKeepalive();
   }
 
   private handleTranscript(text: string, role: 'user' | 'assistant', isFinal: boolean) {
@@ -983,8 +1138,18 @@ ${learningContext}
   }
 
   public async disconnect() {
+    this.intentionalDisconnect = true;
+    this.sessionOpened = false;
+    // Close Live session if still open
+    try {
+      const session = await this.sessionPromise;
+      session?.close?.();
+    } catch { /* ignore */ }
     // MOBILE-AGENT: stop lifecycle timers on disconnect.
     try { sessionLifecycleService.stop(); } catch { /* ignore */ }
+    mobileAudioBridge.stopAudioKeepalive();
+    conversationPolicyService.reset();
+    this.deferAiOutput = false;
     this.stopScreenShare();
     this.stopCamera();
     if (this.inputProcessor) {
@@ -1031,6 +1196,7 @@ ${learningContext}
         const data = new Uint8Array(this.outputAnalyser.frequencyBinCount);
         this.outputAnalyser.getByteFrequencyData(data);
         outputVol = data.reduce((a, b) => a + b) / data.length;
+        this.lastOutputRms = outputVol / 255;
       }
 
       this.callbacks.onVolumeChange(inputVol, outputVol);
@@ -1075,10 +1241,8 @@ ${learningContext}
   }
 
   public setOutputVolume(volume: number) {
-    if (this.outputGainNode) {
-      // Clamp volume between 0 and 1
-      const v = Math.max(0, Math.min(1, volume));
-      this.outputGainNode.gain.setValueAtTime(v, this.outputAudioContext?.currentTime || 0);
-    }
+    const v = Math.max(0, Math.min(1, volume));
+    this.normalOutputGain = v;
+    this.setOutputGain(v);
   }
 }

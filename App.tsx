@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -39,6 +39,19 @@ import InstallPrompt from './components/InstallPrompt';
 import { wakeLockService } from './services/wakeLockService';
 import { sessionLifecycleService, loadLifecycleConfig } from './services/sessionLifecycleService';
 import { setScreenShareActive, SCREEN_READ_EVENT, ScreenReadEventDetail } from './skills/screenIntelSkill';
+import {
+  loadInterruptMode,
+  cycleInterruptMode,
+  interruptModeLabel,
+  InterruptMode,
+} from './services/conversationPolicyService';
+import { mobileAudioBridge } from './services/mobileAudioBridge';
+// Companion system
+import { getCompanionState, recordSessionStart } from './services/companionPersonaService';
+import { checkDeadlinesOnBoot } from './services/deadlineGuardianService';
+import { ambientModeService, getAmbientConfig } from './services/ambientModeService';
+import CompanionPanel from './components/CompanionPanel';
+import OnboardingWizard from './components/OnboardingWizard';
 
 export default function App() {
   // Check if ANY provider key is available
@@ -49,6 +62,26 @@ export default function App() {
   // Vault unlock state — gates the entire UI until crypto is initialized.
   const [vaultReady, setVaultReady] = useState<boolean>(isUnlocked());
   const [needsPassphrasePrompt, setNeedsPassphrasePrompt] = useState<boolean>(false);
+
+  const [apiKey, setApiKey] = useState((localStorage.getItem('echo_api_key') || '').trim());
+  const [hasKey, setHasKey] = useState(hasAnyApiKey());
+  const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+
+  useEffect(() => {
+    const onAmbient = (e: Event) => {
+      const active = (e as CustomEvent<{ active?: boolean }>).detail?.active;
+      setDeferHint(!!active);
+    };
+    const onBarge = () => setDeferHint(false);
+    window.addEventListener('echo:ambient-busy', onAmbient);
+    window.addEventListener('echo:local-barge-in', onBarge);
+    window.addEventListener('echo:app-visible', onBarge);
+    return () => {
+      window.removeEventListener('echo:ambient-busy', onAmbient);
+      window.removeEventListener('echo:local-barge-in', onBarge);
+      window.removeEventListener('echo:app-visible', onBarge);
+    };
+  }, []);
 
   useEffect(() => {
     if (vaultReady) return;
@@ -76,9 +109,6 @@ export default function App() {
       });
   }, []);
 
-  const [apiKey, setApiKey] = useState((localStorage.getItem('echo_api_key') || '').trim());
-  const [hasKey, setHasKey] = useState(hasAnyApiKey());
-  const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [volumeState, setVolumeState] = useState({ inputVolume: 0, outputVolume: 0 });
@@ -104,12 +134,17 @@ export default function App() {
   const [isTranslationMode, setIsTranslationMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string>(localStorage.getItem('echo_avatar_url') || '/ai-avatar.png');
+  // Companion system
+  const [showCompanionPanel, setShowCompanionPanel] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !getCompanionState().onboardingComplete);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
   const [isBackendOnline, setIsBackendOnline] = useState(false);
   // MOBILE-AGENT: hands-free + coarse-pointer (mobile) detection.
   const [isHandsFree, setIsHandsFree] = useState<boolean>(() => loadLifecycleConfig().handsFree);
+  const [interruptMode, setInterruptMode] = useState<InterruptMode>(() => loadInterruptMode());
+  const [deferHint, setDeferHint] = useState(false);
   const [isMobileCoarse, setIsMobileCoarse] = useState<boolean>(() => {
     try { return window.matchMedia?.('(pointer:coarse)').matches ?? false; } catch { return false; }
   });
@@ -117,6 +152,15 @@ export default function App() {
   const serviceRef = useRef<GeminiLiveService | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { removeToast, success, error, warning, info } = useToast();
+
+  useEffect(() => {
+    mobileAudioBridge.initMobileAudioBridge(() => {
+      if (status === ConnectionStatus.CONNECTED && serviceRef.current) {
+        void serviceRef.current.resumeAudioContexts();
+      }
+    });
+  }, [status]);
+
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [currentConvoId, setCurrentConvoId] = useState<string | null>(() => {
     const id = getActiveConversationId();
@@ -148,6 +192,29 @@ export default function App() {
 
     // Enable proactive AI background service
     proactiveAI.setActive(true);
+
+    // ── Companion system boot ──────────────────────────────────────────────
+    recordSessionStart();
+    checkDeadlinesOnBoot();
+    // Restore ambient mode if it was enabled
+    const ambientCfg = getAmbientConfig();
+    if (ambientCfg.enabled) ambientModeService.setEnabled(true);
+
+    // Deadline nudge handler
+    const handleDeadlineNudge = (e: any) => {
+      const { message } = e.detail || {};
+      if (message) warning(message);
+    };
+    window.addEventListener('echo-deadline-nudge', handleDeadlineNudge);
+
+    // Ambient mode handlers
+    const handleAmbientQuiet = () => info('Echo is now in quiet mode. Say "Echo wake up" to resume.');
+    const handleAmbientResume = () => info('Echo is back and listening 👂');
+    const handleSilenceCheckin = () => info('Hey, you still there? I\'m here if you need me.');
+    window.addEventListener('ambient:quiet', handleAmbientQuiet);
+    window.addEventListener('ambient:resumed', handleAmbientResume);
+    window.addEventListener('ambient:silence-checkin', handleSilenceCheckin);
+    // ──────────────────────────────────────────────────────────────────────
 
     // Listen for reminders
     const handleReminder = (e: any) => {
@@ -201,6 +268,7 @@ export default function App() {
         setShowGhostMode(false);
         setShowVaultOrganizer(false);
         setShowMobileMenu(false);
+        setShowCompanionPanel(false);
       }
     };
 
@@ -265,6 +333,11 @@ export default function App() {
       window.removeEventListener('lifecycle:hard-cap', onHardCap);
       if (mql?.removeEventListener) mql.removeEventListener('change', onMqlChange);
       else if (mql?.removeListener) mql.removeListener(onMqlChange);
+      // Companion
+      window.removeEventListener('echo-deadline-nudge', handleDeadlineNudge);
+      window.removeEventListener('ambient:quiet', handleAmbientQuiet);
+      window.removeEventListener('ambient:resumed', handleAmbientResume);
+      window.removeEventListener('ambient:silence-checkin', handleSilenceCheckin);
     };
   }, [success, info, warning]);
 
@@ -335,9 +408,12 @@ export default function App() {
           setStatus(ConnectionStatus.CONNECTED);
           success("Connected to Echo");
           // MOBILE-AGENT: hold the screen awake during a live session.
-          try { wakeLockService.acquire(); } catch { /* ignore */ }
+          try { wakeLockService.acquire({ useNativeBridge: mobileAudioBridge.isNativeShell() }); } catch { /* ignore */ }
           // Apply current hands-free preference to fresh lifecycle.
           try { sessionLifecycleService.setHandsFree(isHandsFree); } catch { /* ignore */ }
+          if (isHandsFree) {
+            try { service.startHandsFreeKeepalive(); } catch { /* ignore */ }
+          }
         },
         onDisconnect: () => {
           setStatus(ConnectionStatus.DISCONNECTED);
@@ -351,7 +427,9 @@ export default function App() {
           console.error(err);
           setStatus(ConnectionStatus.ERROR);
           const errorMessage = err.message || 'Unknown connection error';
-          if (errorMessage.includes('API key')) {
+          const isRealKeyError = (errorMessage.includes('API key expired') || errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('API key not valid')) ||
+                                 (errorMessage.includes('API key') && !errorMessage.includes('not found') && !errorMessage.includes('supported for bidiGenerateContent'));
+          if (isRealKeyError) {
             error("Invalid API key. Please check your Gemini API key.");
           } else if (errorMessage.includes('network')) {
             error("Network error. Please check your internet connection.");
@@ -422,7 +500,8 @@ export default function App() {
         speechConfig: {
           preRollMs: 300,
           silenceThreshold: 0.015
-        }
+        },
+        interruptMode,
       });
 
       if (effectiveStealth) {
@@ -433,7 +512,7 @@ export default function App() {
       setStatus(ConnectionStatus.ERROR);
       error(`Failed to connect: ${err.message || 'Unknown error'}`);
     }
-  }, [apiKey, status, isMicMuted, selectedVoice, isLocalVoiceEnabled, isStealthMode, isHandsFree, isTranslationMode, currentConvoId, success, error, info]);
+  }, [apiKey, status, isMicMuted, selectedVoice, isLocalVoiceEnabled, isStealthMode, isHandsFree, isTranslationMode, interruptMode, currentConvoId, success, error, info]);
 
   const toggleMute = () => {
     const newState = !isMicMuted;
@@ -451,6 +530,12 @@ export default function App() {
     if (next) {
       info('Hands-Free ON — extended silence tolerance, lock-screen controls active.');
       try {
+        serviceRef.current?.startHandsFreeKeepalive();
+        if (mobileAudioBridge.isNativeShell()) {
+          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(true)).catch(() => {});
+        }
+      } catch { /* ignore */ }
+      try {
         if ('mediaSession' in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: 'Echo Listening',
@@ -463,10 +548,23 @@ export default function App() {
     } else {
       info('Hands-Free OFF.');
       try {
+        serviceRef.current?.stopHandsFreeKeepalive();
+        if (mobileAudioBridge.isNativeShell()) {
+          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(false)).catch(() => {});
+        }
+      } catch { /* ignore */ }
+      try {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       } catch { /* ignore */ }
     }
   }, [isHandsFree, info]);
+
+  const toggleInterruptMode = useCallback(() => {
+    const next = cycleInterruptMode(interruptMode);
+    setInterruptMode(next);
+    serviceRef.current?.setInterruptMode(next);
+    info(interruptModeLabel(next));
+  }, [interruptMode, info]);
 
   useEffect(() => {
     setScreenShareActive(isScreenSharing);
@@ -586,6 +684,13 @@ export default function App() {
 
     <div className={`relative w-screen h-screen overflow-hidden bg-black text-[#00ff41] font-mono selection:bg-[#00ff41]/30 flex flex-col${isMobileCoarse ? ' mobile-lite' : ''}`}>
       {needsPassphrasePrompt && <UnlockVault onUnlocked={handleVaultUnlocked} />}
+      {/* Onboarding Wizard — shows on first launch after vault is ready */}
+      {vaultReady && showOnboarding && (
+        <OnboardingWizard
+          onComplete={() => setShowOnboarding(false)}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
       <SkillApprovalModal />
       {/* MOBILE-AGENT: dismissible install pill (Android BIP + iOS hint) */}
       <InstallPrompt />
@@ -602,7 +707,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col relative z-20 w-full h-full">
           {/* Backdrop Overlay for Sidebars */}
-          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer) && (
+          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel) && (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-md z-30 transition-opacity duration-300"
               onClick={() => {
@@ -613,6 +718,7 @@ export default function App() {
                 setShowPersonalizedLearning(false);
                 setShowGhostMode(false);
                 setShowVaultOrganizer(false);
+                setShowCompanionPanel(false);
               }}
               aria-hidden="true"
             />
@@ -669,6 +775,11 @@ export default function App() {
             <VaultOrganizerPanel onClose={() => setShowVaultOrganizer(false)} />
           </div>
 
+          {/* Companion Panel */}
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showCompanionPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+            <CompanionPanel onClose={() => setShowCompanionPanel(false)} />
+          </div>
+
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVoiceVault ? 'translate-x-0' : '-translate-x-full'}`}>
             <VoiceVault
               onClose={() => setShowVoiceVault(false)}
@@ -720,7 +831,11 @@ export default function App() {
                   </span>
                 </div>
                 <span className="text-[10px] md:text-xs tracking-widest uppercase opacity-40">
-                  {status === ConnectionStatus.CONNECTED ? (isStealthMode ? 'Ghost Mode Active' : 'System Online') : 'Ready to Connect'}
+                  {deferHint && status === ConnectionStatus.CONNECTED
+                    ? 'Listening — holding (ambient audio)'
+                    : status === ConnectionStatus.CONNECTED
+                      ? (isStealthMode ? 'Ghost Mode Active' : 'System Online')
+                      : 'Ready to Connect'}
                 </span>
               </div>
             </div>
@@ -755,6 +870,22 @@ export default function App() {
                   aria-pressed={isHandsFree}
                 >
                   <Headphones size={18} />
+                </button>
+              </Tooltip>
+
+              <Tooltip content={`Interrupt: ${interruptMode} — tap to cycle`}>
+                <button
+                  onClick={toggleInterruptMode}
+                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${
+                    interruptMode === 'polite'
+                      ? 'bg-blue-500/15 text-blue-300'
+                      : interruptMode === 'eager'
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-white/10 text-white/70'
+                  }`}
+                  aria-label={`Interrupt mode ${interruptMode}`}
+                >
+                  <Ear size={18} />
                 </button>
               </Tooltip>
 
@@ -870,6 +1001,15 @@ export default function App() {
               <Tooltip content="Vault Organizer">
                 <button onClick={() => setShowVaultOrganizer(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
                   <Folder size={18} className="text-white/60" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Companion — habits, goals, daily briefing">
+                <button
+                  onClick={() => setShowCompanionPanel(true)}
+                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
+                >
+                  <Heart size={18} className="text-pink-400/80" />
                 </button>
               </Tooltip>
             </div>

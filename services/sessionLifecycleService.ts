@@ -15,8 +15,9 @@ export interface SessionLifecycleConfig {
     idleTimeoutMs: number;       // default 5 min
     hardCapMs: number;           // default 30 min
     silenceTimeoutMs: number;    // default 90s
-    /** Hands-free mode doubles the silence tolerance. */
+    /** Hands-free mode doubles silence tolerance and can skip idle disconnect. */
     handsFree: boolean;
+    skipIdleWhenHandsFree: boolean;
 }
 
 const LS = {
@@ -31,6 +32,7 @@ const DEFAULTS: SessionLifecycleConfig = {
     hardCapMs: 30 * 60 * 1000,
     silenceTimeoutMs: 90 * 1000,
     handsFree: false,
+    skipIdleWhenHandsFree: true,
 };
 
 function readNum(key: string, fallback: number): number {
@@ -56,6 +58,7 @@ export function loadLifecycleConfig(): SessionLifecycleConfig {
         hardCapMs: readNum(LS.hardCap, DEFAULTS.hardCapMs),
         silenceTimeoutMs: readNum(LS.silence, DEFAULTS.silenceTimeoutMs),
         handsFree: readBool(LS.handsFree, DEFAULTS.handsFree),
+        skipIdleWhenHandsFree: DEFAULTS.skipIdleWhenHandsFree,
     };
 }
 
@@ -119,7 +122,10 @@ class SessionLifecycleService {
 
     public setHandsFree(handsFree: boolean): void {
         this.config = saveLifecycleConfig({ handsFree });
-        if (this.running) this.scheduleSilence();
+        if (this.running) {
+            this.scheduleIdle();
+            this.scheduleSilence();
+        }
     }
 
     public getConfig(): SessionLifecycleConfig {
@@ -138,6 +144,10 @@ class SessionLifecycleService {
 
     private scheduleIdle(): void {
         if (this.idleTimer != null) window.clearTimeout(this.idleTimer);
+        if (this.config.handsFree && this.config.skipIdleWhenHandsFree) {
+            this.idleTimer = null;
+            return;
+        }
         const delay = Math.max(1000, this.config.idleTimeoutMs);
         this.idleTimer = window.setTimeout(() => this.fire('idle'), delay);
     }

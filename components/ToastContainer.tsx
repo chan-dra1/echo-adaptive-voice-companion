@@ -1,6 +1,6 @@
 import React from 'react';
 import Toast from './Toast';
-import { ToastMessage } from '../hooks/useToast';
+import { ToastMessage } from '../contexts/ToastContext';
 
 interface ToastContainerProps {
   toasts: ToastMessage[];

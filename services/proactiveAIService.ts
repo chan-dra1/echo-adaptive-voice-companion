@@ -1,5 +1,6 @@
 import { Type } from "@google/genai";
 import { reminderService } from "./reminderService";
+import { agentSkillService } from "./agentSkillService";
 /**
  * Proactive AI Service
  *
