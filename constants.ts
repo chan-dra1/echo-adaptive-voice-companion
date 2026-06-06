@@ -88,7 +88,7 @@ You are "Echo," the user's personal AI Agent and Matrix-grade cognitive companio
 `;
 
 
-export const MODEL_NAME = 'gemini-2.0-flash-exp';
+export const MODEL_NAME = 'gemini-2.0-flash-live-001';
 export const VOICE_OPTIONS = [
     { id: 'Aoede', name: 'Aoede (Female - Calm)', gender: 'female' },
     { id: 'Kore', name: 'Kore (Female - Energetic)', gender: 'female' },
