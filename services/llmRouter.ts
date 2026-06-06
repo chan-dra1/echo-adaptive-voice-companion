@@ -59,7 +59,7 @@ const KEY_BY_PROVIDER: Record<LlmProvider, string> = {
 };
 
 const DEFAULT_MODEL: Record<LlmProvider, string> = {
-    gemini: 'gemini-2.0-flash',
+    gemini: 'gemini-2.5-flash',
     groq: 'llama-3.1-8b-instant',
     openrouter: 'meta-llama/llama-3.1-8b-instruct:free',
     openai: 'gpt-4o-mini',

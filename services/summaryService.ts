@@ -16,7 +16,7 @@ interface SummaryDB extends DBSchema {
 }
 
 const DB_NAME = 'echo-summaries';
-const MODEL_NAME = 'gemini-2.0-flash';
+const MODEL_NAME = 'gemini-2.5-flash';
 
 class SummaryService {
     private dbPromise;

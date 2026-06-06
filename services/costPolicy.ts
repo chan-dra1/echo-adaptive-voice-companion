@@ -38,11 +38,11 @@ function hasKey(provider: keyof typeof LS_KEY): boolean {
  * Resolution order, per task:
  *   - chat / tool_reason / summarize:
  *       groq:llama-3.1-8b-instant  →  openrouter:meta-llama/llama-3.1-8b-instruct:free
- *                                   →  gemini:gemini-2.0-flash
+ *                                   →  gemini:gemini-2.5-flash
  *   - code / rewrite:
  *       groq:llama-3.1-70b-versatile (still free tier)
  *                                   →  openrouter:qwen/qwen-2-7b-instruct:free
- *                                   →  gemini:gemini-2.0-flash
+ *                                   →  gemini:gemini-2.5-flash
  */
 export function pickCheapModel(taskKind: TaskKind): ModelPick {
     const big = taskKind === 'code' || taskKind === 'rewrite';
@@ -65,12 +65,12 @@ export function pickCheapModel(taskKind: TaskKind): ModelPick {
         if (hasKey('gemini')) {
             return {
                 provider: 'gemini',
-                model: 'gemini-2.0-flash',
+                model: 'gemini-2.5-flash',
                 reason: 'gemini flash fallback',
             };
         }
         // Final fallback even if no key — caller will throw on send.
-        return { provider: 'gemini', model: 'gemini-2.0-flash', reason: 'no-key fallback' };
+        return { provider: 'gemini', model: 'gemini-2.5-flash', reason: 'no-key fallback' };
     }
 
     if (hasKey('groq')) {
@@ -90,11 +90,11 @@ export function pickCheapModel(taskKind: TaskKind): ModelPick {
     if (hasKey('gemini')) {
         return {
             provider: 'gemini',
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             reason: 'gemini flash fallback',
         };
     }
-    return { provider: 'gemini', model: 'gemini-2.0-flash', reason: 'no-key fallback' };
+    return { provider: 'gemini', model: 'gemini-2.5-flash', reason: 'no-key fallback' };
 }
 
 /** Soft max_tokens caps per task kind. Keep outputs short = cheaper + faster. */
