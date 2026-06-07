@@ -780,6 +780,89 @@ export default function App() {
             <CompanionPanel onClose={() => setShowCompanionPanel(false)} />
           </div>
 
+          {/* Mobile Menu Drawer (Control Panel) */}
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[320px] bg-black/90 backdrop-blur-xl border-l border-white/10 p-6 flex flex-col gap-6 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showMobileMenu ? 'translate-x-0' : 'translate-x-full'} pointer-events-auto`}>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <span className="text-sm tracking-widest uppercase text-[#00ff41]">Echo Control Panel</span>
+              <button onClick={() => setShowMobileMenu(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
+              <button
+                onClick={() => { setShowMobileMenu(false); setIsSettingsOpen(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-white/5 rounded-xl text-white/70"><User size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Settings & Vault</div>
+                  <div className="text-[10px] text-white/40">API Keys and defaults</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowChat(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-white/5 rounded-xl text-white/70"><MessageSquare size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Conversation History</div>
+                  <div className="text-[10px] text-white/40">View previous text chats</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowMemory(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-white/5 rounded-xl text-white/70"><Brain size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Memory Bank</div>
+                  <div className="text-[10px] text-white/40">What Echo remembers about you</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowVaultOrganizer(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-white/5 rounded-xl text-white/70"><Folder size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Vault Organizer</div>
+                  <div className="text-[10px] text-white/40">Manage files and notes</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowCompanionPanel(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-pink-500/10 rounded-xl text-pink-400"><Heart size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Companion panel</div>
+                  <div className="text-[10px] text-white/40">Habits, goals & briefing</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowFileUpload(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-white/5 rounded-xl text-white/70"><Plus size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Upload Knowledge</div>
+                  <div className="text-[10px] text-white/40">Send document, pdf or code</div>
+                </div>
+              </button>
+            </div>
+            
+            <div className="border-t border-white/10 pt-4 flex items-center justify-between text-[11px] text-white/40">
+              <span>Cloud Agent: <span className={isBackendOnline ? "text-emerald-400" : "text-rose-400"}>{isBackendOnline ? "Online" : "Offline"}</span></span>
+              <span>v1.2.0</span>
+            </div>
+          </div>
+
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVoiceVault ? 'translate-x-0' : '-translate-x-full'}`}>
             <VoiceVault
               onClose={() => setShowVoiceVault(false)}
@@ -821,10 +904,13 @@ export default function App() {
                 </div>
               </div>
             )}
-            {/* Top Bar (Status) */}
-            <div className="absolute top-4 md:top-10 left-0 right-0 flex justify-center z-10 pointer-events-none pt-safe">
+            {/* Top Bar (Status / Mobile Menu Button) */}
+            <div className="absolute top-4 md:top-10 left-0 right-0 flex items-center justify-between px-6 z-10 pointer-events-none pt-safe">
+              {/* Left spacer on mobile, to balance the menu button */}
+              <div className="w-10 h-10 md:hidden" />
+
               <div className="flex flex-col items-center gap-1 md:gap-2">
-                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 pointer-events-auto">
                   <div className={`w-2 h-2 rounded-full ${status === ConnectionStatus.CONNECTED ? 'bg-emerald-500 animate-pulse' : 'bg-white/20'}`} />
                   <span className="text-[10px] md:text-xs font-mono tracking-widest uppercase opacity-70">
                     Echo Neural Link
@@ -837,6 +923,17 @@ export default function App() {
                       ? (isStealthMode ? 'Ghost Mode Active' : 'System Online')
                       : 'Ready to Connect'}
                 </span>
+              </div>
+
+              {/* Hamburger menu button for small screens */}
+              <div className="pointer-events-auto md:hidden">
+                <button
+                  onClick={() => setShowMobileMenu(true)}
+                  className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-white/80"
+                  aria-label="Open control panel"
+                >
+                  <Menu size={20} />
+                </button>
               </div>
             </div>
 
@@ -965,7 +1062,8 @@ export default function App() {
               </Tooltip>
             </div>
 
-            <div className="absolute bottom-4 md:bottom-10 left-4 md:left-10 flex gap-2 md:gap-4 pointer-events-auto pb-safe pl-safe">
+            {/* Bottom-left buttons: hidden on mobile, visible on desktop */}
+            <div className="hidden md:flex absolute bottom-4 md:bottom-10 left-4 md:left-10 gap-2 md:gap-4 pointer-events-auto pb-safe pl-safe">
                <Tooltip content="Settings & Key Vault">
                 <button onClick={() => setIsSettingsOpen(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
                   <User size={18} className="text-white/60" />
@@ -979,7 +1077,8 @@ export default function App() {
               </Tooltip>
             </div>
 
-            <div className="absolute bottom-4 md:bottom-10 right-4 md:right-10 flex gap-2 md:gap-4 pointer-events-auto pb-safe pr-safe">
+            {/* Bottom-right buttons: hidden on mobile, visible on desktop */}
+            <div className="hidden md:flex absolute bottom-4 md:bottom-10 right-4 md:right-10 gap-2 md:gap-4 pointer-events-auto pb-safe pr-safe">
               <Tooltip content="Upload Knowledge">
                 <button onClick={() => setShowFileUpload(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
                   <Plus size={18} className="text-white/60" />
