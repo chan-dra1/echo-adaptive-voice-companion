@@ -25,7 +25,8 @@ export type LlmProvider =
     | 'openai'
     | 'anthropic'
     | 'mistral'
-    | 'huggingface';
+    | 'huggingface'
+    | 'ollama';
 
 export interface LlmMessage {
     role: 'system' | 'user' | 'assistant';
@@ -56,6 +57,7 @@ const KEY_BY_PROVIDER: Record<LlmProvider, string> = {
     anthropic: 'echo_anthropic_key',
     mistral: 'echo_mistral_key',
     huggingface: 'echo_hf_key',
+    ollama: 'echo_ollama_model',
 };
 
 const DEFAULT_MODEL: Record<LlmProvider, string> = {
@@ -66,10 +68,12 @@ const DEFAULT_MODEL: Record<LlmProvider, string> = {
     anthropic: 'claude-3-5-sonnet-20241022',
     mistral: 'mistral-small-latest',
     huggingface: 'meta-llama/Llama-3.1-8B-Instruct',
+    ollama: 'llama3',
 };
 
 /** Order of preference when no explicit provider is set: prefer FREE first. */
 const FREE_PREFERENCE_ORDER: LlmProvider[] = [
+    'ollama',
     'groq',
     'openrouter',
     'gemini',
@@ -80,10 +84,14 @@ const FREE_PREFERENCE_ORDER: LlmProvider[] = [
 ];
 
 export function hasKeyFor(provider: LlmProvider): boolean {
+    if (provider === 'ollama') return true; // Local, no API key required
     return !!localStorage.getItem(KEY_BY_PROVIDER[provider]);
 }
 
 export function getKeyFor(provider: LlmProvider): string {
+    if (provider === 'ollama') {
+        return localStorage.getItem('echo_ollama_model') || 'llama3';
+    }
     return localStorage.getItem(KEY_BY_PROVIDER[provider]) || '';
 }
 
@@ -107,7 +115,8 @@ export function chooseProvider(preferred?: LlmProvider): LlmProvider {
 /** Provider classification: which destinations are remote/cloud. All current
  *  providers are cloud-hosted; this exists to make `local_only` filtering
  *  explicit and future-proof. */
-export function destinationFor(_provider: LlmProvider): 'cloud' | 'local' {
+export function destinationFor(provider: LlmProvider): 'cloud' | 'local' {
+    if (provider === 'ollama') return 'local';
     return 'cloud';
 }
 
@@ -115,7 +124,7 @@ export function destinationFor(_provider: LlmProvider): 'cloud' | 'local' {
 export async function chat(opts: LlmChatOptions): Promise<LlmChatResult> {
     const provider = chooseProvider(opts.provider);
     const apiKey = getKeyFor(provider);
-    if (!apiKey) {
+    if (!apiKey && provider !== 'ollama') {
         throw new Error(`No API key configured for provider "${provider}". Open the Vault to add one.`);
     }
     const model = opts.model || DEFAULT_MODEL[provider];
@@ -146,11 +155,14 @@ async function callProvider(
                     'X-Title': 'Echo Personal Companion',
                 },
             );
-        case 'openai':
+        case 'openai': {
+            const customBase = typeof localStorage !== 'undefined' ? localStorage.getItem('echo_openai_base')?.trim() : null;
+            const targetUrl = customBase ? (customBase.endsWith('/') ? customBase + 'chat/completions' : customBase + '/chat/completions') : 'https://api.openai.com/v1/chat/completions';
             return callOpenAiCompat(
-                'https://api.openai.com/v1/chat/completions',
+                targetUrl,
                 apiKey, model, opts,
             );
+        }
         case 'mistral':
             return callOpenAiCompat(
                 'https://api.mistral.ai/v1/chat/completions',
@@ -160,6 +172,14 @@ async function callProvider(
             return callAnthropic(apiKey, model, opts);
         case 'huggingface':
             return callHuggingFace(apiKey, model, opts);
+        case 'ollama':
+            // Proxies through local Flask voice server to bypass CORS, falling back to direct connection
+            return callOpenAiCompat(
+                'http://localhost:8000/llm/ollama',
+                'no-key-needed',
+                model,
+                opts
+            );
     }
 }
 

@@ -182,6 +182,22 @@ def proxy_anthropic():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/llm/ollama', methods=['POST'])
+def proxy_ollama():
+    try:
+        data = request.json
+        response = requests.post(
+            "http://localhost:11434/v1/chat/completions",
+            json=data,
+            timeout=120
+        )
+        return jsonify(response.json()), response.status_code
+    except requests.exceptions.ConnectionError:
+        return jsonify({"error": "Could not connect to Ollama. Please ensure Ollama is running locally (http://localhost:11434)."}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     print("🚀 Local Voice Server running on http://localhost:8000")
     app.run(port=8000, debug=True)
+

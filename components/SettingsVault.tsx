@@ -30,6 +30,7 @@ const PROVIDERS: ProviderRow[] = [
     { id: 'mistral', label: 'Mistral', storageKey: 'echo_mistral_key', placeholder: 'mst_...' },
     { id: 'huggingface', label: 'Hugging Face Inference', storageKey: 'echo_hf_key', placeholder: 'hf_...', free: true },
     { id: 'anthropic', label: 'Anthropic (via localhost proxy)', storageKey: 'echo_anthropic_key', placeholder: 'sk-ant-...' },
+    { id: 'ollama', label: 'Local Ollama (completely offline & free)', storageKey: 'echo_ollama_model', placeholder: 'Model name (default: llama3)', free: true },
 ];
 
 export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
@@ -40,6 +41,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     const [serpApiKey, setSerpApiKey] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
     const [baseResume, setBaseResume] = useState('');
+    const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
 
     // Multi-provider keys
     const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
@@ -70,6 +72,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         setTranslationMode(localStorage.getItem('echo_translation_mode') === 'true');
         setStealthMode(localStorage.getItem('echo_stealth_mode') === 'true');
         setGhostActive(localStorage.getItem('echo_ghost_active') === 'true');
+        setOpenaiBaseUrl(localStorage.getItem('echo_openai_base') || '');
 
         const pk: Record<string, string> = {};
         for (const p of PROVIDERS) {
@@ -95,6 +98,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             if (serpApiKey) localStorage.setItem('VITE_SERP_API_KEY', serpApiKey);
             if (avatarUrl) localStorage.setItem('echo_avatar_url', avatarUrl);
             if (baseResume) localStorage.setItem('echo_base_resume', baseResume);
+            localStorage.setItem('echo_openai_base', openaiBaseUrl.trim());
 
             for (const p of PROVIDERS) {
                 const val = providerKeys[p.id] || '';
@@ -148,6 +152,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         }
         if (key === 'echo_github_token') setGithubToken('');
         if (key === 'VITE_SERP_API_KEY') setSerpApiKey('');
+        if (key === 'echo_openai_key') setOpenaiBaseUrl('');
         success('Key cleared');
     };
 
@@ -237,7 +242,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                 </div>
                                 <div className="relative group">
                                     <input
-                                        type="password"
+                                        type={p.id === 'ollama' ? 'text' : 'password'}
                                         value={providerKeys[p.id] || ''}
                                         onChange={(e) => setProviderKeys(prev => ({ ...prev, [p.id]: e.target.value }))}
                                         placeholder={p.placeholder}
@@ -253,6 +258,17 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                         </button>
                                     )}
                                 </div>
+                                {p.id === 'openai' && (
+                                    <div className="pt-1">
+                                        <input
+                                            type="text"
+                                            value={openaiBaseUrl}
+                                            onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                                            placeholder="Custom Base URL (e.g. http://localhost:11434/v1)"
+                                            className="w-full bg-black/30 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-green-500/30 transition-all font-mono"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
