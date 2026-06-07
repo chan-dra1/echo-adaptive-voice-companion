@@ -1,3 +1,6 @@
 server.py
 requirements.txt
 server_data/
+android/
+capacitor.config.ts
+capacitor.config.ts.example
