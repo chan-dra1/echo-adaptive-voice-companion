@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Briefcase } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -52,6 +52,7 @@ import { checkDeadlinesOnBoot } from './services/deadlineGuardianService';
 import { ambientModeService, getAmbientConfig } from './services/ambientModeService';
 import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
+import InterviewPracticeMode from './components/InterviewPracticeMode';
 
 export default function App() {
   // Check if ANY provider key is available
@@ -137,6 +138,8 @@ export default function App() {
   // Companion system
   const [showCompanionPanel, setShowCompanionPanel] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !getCompanionState().onboardingComplete);
+  const [showInterview, setShowInterview] = useState(false);
+  const [interviewSystemPrompt, setInterviewSystemPrompt] = useState<string | null>(null);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -688,7 +691,12 @@ export default function App() {
       {vaultReady && showOnboarding && (
         <OnboardingWizard
           onComplete={() => setShowOnboarding(false)}
-          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
+      {showInterview && (
+        <InterviewPracticeMode
+          onClose={() => { setShowInterview(false); setInterviewSystemPrompt(null); }}
+          onSystemPromptOverride={setInterviewSystemPrompt}
         />
       )}
       <SkillApprovalModal />
@@ -1109,6 +1117,15 @@ export default function App() {
                   className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
                 >
                   <Heart size={18} className="text-pink-400/80" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Interview Practice Mode">
+                <button
+                  onClick={() => setShowInterview(true)}
+                  className={`p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative ${showInterview ? 'bg-amber-500/15 border-amber-500/30' : ''}`}
+                >
+                  <Briefcase size={18} className="text-amber-400/80" />
                 </button>
               </Tooltip>
             </div>

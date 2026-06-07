@@ -1,372 +1,403 @@
 /**
- * OnboardingWizard.tsx
+ * OnboardingWizard.tsx — Matrix terminal system-initialization sequence.
  *
- * First-run "train your AI" flow. Appears when onboarding is not complete.
- * Walks the user through 6 steps over their first session(s):
- *
- *  Step 0 – Welcome & name
- *  Step 1 – Personality & work style
- *  Step 2 – Goals & dreams
- *  Step 3 – Habits to build
- *  Step 4 – Schedule & availability
- *  Step 5 – Companion style / tone
- *
- * Everything is saved as local_only encrypted memory so Echo truly knows you.
+ * Black screen, green phosphor text that types line-by-line.
+ * 6 steps collected, all saved as local_only encrypted memory.
  */
+import React, { useState, useEffect, useRef } from 'react';
+import { saveOnboardingMemory, saveCompanionState, COMPANION_MODES, CompanionMode } from '../services/companionPersonaService';
+import { addHabit, addGoal, HABIT_TEMPLATES } from '../services/lifeCoachService';
 
-import React, { useState } from 'react';
-import {
-    getCompanionState,
-    saveCompanionState,
-    saveOnboardingMemory,
-    COMPANION_MODES,
-    CompanionMode,
-} from '../services/companionPersonaService';
-import { addHabit, HABIT_TEMPLATES } from '../services/lifeCoachService';
-import { addGoal } from '../services/lifeCoachService';
-import { Heart, Target, Calendar, Smile, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
+interface Props { onComplete: () => void; }
 
-interface Props {
-    onComplete: () => void;
-    onSkip: () => void;
+// ── STEPS ────────────────────────────────────────────────────────────────────
+type StepType = 'text' | 'choice' | 'multiChoice';
+
+interface Step {
+    id: string;
+    boot: string[];
+    question: string;
+    placeholder?: string;
+    type: StepType;
+    key: string;
+    choices?: string[];
+    choiceValues?: string[];
+    subQuestion?: string;
+    subKey?: string;
+    subPlaceholder?: string;
 }
 
-const TOTAL_STEPS = 6;
+const STEPS: Step[] = [
+    {
+        id: 'welcome',
+        boot: [
+            'ECHO COMPANION SYSTEM v2.4.1',
+            'Initializing secure enclave…',
+            'AES-GCM 256-bit encryption  ——  ONLINE',
+            'PBKDF2 key derivation  ——  READY',
+            '──────────────────────────────────────────',
+            'Welcome, new companion.',
+            'I need to learn who you are.',
+            'All data stays on this device — encrypted.',
+        ],
+        question: 'What should I call you?',
+        placeholder: 'Your name…',
+        type: 'text',
+        key: 'userName',
+    },
+    {
+        id: 'style',
+        boot: ['SCANNING PERSONALITY MATRIX…', 'Select how you prefer to work:'],
+        question: 'What is your work style?',
+        type: 'choice',
+        key: 'workStyle',
+        choices: ['🎯  Deep focus blocks', '⚡  Short intense sprints', '🌊  Go with the flow', '🗂️  Strict schedule'],
+    },
+    {
+        id: 'goal',
+        boot: ['LOADING GOAL TRACKING MODULE…', 'Let\'s anchor your primary mission.'],
+        question: 'What is your biggest goal right now?',
+        placeholder: 'e.g. Launch my startup by December…',
+        type: 'text',
+        key: 'primaryGoal',
+    },
+    {
+        id: 'habits',
+        boot: ['HABIT ENGINE READY…', 'Select habits to track daily:'],
+        question: 'Pick daily habits to build:',
+        type: 'multiChoice',
+        key: 'habits',
+        choices: HABIT_TEMPLATES.map(h => `${h.icon}  ${h.name}`),
+    },
+    {
+        id: 'schedule',
+        boot: ['CHRONOS MODULE ACTIVE…', 'Understanding your daily rhythm.'],
+        question: 'When do you usually wake up?',
+        placeholder: '07:00',
+        type: 'text',
+        key: 'wakeTime',
+        subQuestion: 'Bedtime?',
+        subKey: 'bedTime',
+        subPlaceholder: '23:00',
+    },
+    {
+        id: 'persona',
+        boot: ['COMPANION PERSONA SELECTION…', 'Choose how I speak to you:'],
+        question: 'What role should I play?',
+        type: 'choice',
+        key: 'companionMode',
+        choices: COMPANION_MODES.map(m => `${m.emoji}  ${m.label}  —  ${m.description}`),
+        choiceValues: COMPANION_MODES.map(m => m.id),
+    },
+];
 
-export default function OnboardingWizard({ onComplete, onSkip }: Props) {
-    const [step, setStep] = useState(0);
-    const [saving, setSaving] = useState(false);
+// ── Main component ────────────────────────────────────────────────────────────
+export default function OnboardingWizard({ onComplete }: Props) {
+    const [stepIdx, setStepIdx]       = useState(0);
+    const [bootLine, setBootLine]     = useState(0);
+    const [showInput, setShowInput]   = useState(false);
+    const [answers, setAnswers]       = useState<Record<string, string>>({});
+    const [multiSel, setMultiSel]     = useState<number[]>([]);
+    const [value, setValue]           = useState('');
+    const [subValue, setSubValue]     = useState('');
+    const [history, setHistory]       = useState<string[]>([]);
+    const [finished, setFinished]     = useState(false);
+    const bottomRef = useRef<HTMLDivElement>(null);
+    const inputRef  = useRef<HTMLInputElement>(null);
 
-    // Step 0
-    const [userName, setUserName] = useState('');
-    const [companionName, setCompanionName] = useState('Echo');
-    // Step 1
-    const [workStyle, setWorkStyle] = useState('');
-    const [personality, setPersonality] = useState('');
-    const [challenges, setChallenges] = useState('');
-    // Step 2
-    const [goalTitle, setGoalTitle] = useState('');
-    const [goalWhy, setGoalWhy] = useState('');
-    const [goalDeadline, setGoalDeadline] = useState('');
-    // Step 3
-    const [selectedHabits, setSelectedHabits] = useState<number[]>([]);
-    const [customHabit, setCustomHabit] = useState('');
-    // Step 4
-    const [wakeTime, setWakeTime] = useState('07:00');
-    const [sleepTime, setSleepTime] = useState('23:00');
-    const [workStart, setWorkStart] = useState('09:00');
-    const [workEnd, setWorkEnd] = useState('18:00');
-    // Step 5
-    const [companionMode, setCompanionMode] = useState<CompanionMode>('friend');
-    const [warmth, setWarmth] = useState(4);
-    const [proactivity, setProactivity] = useState(4);
-    const [humor, setHumor] = useState(3);
+    const step = STEPS[stepIdx];
 
-    const progress = ((step) / (TOTAL_STEPS - 1)) * 100;
+    // Animate boot lines one at a time
+    useEffect(() => {
+        setBootLine(0);
+        setShowInput(false);
+        setValue('');
+        setSubValue('');
+        setMultiSel([]);
+        let line = 0;
+        const iv = setInterval(() => {
+            line++;
+            setBootLine(line);
+            if (line >= step.boot.length) {
+                clearInterval(iv);
+                setTimeout(() => setShowInput(true), 400);
+            }
+        }, 110);
+        return () => clearInterval(iv);
+    }, [stepIdx]);
 
-    const next = () => {
-        if (step < TOTAL_STEPS - 1) {
-            saveCompanionState({ onboardingStep: step + 1 });
-            setStep(s => s + 1);
+    useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (showInput && inputRef.current) inputRef.current.focus();
+    }, [bootLine, showInput, history]);
+
+    const advance = () => {
+        const newAns = { ...answers };
+
+        if (step.type === 'multiChoice') {
+            const names = multiSel.map(i => HABIT_TEMPLATES[i]?.name ?? '');
+            newAns[step.key] = names.join(', ');
+        } else if (step.type === 'choice' && step.choiceValues) {
+            // value holds the label string; find its index
+            const idx = (step.choices ?? []).indexOf(value);
+            newAns[step.key] = idx >= 0 ? (step.choiceValues[idx] ?? value) : value;
+        } else {
+            newAns[step.key] = value.trim();
+        }
+        if (step.subKey) newAns[step.subKey] = subValue.trim();
+
+        setAnswers(newAns);
+
+        const echoLine = step.type === 'multiChoice'
+            ? `> ${multiSel.map(i => HABIT_TEMPLATES[i]?.name).join(', ') || '(skipped)'}`
+            : `> ${value.trim() || '(skipped)'}`;
+
+        setHistory(h => [
+            ...h,
+            '',
+            ...step.boot.slice(0, bootLine),
+            `?: ${step.question}`,
+            echoLine,
+        ]);
+
+        if (stepIdx < STEPS.length - 1) {
+            setStepIdx(s => s + 1);
+        } else {
+            commitAndFinish(newAns);
         }
     };
-    const back = () => setStep(s => Math.max(0, s - 1));
 
-    const finish = async () => {
-        setSaving(true);
-        try {
-            // Save all as encrypted local_only memory
-            if (userName) {
-                saveCompanionState({ userName, companionName });
-                saveOnboardingMemory('user_name', userName);
-                saveOnboardingMemory('companion_name', companionName);
-            }
-            if (workStyle) saveOnboardingMemory('work_style', workStyle);
-            if (personality) saveOnboardingMemory('personality_type', personality);
-            if (challenges) saveOnboardingMemory('main_challenges', challenges);
-            if (goalTitle) {
-                addGoal({
-                    title: goalTitle,
-                    why: goalWhy,
-                    category: 'personal',
-                    deadline: goalDeadline || undefined,
-                    milestones: [],
-                    notes: '',
-                });
-                saveOnboardingMemory('primary_goal', goalTitle);
-                if (goalWhy) saveOnboardingMemory('goal_motivation', goalWhy);
-            }
-            // Add selected habits
-            selectedHabits.forEach(i => {
-                const t = HABIT_TEMPLATES[i];
-                if (t) addHabit({ ...t, lastCompleted: null });
-            });
-            if (customHabit.trim()) {
-                addHabit({ name: customHabit.trim(), category: 'custom', frequency: 'daily', icon: '⭐', lastCompleted: null });
-            }
-            // Schedule info
-            saveOnboardingMemory('wake_time', wakeTime);
-            saveOnboardingMemory('sleep_time', sleepTime);
-            saveOnboardingMemory('work_hours', `${workStart} - ${workEnd}`);
-            // Companion style
-            saveCompanionState({
-                mode: companionMode,
-                onboardingComplete: true,
-                onboardingStep: TOTAL_STEPS,
-                personality: { warmth, proactivity, humor, formality: 6 - warmth },
-            });
+    const commitAndFinish = async (ans: Record<string, string>) => {
+        setFinished(true);
+        const mode = (ans.companionMode || 'friend') as CompanionMode;
+        saveCompanionState({ mode, userName: ans.userName, onboardingComplete: true });
 
-            onComplete();
-        } finally {
-            setSaving(false);
+        await saveOnboardingMemory({
+            userName:    ans.userName    || '',
+            workStyle:   ans.workStyle   || '',
+            primaryGoal: ans.primaryGoal || '',
+            wakeTime:    ans.wakeTime    || '',
+            bedTime:     ans.bedTime     || '',
+        });
+
+        if (ans.habits) {
+            const names = ans.habits.split(', ');
+            HABIT_TEMPLATES.filter(h => names.includes(h.name))
+                .forEach(h => addHabit({ name: h.name, icon: h.icon, frequency: 'daily', category: h.category }));
+        }
+
+        if (ans.primaryGoal) addGoal({ title: ans.primaryGoal, category: 'personal' });
+
+        setTimeout(onComplete, 2400);
+    };
+
+    const handleChoiceClick = (i: number) => {
+        if (step.type === 'multiChoice') {
+            setMultiSel(s => s.includes(i) ? s.filter(x=>x!==i) : [...s, i]);
+        } else {
+            setValue(step.choices?.[i] ?? '');
         }
     };
 
+    const greenDim  = 'rgba(0,255,65,0.35)';
+    const greenMid  = 'rgba(0,255,65,0.6)';
+    const greenBright = '#00FF41';
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg bg-gray-900 border border-green-500/30 rounded-2xl overflow-hidden shadow-2xl shadow-green-500/10">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-green-900/40 to-teal-900/40 px-6 py-4 flex items-center justify-between border-b border-green-500/20">
-                    <div>
-                        <h2 className="text-white font-bold text-lg">Let's set up your companion 🌟</h2>
-                        <p className="text-green-400 text-xs mt-0.5">Step {step + 1} of {TOTAL_STEPS} — all saved locally &amp; encrypted</p>
+        <div
+            className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+            style={{ background: '#000601', fontFamily: '"Share Tech Mono", "Courier New", monospace' }}
+        >
+            {/* CRT scanlines */}
+            <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                    backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,0.012) 2px,rgba(0,255,65,0.012) 4px)',
+                }}
+            />
+
+            {/* Header */}
+            <div
+                className="flex items-center justify-between px-6 py-3 z-20 flex-shrink-0"
+                style={{ borderBottom: '1px solid rgba(0,255,65,0.15)', background: 'rgba(0,255,65,0.025)' }}
+            >
+                <span style={{ color: greenBright, fontSize: 11, letterSpacing: '0.25em', textShadow: `0 0 8px ${greenBright}` }}>
+                    ECHO // SYSTEM INITIALIZATION
+                </span>
+                <div className="flex items-center gap-4">
+                    {/* Step bar */}
+                    <div className="flex gap-1">
+                        {STEPS.map((_, i) => (
+                            <div key={i} style={{
+                                width: 18, height: 2, borderRadius: 1,
+                                background: i <= stepIdx ? greenBright : 'rgba(0,255,65,0.12)',
+                                boxShadow: i <= stepIdx ? `0 0 5px ${greenBright}` : 'none',
+                                transition: 'all 0.4s',
+                            }} />
+                        ))}
                     </div>
-                    <button onClick={onSkip} className="text-gray-500 hover:text-gray-300 transition-colors">
-                        <X size={18} />
-                    </button>
-                </div>
-
-                {/* Progress bar */}
-                <div className="h-1 bg-gray-800">
-                    <div
-                        className="h-full bg-gradient-to-r from-green-500 to-teal-400 transition-all duration-500"
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
-
-                {/* Content */}
-                <div className="p-6 min-h-[340px] flex flex-col">
-                    {step === 0 && <StepWelcome userName={userName} setUserName={setUserName} companionName={companionName} setCompanionName={setCompanionName} />}
-                    {step === 1 && <StepPersonality workStyle={workStyle} setWorkStyle={setWorkStyle} personality={personality} setPersonality={setPersonality} challenges={challenges} setChallenges={setChallenges} />}
-                    {step === 2 && <StepGoals goalTitle={goalTitle} setGoalTitle={setGoalTitle} goalWhy={goalWhy} setGoalWhy={setGoalWhy} goalDeadline={goalDeadline} setGoalDeadline={setGoalDeadline} />}
-                    {step === 3 && <StepHabits selectedHabits={selectedHabits} setSelectedHabits={setSelectedHabits} customHabit={customHabit} setCustomHabit={setCustomHabit} />}
-                    {step === 4 && <StepSchedule wakeTime={wakeTime} setWakeTime={setWakeTime} sleepTime={sleepTime} setSleepTime={setSleepTime} workStart={workStart} setWorkStart={setWorkStart} workEnd={workEnd} setWorkEnd={setWorkEnd} />}
-                    {step === 5 && <StepCompanionStyle companionMode={companionMode} setCompanionMode={setCompanionMode} warmth={warmth} setWarmth={setWarmth} proactivity={proactivity} setProactivity={setProactivity} humor={humor} setHumor={setHumor} />}
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 pb-6 flex items-center justify-between gap-3">
-                    {step > 0 ? (
-                        <button onClick={back} className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors">
-                            <ChevronLeft size={16} /> Back
-                        </button>
-                    ) : (
-                        <button onClick={onSkip} className="text-gray-600 hover:text-gray-400 text-xs transition-colors">Skip for now</button>
-                    )}
-
-                    {step < TOTAL_STEPS - 1 ? (
-                        <button onClick={next} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ml-auto">
-                            Continue <ChevronRight size={16} />
-                        </button>
-                    ) : (
-                        <button onClick={finish} disabled={saving} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-teal-500 hover:from-green-500 hover:to-teal-400 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all ml-auto disabled:opacity-50">
-                            {saving ? 'Saving…' : <><Check size={16} /> Start with Echo</>}
-                        </button>
-                    )}
+                    <span style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em' }}>
+                        {finished ? STEPS.length : stepIdx + 1}/{STEPS.length}
+                    </span>
+                    <button
+                        onClick={() => { saveCompanionState({ onboardingComplete: true }); onComplete(); }}
+                        style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em' }}
+                    >[SKIP]</button>
                 </div>
             </div>
-        </div>
-    );
-}
 
-// ─── Step Components ──────────────────────────────────────────────────────────
-
-function StepWelcome({ userName, setUserName, companionName, setCompanionName }: any) {
-    return (
-        <div className="flex flex-col gap-5 flex-1">
-            <div>
-                <div className="text-3xl mb-2">👋</div>
-                <h3 className="text-white font-semibold text-xl">Hi! I'm Echo.</h3>
-                <p className="text-gray-400 text-sm mt-1">I'm going to be your 24/7 companion — your guide, friend, and supporter. Let me learn a little about you so I can be genuinely helpful.</p>
-            </div>
-            <div className="space-y-4">
-                <div>
-                    <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">What should I call you?</label>
-                    <input
-                        value={userName}
-                        onChange={e => setUserName(e.target.value)}
-                        placeholder="Your name or nickname"
-                        className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors"
-                    />
-                </div>
-                <div>
-                    <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">What do you want to call me? (optional)</label>
-                    <input
-                        value={companionName}
-                        onChange={e => setCompanionName(e.target.value)}
-                        placeholder="Echo, Aria, Sol, Max…"
-                        className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors"
-                    />
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function StepPersonality({ workStyle, setWorkStyle, personality, setPersonality, challenges, setChallenges }: any) {
-    const styles = ['Deep focus (few long sessions)', 'Sprint & rest (pomodoro)', 'Flexible / go with the flow', 'Morning person', 'Night owl'];
-    const types = ['Introvert', 'Extrovert', 'Ambivert', 'Analytical thinker', 'Creative thinker', 'Big picture person', 'Detail oriented'];
-
-    return (
-        <div className="flex flex-col gap-5 flex-1">
-            <div>
-                <div className="text-3xl mb-2">🧠</div>
-                <h3 className="text-white font-semibold text-lg">How do you work best?</h3>
-                <p className="text-gray-400 text-sm mt-1">This helps me support your natural rhythm instead of fighting it.</p>
-            </div>
-            <div>
-                <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-2">Work style</label>
-                <div className="flex flex-wrap gap-2">
-                    {styles.map(s => (
-                        <button key={s} onClick={() => setWorkStyle(s)} className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${workStyle === s ? 'border-green-500 bg-green-500/20 text-green-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>{s}</button>
-                    ))}
-                </div>
-            </div>
-            <div>
-                <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-2">I'd describe myself as</label>
-                <div className="flex flex-wrap gap-2">
-                    {types.map(t => (
-                        <button key={t} onClick={() => setPersonality(p => p === t ? '' : t)} className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${personality === t ? 'border-teal-500 bg-teal-500/20 text-teal-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>{t}</button>
-                    ))}
-                </div>
-            </div>
-            <div>
-                <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">My biggest challenge is…</label>
-                <input value={challenges} onChange={e => setChallenges(e.target.value)} placeholder="e.g. procrastination, staying focused, stress…" className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors" />
-            </div>
-        </div>
-    );
-}
-
-function StepGoals({ goalTitle, setGoalTitle, goalWhy, setGoalWhy, goalDeadline, setGoalDeadline }: any) {
-    return (
-        <div className="flex flex-col gap-5 flex-1">
-            <div>
-                <div className="text-3xl mb-2"><Target size={32} className="text-yellow-400" /></div>
-                <h3 className="text-white font-semibold text-lg">What's your most important goal right now?</h3>
-                <p className="text-gray-400 text-sm mt-1">I'll keep you on track, remind you why it matters, and celebrate every step forward.</p>
-            </div>
-            <div className="space-y-4">
-                <div>
-                    <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">Goal</label>
-                    <input value={goalTitle} onChange={e => setGoalTitle(e.target.value)} placeholder="e.g. Launch my app, lose 10kg, learn Spanish…" className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors" />
-                </div>
-                <div>
-                    <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">Why does this matter to you? (this keeps you going)</label>
-                    <textarea value={goalWhy} onChange={e => setGoalWhy(e.target.value)} placeholder="Be honest — the deeper the why, the stronger the drive…" rows={2} className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors resize-none" />
-                </div>
-                <div>
-                    <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">Deadline (optional)</label>
-                    <input type="date" value={goalDeadline} onChange={e => setGoalDeadline(e.target.value)} className="bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors" />
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function StepHabits({ selectedHabits, setSelectedHabits, customHabit, setCustomHabit }: any) {
-    const toggle = (i: number) => setSelectedHabits((prev: number[]) => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-
-    return (
-        <div className="flex flex-col gap-4 flex-1">
-            <div>
-                <div className="text-3xl mb-2">✅</div>
-                <h3 className="text-white font-semibold text-lg">Which habits do you want to build?</h3>
-                <p className="text-gray-400 text-sm mt-1">I'll track your streaks and cheer you on every day.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-                {HABIT_TEMPLATES.map((h, i) => (
-                    <button key={i} onClick={() => toggle(i)} className={`flex items-center gap-2 text-left text-xs px-3 py-2.5 rounded-lg border transition-colors ${selectedHabits.includes(i) ? 'border-green-500 bg-green-500/15 text-green-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                        <span className="text-base">{h.icon}</span>
-                        <span>{h.name}</span>
-                        {selectedHabits.includes(i) && <Check size={10} className="ml-auto text-green-400 flex-shrink-0" />}
-                    </button>
-                ))}
-            </div>
-            <div>
-                <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-1.5">Or add your own</label>
-                <input value={customHabit} onChange={e => setCustomHabit(e.target.value)} placeholder="e.g. Practice guitar, cold shower…" className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-4 py-2.5 text-white text-sm outline-none transition-colors" />
-            </div>
-        </div>
-    );
-}
-
-function StepSchedule({ wakeTime, setWakeTime, sleepTime, setSleepTime, workStart, setWorkStart, workEnd, setWorkEnd }: any) {
-    return (
-        <div className="flex flex-col gap-5 flex-1">
-            <div>
-                <div className="text-3xl mb-2"><Calendar size={32} className="text-blue-400" /></div>
-                <h3 className="text-white font-semibold text-lg">Tell me about your day</h3>
-                <p className="text-gray-400 text-sm mt-1">I'll send reminders and check-ins at the right times — never when you're asleep or in deep work.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                {[
-                    { label: '☀️ Wake up', value: wakeTime, set: setWakeTime },
-                    { label: '🌙 Sleep time', value: sleepTime, set: setSleepTime },
-                    { label: '💼 Work starts', value: workStart, set: setWorkStart },
-                    { label: '🏠 Work ends', value: workEnd, set: setWorkEnd },
-                ].map(({ label, value, set }) => (
-                    <div key={label}>
-                        <label className="text-gray-400 text-xs block mb-1.5">{label}</label>
-                        <input type="time" value={value} onChange={e => set(e.target.value)} className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-3 py-2.5 text-white text-sm outline-none transition-colors" />
+            {/* Terminal scroll area */}
+            <div
+                className="flex-1 overflow-y-auto px-8 py-6 z-20"
+                style={{ scrollbarWidth: 'none' }}
+            >
+                {/* History */}
+                {history.map((line, i) => (
+                    <div key={i} style={{
+                        color: line.startsWith('?:') ? greenMid : line.startsWith('>') ? greenBright : greenDim,
+                        fontSize: 12, lineHeight: '1.7',
+                        textShadow: line.startsWith('>') ? `0 0 6px ${greenBright}` : 'none',
+                    }}>
+                        {line}
                     </div>
                 ))}
-            </div>
-            <p className="text-gray-600 text-xs">Echo will never interrupt your sleep hours or deep work blocks unless it's an emergency.</p>
-        </div>
-    );
-}
 
-function StepCompanionStyle({ companionMode, setCompanionMode, warmth, setWarmth, proactivity, setProactivity, humor, setHumor }: any) {
-    return (
-        <div className="flex flex-col gap-5 flex-1">
-            <div>
-                <div className="text-3xl mb-2"><Heart size={32} className="text-pink-400" /></div>
-                <h3 className="text-white font-semibold text-lg">How should I show up for you?</h3>
-                <p className="text-gray-400 text-sm mt-1">You can always change this later.</p>
-            </div>
-            <div>
-                <label className="text-green-400 text-xs font-medium uppercase tracking-wide block mb-2">Companion style</label>
-                <div className="grid grid-cols-1 gap-2">
-                    {COMPANION_MODES.map(m => (
-                        <button key={m.id} onClick={() => setCompanionMode(m.id)} className={`flex items-center gap-3 text-left px-4 py-3 rounded-xl border transition-colors ${companionMode === m.id ? 'border-green-500 bg-green-500/15' : 'border-gray-700 hover:border-gray-500'}`}>
-                            <span className="text-xl">{m.emoji}</span>
-                            <div>
-                                <div className={`text-sm font-medium ${companionMode === m.id ? 'text-green-300' : 'text-white'}`}>{m.label}</div>
-                                <div className="text-gray-500 text-xs">{m.description}</div>
+                {/* Separator when we have history */}
+                {history.length > 0 && !finished && (
+                    <div style={{ color: 'rgba(0,255,65,0.1)', fontSize: 12, margin: '12px 0' }}>
+                        {'─'.repeat(58)}
+                    </div>
+                )}
+
+                {/* Current boot lines */}
+                {!finished && step.boot.slice(0, bootLine).map((line, i) => (
+                    <div key={`b${stepIdx}-${i}`} style={{
+                        color: line.includes('ONLINE') || line.includes('READY') || line.includes('ACTIVE') || line.includes('COMPLETE')
+                            ? greenBright : line.startsWith('─') ? 'rgba(0,255,65,0.15)' : greenMid,
+                        fontSize: 12, lineHeight: '1.7',
+                        textShadow: line.includes('ONLINE') ? `0 0 8px ${greenBright}` : 'none',
+                    }}>
+                        {line}
+                    </div>
+                ))}
+
+                {/* Input area */}
+                {showInput && !finished && (
+                    <div style={{ marginTop: 16 }}>
+                        {/* Question */}
+                        <div style={{ color: greenBright, fontSize: 13, marginBottom: 12, textShadow: `0 0 10px ${greenBright}` }}>
+                            ❯ {step.question}
+                        </div>
+
+                        {/* Choices */}
+                        {(step.type === 'choice' || step.type === 'multiChoice') && step.choices && (
+                            <div style={{ marginLeft: 16, marginBottom: 12 }}>
+                                {step.choices.map((c, i) => {
+                                    const sel = step.type === 'multiChoice' ? multiSel.includes(i) : value === c;
+                                    return (
+                                        <button
+                                            key={i} onClick={() => handleChoiceClick(i)}
+                                            className="block text-left w-full"
+                                            style={{
+                                                color: sel ? greenBright : greenDim,
+                                                fontSize: 12, lineHeight: '2',
+                                                textShadow: sel ? `0 0 8px ${greenBright}` : 'none',
+                                                letterSpacing: '0.05em',
+                                                transition: 'all 0.15s',
+                                            }}
+                                        >
+                                            [{sel ? 'X' : ' '}] {i + 1}. {c}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            {companionMode === m.id && <Check size={14} className="ml-auto text-green-400 flex-shrink-0" />}
+                        )}
+
+                        {/* Text input(s) */}
+                        {step.type === 'text' && (
+                            <div style={{ marginLeft: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ color: greenBright }}>$</span>
+                                    <input
+                                        ref={inputRef}
+                                        value={value}
+                                        onChange={e => setValue(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter' && !step.subKey) advance(); }}
+                                        placeholder={step.placeholder}
+                                        className="flex-1 bg-transparent outline-none"
+                                        style={{
+                                            color: greenBright, fontSize: 13,
+                                            caretColor: greenBright,
+                                            border: 'none',
+                                        }}
+                                    />
+                                </div>
+                                {step.subKey && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                                        <span style={{ color: greenBright }}>$</span>
+                                        <span style={{ color: greenMid, fontSize: 12, marginRight: 8 }}>{step.subQuestion}</span>
+                                        <input
+                                            value={subValue}
+                                            onChange={e => setSubValue(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') advance(); }}
+                                            placeholder={step.subPlaceholder}
+                                            className="flex-1 bg-transparent outline-none"
+                                            style={{ color: greenBright, fontSize: 13, caretColor: greenBright, border: 'none' }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Confirm button */}
+                        <button
+                            onClick={advance}
+                            style={{
+                                marginTop: 20,
+                                padding: '6px 18px',
+                                border: `1px solid rgba(0,255,65,0.35)`,
+                                color: greenBright,
+                                fontSize: 11,
+                                letterSpacing: '0.2em',
+                                background: 'rgba(0,255,65,0.04)',
+                                boxShadow: '0 0 10px rgba(0,255,65,0.12)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            [CONFIRM] ↵ ENTER
                         </button>
-                    ))}
-                </div>
-            </div>
-            <div className="space-y-3">
-                {[
-                    { label: '❤️ Warmth', value: warmth, set: setWarmth, left: 'Professional', right: 'Very warm' },
-                    { label: '⚡ Proactivity', value: proactivity, set: setProactivity, left: 'Only when asked', right: 'Very proactive' },
-                    { label: '😄 Humor', value: humor, set: setHumor, left: 'Serious', right: 'Playful' },
-                ].map(({ label, value, set, left, right }) => (
-                    <div key={label}>
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-gray-400 text-xs">{label}</span>
-                            <span className="text-green-400 text-xs">{value}/5</span>
-                        </div>
-                        <input type="range" min={1} max={5} value={value} onChange={e => set(Number(e.target.value))} className="w-full accent-green-500" />
-                        <div className="flex justify-between text-gray-600 text-xs mt-0.5">
-                            <span>{left}</span><span>{right}</span>
+                    </div>
+                )}
+
+                {/* Completion */}
+                {finished && (
+                    <div style={{ marginTop: 24 }}>
+                        {['──────────────────────────────────────────',
+                          'INITIALIZATION COMPLETE.',
+                          'Memory encrypted and stored locally.',
+                          'Echo is online. Your companion is ready.',
+                        ].map((line, i) => (
+                            <div key={i} style={{
+                                color: line === 'INITIALIZATION COMPLETE.' ? greenBright : greenMid,
+                                fontSize: i === 0 ? 11 : 13,
+                                lineHeight: '1.9',
+                                textShadow: line === 'INITIALIZATION COMPLETE.' ? `0 0 12px ${greenBright}` : 'none',
+                                letterSpacing: line.includes('─') ? 0 : '0.05em',
+                            }}>{line}</div>
+                        ))}
+                        <div style={{
+                            marginTop: 24, textAlign: 'center',
+                            color: greenBright, fontSize: 22,
+                            textShadow: `0 0 20px ${greenBright}, 0 0 40px ${greenBright}`,
+                            letterSpacing: '0.4em',
+                        }}>
+                            ◉ ONLINE
                         </div>
                     </div>
-                ))}
+                )}
+
+                <div ref={bottomRef} style={{ height: 40 }} />
             </div>
         </div>
     );

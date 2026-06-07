@@ -224,33 +224,35 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                         </p>
                     </div>
 
-                    {/* Provider keys */}
-                    <div className="space-y-3">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Key size={16} />
-                            <span>Provider API Keys</span>
-                        </label>
-                        {PROVIDERS.map(p => (
-                            <div key={p.id} className="space-y-1">
+                    {/* Provider key */}
+                    {(() => {
+                        const currentProvider = PROVIDERS.find(p => p.id === defaultBrain);
+                        if (!currentProvider) return null;
+                        return (
+                            <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
                                 <div className="flex items-center justify-between text-xs">
-                                    <span className="text-[#00ff41]/80">{p.label}</span>
-                                    {p.free && (
+                                    <span className="text-gray-300 font-semibold flex items-center gap-1.5">
+                                        <Key size={14} className="text-[#00ff41]" />
+                                        {defaultBrain === 'ollama' ? 'Ollama Configuration' : `${currentProvider.label} API Key`}
+                                    </span>
+                                    {currentProvider.free && (
                                         <span className="text-[9px] uppercase tracking-widest text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">
                                             free tier
                                         </span>
                                     )}
                                 </div>
+
                                 <div className="relative group">
                                     <input
-                                        type={p.id === 'ollama' ? 'text' : 'password'}
-                                        value={providerKeys[p.id] || ''}
-                                        onChange={(e) => setProviderKeys(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                        placeholder={p.placeholder}
+                                        type={defaultBrain === 'ollama' ? 'text' : 'password'}
+                                        value={providerKeys[defaultBrain] || ''}
+                                        onChange={(e) => setProviderKeys(prev => ({ ...prev, [defaultBrain]: e.target.value }))}
+                                        placeholder={currentProvider.placeholder}
                                         className="w-full bg-black/50 border border-white/10 rounded-lg pl-3 pr-8 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 transition-all font-mono"
                                     />
-                                    {providerKeys[p.id] && (
+                                    {providerKeys[defaultBrain] && (
                                         <button
-                                            onClick={() => handleClear(p.storageKey, p.id)}
+                                            onClick={() => handleClear(currentProvider.storageKey, defaultBrain)}
                                             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
                                             type="button"
                                         >
@@ -258,7 +260,8 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                         </button>
                                     )}
                                 </div>
-                                {p.id === 'openai' && (
+
+                                {defaultBrain === 'openai' && (
                                     <div className="pt-1">
                                         <input
                                             type="text"
@@ -269,9 +272,15 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                         />
                                     </div>
                                 )}
+
+                                {defaultBrain === 'ollama' && (
+                                    <p className="text-[10px] text-[#00ff41]/60 leading-relaxed mt-1">
+                                        No API key needed. Runs locally on your machine. Ensure Ollama is running (`ollama run llama3`) and start the voice server (`python server.py`) to bypass CORS restrictions.
+                                    </p>
+                                )}
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })()}
 
                     {/* YOLO toggle */}
                     <div className="space-y-2 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">

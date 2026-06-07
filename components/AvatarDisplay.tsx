@@ -133,6 +133,7 @@ export default function AvatarDisplay({ state, volume, cameraStream, avatarUrl }
                         ))}
                     </defs>
 
+
                     {rings.map((r, i) => {
                         const rx = (r.rx / 100) * SIZE * 0.5;
                         const ry = (r.ry / 100) * SIZE * 0.5;
