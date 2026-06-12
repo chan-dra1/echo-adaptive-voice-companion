@@ -173,6 +173,7 @@ export default function App() {
   const recognitionRef = useRef<any>(null);
   const isBrowserVoiceConnectedRef = useRef(false);
   const speechVolumeIntervalRef = useRef<any>(null);
+  const isAIPendingRef = useRef(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { removeToast, success, error, warning, info } = useToast();
 
@@ -448,6 +449,7 @@ export default function App() {
       
       if (status === ConnectionStatus.CONNECTED || status === ConnectionStatus.CONNECTING) {
         isBrowserVoiceConnectedRef.current = false;
+        isAIPendingRef.current = false;
         if (recognitionRef.current) {
           try { recognitionRef.current.abort(); } catch { /* ignore */ }
         }
@@ -482,6 +484,7 @@ export default function App() {
       }
 
       isBrowserVoiceConnectedRef.current = true;
+      isAIPendingRef.current = false;
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
@@ -510,14 +513,20 @@ export default function App() {
       };
 
       recognition.onend = () => {
-        if (isBrowserVoiceConnectedRef.current && !window.speechSynthesis.speaking) {
-          try { recognition.start(); } catch { /* ignore */ }
+        if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current && !window.speechSynthesis.speaking) {
+          setTimeout(() => {
+            if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current && !window.speechSynthesis.speaking) {
+              try { recognition.start(); } catch { /* ignore */ }
+            }
+          }, 150);
         }
       };
 
       recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
         if (!transcript.trim()) return;
+
+        isAIPendingRef.current = true;
 
         const userMsg = { id: `local_msg_${Date.now()}`, role: 'user', text: transcript, isFinal: true };
         setChatHistory(prev => [...prev, userMsg]);
@@ -579,31 +588,46 @@ export default function App() {
           }, 100);
 
           utterance.onend = () => {
+            isAIPendingRef.current = false;
             if (speechVolumeIntervalRef.current) {
               clearInterval(speechVolumeIntervalRef.current);
             }
             setVolumeState({ inputVolume: 0, outputVolume: 0 });
             if (isBrowserVoiceConnectedRef.current) {
-              try { recognition.start(); } catch { /* ignore */ }
+              setTimeout(() => {
+                if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                  try { recognition.start(); } catch { /* ignore */ }
+                }
+              }, 150);
             }
           };
 
           utterance.onerror = () => {
+            isAIPendingRef.current = false;
             if (speechVolumeIntervalRef.current) {
               clearInterval(speechVolumeIntervalRef.current);
             }
             setVolumeState({ inputVolume: 0, outputVolume: 0 });
             if (isBrowserVoiceConnectedRef.current) {
-              try { recognition.start(); } catch { /* ignore */ }
+              setTimeout(() => {
+                if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                  try { recognition.start(); } catch { /* ignore */ }
+                }
+              }, 150);
             }
           };
 
           window.speechSynthesis.speak(utterance);
 
         } catch (err: any) {
+          isAIPendingRef.current = false;
           error("Error fetching AI response: " + (err.message || err));
           if (isBrowserVoiceConnectedRef.current) {
-            try { recognition.start(); } catch { /* ignore */ }
+            setTimeout(() => {
+              if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                try { recognition.start(); } catch { /* ignore */ }
+              }
+            }, 150);
           }
         }
       };
