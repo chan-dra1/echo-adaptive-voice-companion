@@ -494,6 +494,19 @@ export default function App() {
 
       recognition.onerror = (e: any) => {
         console.error("Speech recognition error:", e.error);
+        if (e.error === 'not-allowed') {
+          error("Browser Speech: Microphone permission denied or blocked.");
+          setStatus(ConnectionStatus.ERROR);
+          isBrowserVoiceConnectedRef.current = false;
+        } else if (e.error === 'network') {
+          error("Browser Speech: Network error occurred.");
+          setStatus(ConnectionStatus.ERROR);
+          isBrowserVoiceConnectedRef.current = false;
+        } else if (e.error !== 'no-speech') {
+          error(`Browser Speech error: ${e.error}`);
+          setStatus(ConnectionStatus.ERROR);
+          isBrowserVoiceConnectedRef.current = false;
+        }
       };
 
       recognition.onend = () => {
