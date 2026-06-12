@@ -548,6 +548,16 @@ export default function App() {
 
           const utterance = new SpeechSynthesisUtterance(response.text);
           
+          const systemVoices = window.speechSynthesis.getVoices();
+          const premiumVoice = systemVoices.find(v => 
+            (v.name.includes('Siri') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural')) && 
+            v.lang.startsWith('en')
+          ) || systemVoices.find(v => v.lang.startsWith('en')) || systemVoices[0];
+          
+          if (premiumVoice) {
+            utterance.voice = premiumVoice;
+          }
+          
           speechVolumeIntervalRef.current = setInterval(() => {
             setVolumeState({
               inputVolume: 0,
