@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Briefcase } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Briefcase, BookOpen } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -53,6 +53,20 @@ import { ambientModeService, getAmbientConfig } from './services/ambientModeServ
 import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
 import InterviewPracticeMode from './components/InterviewPracticeMode';
+import RAGPanel from './components/RAGPanel';
+import { query as ragQuery, formatRagContext } from './services/ragService';
+import { setRagContext, clearRagContext } from './services/modelContextBuilder';
+import { warmEmbeddingModel } from './services/embeddingService';
+// Living HUD additions
+import EchoFrame from './components/EchoFrame';
+import AmbientField from './components/AmbientField';
+import CommandPalette, { Command } from './components/CommandPalette';
+import { startCircadianLoop } from './services/circadianThemeService';
+import { BookOpen as IconBookOpen, Fingerprint } from 'lucide-react';
+import { enrollBiometric, isBiometricEnrolled, unenrollBiometric } from './services/webauthnService';
+import { connectHands, isHandsConnected, setHandsToken, forgetHands, hasHandsToken } from './services/handsBridgeService';
+import { startMarketWatchLoop } from './services/marketWatchService';
+import { Terminal as IconTerminal } from 'lucide-react';
 
 export default function App() {
   // Check if ANY provider key is available
@@ -140,6 +154,8 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !getCompanionState().onboardingComplete);
   const [showInterview, setShowInterview] = useState(false);
   const [interviewSystemPrompt, setInterviewSystemPrompt] = useState<string | null>(null);
+  const [showRAGPanel, setShowRAGPanel] = useState(false);
+  const [showCmdPalette, setShowCmdPalette] = useState(false);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -202,6 +218,23 @@ export default function App() {
     // Restore ambient mode if it was enabled
     const ambientCfg = getAmbientConfig();
     if (ambientCfg.enabled) ambientModeService.setEnabled(true);
+    // Warm up the embedding model in background so RAG is ready
+    warmEmbeddingModel();
+    // Start circadian theme loop
+    const stopCircadian = startCircadianLoop();
+    // Try connecting to the Echo Hands daemon (silent no-op if not paired/running)
+    connectHands();
+    // Price alert loop (read-only market watch)
+    const stopMarketWatch = startMarketWatchLoop();
+    const handleMarketAlert = (e: any) => {
+      if (e.detail?.message) warning(`📈 ${e.detail.message}`);
+    };
+    window.addEventListener('market:alert', handleMarketAlert);
+    const handleHandsStatus = (e: any) => {
+      if (e.detail?.connected) success(`Echo Hands connected — workspace: ${e.detail.workspace}`);
+      else warning('Echo Hands daemon disconnected.');
+    };
+    window.addEventListener('hands:status', handleHandsStatus);
 
     // Deadline nudge handler
     const handleDeadlineNudge = (e: any) => {
@@ -272,6 +305,8 @@ export default function App() {
         setShowVaultOrganizer(false);
         setShowMobileMenu(false);
         setShowCompanionPanel(false);
+        setShowRAGPanel(false);
+        setShowInterview(false);
       }
     };
 
@@ -338,11 +373,35 @@ export default function App() {
       else if (mql?.removeListener) mql.removeListener(onMqlChange);
       // Companion
       window.removeEventListener('echo-deadline-nudge', handleDeadlineNudge);
+      window.removeEventListener('hands:status', handleHandsStatus);
+      window.removeEventListener('market:alert', handleMarketAlert);
+      stopMarketWatch();
       window.removeEventListener('ambient:quiet', handleAmbientQuiet);
       window.removeEventListener('ambient:resumed', handleAmbientResume);
       window.removeEventListener('ambient:silence-checkin', handleSilenceCheckin);
+      stopCircadian();
     };
   }, [success, info, warning]);
+
+  // ⌘K / Ctrl+K to open command palette from anywhere
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isCmd = e.metaKey || e.ctrlKey;
+      const target = e.target as HTMLElement | null;
+      const inField = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isCmd && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setShowCmdPalette(p => !p);
+      } else if (e.key === '/' && !inField && !showCmdPalette) {
+        e.preventDefault();
+        setShowCmdPalette(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showCmdPalette]);
+
+
 
   // Keyboard navigation: ESC to close sidebars and modals
   useEffect(() => {
@@ -487,6 +546,20 @@ export default function App() {
           extras.push(`[GHOST PERSONA] Style: ${cfg.style}; allow interruptions: ${cfg.allowInterruptions}; filler words: ${cfg.useFillerWords}; emotional: ${cfg.emotionalResponses}.`);
         } catch { /* ignore */ }
       }
+
+      // ── RAG: retrieve relevant knowledge for this session ─────────────────
+      // We use the companion name + recent chat as the seed query.
+      // This runs async before connect so it's ready when the session starts.
+      try {
+        const seedQuery = `${getCompanionState().userName || 'user'} personal knowledge goals habits`;
+        const ragChunks = await ragQuery(seedQuery, { topK: 5, threshold: 0.28 });
+        if (ragChunks.length > 0) {
+          setRagContext(formatRagContext(ragChunks));
+        } else {
+          clearRagContext();
+        }
+      } catch { clearRagContext(); }
+      // ─────────────────────────────────────────────────────────────────────
 
       const builtSys = buildSystemContext({
         destination: 'cloud',
@@ -683,9 +756,116 @@ export default function App() {
     }
   }
 
+  // Build the command list for the palette
+  const paletteCommands: Command[] = React.useMemo(() => [
+    { id: 'connect', label: status === ConnectionStatus.CONNECTED ? 'Disconnect Echo' : 'Connect to Echo',
+      description: 'Toggle the voice neural link', icon: <Mic size={14} />, category: 'Voice',
+      color: status === ConnectionStatus.CONNECTED ? 'var(--c-red)' : 'var(--c-green)',
+      keywords: ['mic','voice','start','stop','call'], run: () => handleConnect() },
+    { id: 'mute', label: isMicMuted ? 'Unmute microphone' : 'Mute microphone',
+      description: 'Toggle mic without disconnecting', icon: <MicOff size={14} />, category: 'Voice',
+      color: 'var(--c-cyan)', keywords: ['mute','silence'], run: () => toggleMute() },
+    { id: 'companion', label: 'Open Companion Panel',
+      description: 'Habits, goals, mood, briefing', icon: <Heart size={14} />, category: 'Navigation',
+      color: 'var(--c-pink)', keywords: ['habits','goals','mood','briefing'], run: () => setShowCompanionPanel(true) },
+    { id: 'memory', label: 'Open Memory Bank',
+      description: 'What Echo remembers about you', icon: <Brain size={14} />, category: 'Memory',
+      color: 'var(--c-pink)', keywords: ['memories','remember','notes'], run: () => setShowMemory(true) },
+    { id: 'rag', label: 'Open Knowledge Vault (RAG)',
+      description: 'Upload docs, semantic search', icon: <IconBookOpen size={14} />, category: 'Memory',
+      color: 'var(--c-cyan)', keywords: ['rag','knowledge','documents','pdf','search'], run: () => setShowRAGPanel(true) },
+    { id: 'chat', label: 'Open Conversation History',
+      description: 'Past text chats', icon: <MessageSquare size={14} />, category: 'Navigation',
+      color: 'var(--c-cyan)', keywords: ['history','transcript','chat'], run: () => setShowChat(true) },
+    { id: 'new-chat', label: 'Start a new conversation',
+      description: 'Clear current session', icon: <Plus size={14} />, category: 'Action',
+      color: 'var(--c-green)', keywords: ['fresh','reset','clear'], run: () => handleNewChat() },
+    { id: 'interview', label: 'Interview Practice Mode',
+      description: 'Echo becomes your interviewer', icon: <Briefcase size={14} />, category: 'Practice',
+      color: 'var(--c-amber)', keywords: ['job','practice','behavioral','technical'], run: () => setShowInterview(true) },
+    { id: 'vault', label: 'Vault Organizer',
+      description: 'Manage encrypted files and notes', icon: <Folder size={14} />, category: 'Navigation',
+      color: 'var(--c-cyan)', keywords: ['files','notes','folders'], run: () => setShowVaultOrganizer(true) },
+    { id: 'voice-vault', label: 'Voice Vault',
+      description: 'Manage voice models', icon: <Lock size={14} />, category: 'System',
+      color: 'var(--c-cyan)', keywords: ['voices','speech','tts'], run: () => setShowVoiceVault(true) },
+    { id: 'settings', label: 'Settings & Keys',
+      description: 'API keys and defaults', icon: <User size={14} />, category: 'System',
+      color: 'rgba(255,255,255,0.7)', keywords: ['api','config','preferences'], run: () => setIsSettingsOpen(true) },
+    { id: 'camera', label: isCameraActive ? 'Stop camera' : 'Start camera vision',
+      description: 'Echo can see what you see', icon: <Camera size={14} />, category: 'Voice',
+      color: 'var(--c-green)', keywords: ['vision','webcam','see'], run: async () => {
+        if (!serviceRef.current) return;
+        if (isCameraActive) { serviceRef.current.stopCamera(); setIsCameraActive(false); }
+        else { try { await serviceRef.current.startCamera(); setIsCameraActive(true); } catch { error('Could not access camera'); } }
+      }},
+    { id: 'screen', label: isScreenSharing ? 'Stop screen share' : 'Share screen with Echo',
+      description: 'Echo reads your active window', icon: <Monitor size={14} />, category: 'Voice',
+      color: 'var(--c-purple)', keywords: ['screen','share','show'], run: () => handleScreenShare() },
+    { id: 'handsfree', label: isHandsFree ? 'Hands-Free OFF' : 'Hands-Free ON',
+      description: 'Extended silence tolerance', icon: <Headphones size={14} />, category: 'Voice',
+      color: 'var(--c-green)', keywords: ['mobile','background'], run: () => toggleHandsFree() },
+    { id: 'ghost', label: 'Open Ghost persona settings',
+      description: 'Configure interview persona', icon: <Ghost size={14} />, category: 'Practice',
+      color: 'var(--c-cyan)', keywords: ['persona','style'], run: () => setShowGhostMode(true) },
+    { id: 'upload', label: 'Upload a file',
+      description: 'Send a doc, PDF or code file to Echo', icon: <Plus size={14} />, category: 'Action',
+      color: 'var(--c-amber)', keywords: ['file','pdf','document','code'], run: () => setShowFileUpload(true) },
+    { id: 'biometric', label: isBiometricEnrolled() ? 'Disable biometric unlock' : 'Enable biometric unlock',
+      description: isBiometricEnrolled() ? 'Remove the passkey wrap for this vault' : 'Touch ID / Face ID / Windows Hello via passkey',
+      icon: <Fingerprint size={14} />, category: 'System',
+      color: 'var(--c-cyan)', keywords: ['touchid','faceid','passkey','webauthn','fingerprint'],
+      run: async () => {
+        if (isBiometricEnrolled()) {
+          unenrollBiometric();
+          info('Biometric unlock disabled.');
+          return;
+        }
+        try {
+          await enrollBiometric(getCompanionState().userName || 'Echo User');
+          success('Biometric unlock enabled — next unlock can use Touch ID / Face ID.');
+        } catch (e: any) {
+          error(e?.message || 'Biometric enrollment failed.');
+        }
+      }},
+    { id: 'hands', label: isHandsConnected() ? 'Disconnect Echo Hands' : 'Connect Echo Hands',
+      description: isHandsConnected() ? 'Drop the local execution daemon link' : 'Pair with the local daemon for shell & file powers',
+      icon: <IconTerminal size={14} />, category: 'System',
+      color: 'var(--c-green)', keywords: ['daemon','shell','terminal','local','execute','computer'],
+      run: () => {
+        if (isHandsConnected() || hasHandsToken()) {
+          forgetHands();
+          info('Echo Hands unpaired. Run the daemon and re-pair anytime.');
+          return;
+        }
+        const token = window.prompt('Paste the Echo Hands token (printed by: cd echo-daemon && npm start)');
+        if (token?.trim()) {
+          setHandsToken(token);
+          info('Pairing with Echo Hands daemon…');
+        }
+      }},
+  ], [status, isMicMuted, isCameraActive, isScreenSharing, isHandsFree, handleConnect, toggleMute, handleNewChat, handleScreenShare, toggleHandsFree, error, info, success]);
+
   return (
 
     <div className={`relative w-screen h-screen overflow-hidden bg-black text-[#00ff41] font-mono selection:bg-[#00ff41]/30 flex flex-col${isMobileCoarse ? ' mobile-lite' : ''}`}>
+      {/* Living HUD — ambient field behind everything */}
+      <AmbientField
+        status={status}
+        outputVolume={volumeState.outputVolume}
+        inputVolume={volumeState.inputVolume}
+      />
+      {/* Iron-Man-style viewport frame with corner readouts */}
+      {vaultReady && !showOnboarding && (
+        <EchoFrame status={status} />
+      )}
+      {/* Global command palette — Cmd/Ctrl+K to open */}
+      <CommandPalette
+        open={showCmdPalette}
+        onClose={() => setShowCmdPalette(false)}
+        commands={paletteCommands}
+      />
+
       {needsPassphrasePrompt && <UnlockVault onUnlocked={handleVaultUnlocked} />}
       {/* Onboarding Wizard — shows on first launch after vault is ready */}
       {vaultReady && showOnboarding && (
@@ -698,6 +878,9 @@ export default function App() {
           onClose={() => { setShowInterview(false); setInterviewSystemPrompt(null); }}
           onSystemPromptOverride={setInterviewSystemPrompt}
         />
+      )}
+      {showRAGPanel && (
+        <RAGPanel onClose={() => setShowRAGPanel(false)} />
       )}
       <SkillApprovalModal />
       {/* MOBILE-AGENT: dismissible install pill (Android BIP + iOS hint) */}
@@ -850,6 +1033,17 @@ export default function App() {
                 <div>
                   <div className="text-sm font-semibold">Companion panel</div>
                   <div className="text-[10px] text-white/40">Habits, goals & briefing</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowRAGPanel(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-cyan-500/10 rounded-xl text-cyan-400"><BookOpen size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Knowledge Vault</div>
+                  <div className="text-[10px] text-white/40">RAG — upload docs, search memory</div>
                 </div>
               </button>
 
@@ -1126,6 +1320,15 @@ export default function App() {
                   className={`p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative ${showInterview ? 'bg-amber-500/15 border-amber-500/30' : ''}`}
                 >
                   <Briefcase size={18} className="text-amber-400/80" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Knowledge Vault — RAG">
+                <button
+                  onClick={() => setShowRAGPanel(true)}
+                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all"
+                >
+                  <BookOpen size={18} className="text-cyan-400/80" />
                 </button>
               </Tooltip>
             </div>
