@@ -384,18 +384,16 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                 <option value="eager">Eager — quick barge-in</option>
                             </select>
                         </label>
-                        <label className="block text-xs text-gray-300 mt-2">
                             Live voice model
                             <select
-                                defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.0-flash-exp'}
+                                defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.0-flash-live-preview-04-09'}
                                 onChange={(e) => localStorage.setItem('echo_live_model', e.target.value)}
                                 className="mt-1 w-full bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-xs text-white font-mono"
                             >
-                                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (default)</option>
+                                <option value="gemini-2.0-flash-live-preview-04-09">gemini-2.0-flash-live-preview-04-09 (default / recommended)</option>
                                 <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio-preview-12-2025</option>
-                                <option value="gemini-2.0-flash-live-preview-04-09">gemini-2.0-flash-live-preview-04-09</option>
+                                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (deprecated)</option>
                             </select>
-                        </label>
                         <p className="text-[10px] text-cyan-400/50">
                             Hands-free + native app (Capacitor) required for mic while screen locked. See mobile/README.md.
                         </p>
