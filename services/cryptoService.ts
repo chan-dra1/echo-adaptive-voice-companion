@@ -316,6 +316,53 @@ export function lockVault(): void {
     state.mode = 'locked';
 }
 
+/* ─────────── Biometric (WebAuthn PRF) wrap ───────────
+ *
+ * A passkey's PRF output acts as a second "passphrase": we derive a KEK
+ * from it and keep a SECOND wrapped copy of the same DEK. Either path
+ * (passphrase or biometric) unwraps the identical DEK, so data is
+ * readable regardless of which unlock method was used.
+ */
+
+const BIO_DEK_KEY  = 'echo_vault_dek_bio_v1';
+const BIO_SALT_KEY = 'echo_vault_bio_salt_v1';
+
+export function hasBiometricWrap(): boolean {
+    return !!localStorage.getItem(BIO_DEK_KEY);
+}
+
+export function removeBiometricWrap(): void {
+    localStorage.removeItem(BIO_DEK_KEY);
+    localStorage.removeItem(BIO_SALT_KEY);
+}
+
+/** Wrap the currently-unlocked DEK with a key derived from the PRF secret. */
+export async function wrapDekForBiometric(prfSecretB64: string): Promise<void> {
+    if (!state.dek) throw new Error('Vault must be unlocked before enrolling biometrics.');
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    localStorage.setItem(BIO_SALT_KEY, bytesToB64(salt));
+    const kek = await deriveKEK(prfSecretB64, salt);
+    const wrapped = await wrapDEK(state.dek, kek);
+    localStorage.setItem(BIO_DEK_KEY, wrapped);
+}
+
+/** Unlock the vault using the PRF secret from a successful passkey assertion. */
+export async function unlockWithBiometricSecret(prfSecretB64: string): Promise<void> {
+    if (state.dek) return; // already unlocked
+    const wrapped = localStorage.getItem(BIO_DEK_KEY);
+    const saltB64 = localStorage.getItem(BIO_SALT_KEY);
+    if (!wrapped || !saltB64) throw new Error('No biometric enrollment found.');
+    const kek = await deriveKEK(prfSecretB64, b64ToBytes(saltB64));
+    try {
+        state.dek = await unwrapDEK(wrapped, kek);
+    } catch {
+        throw new Error('Biometric unlock failed — key mismatch.');
+    }
+    const storedMode = localStorage.getItem(VAULT_MODE_KEY) as 'auto' | 'passphrase' | null;
+    state.mode = storedMode || 'passphrase';
+    await migrateLegacy();
+}
+
 /* sync cache accessors used by the rest of the app */
 
 export function getCached<T>(key: string, fallback: T): T {

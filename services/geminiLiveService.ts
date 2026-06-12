@@ -30,6 +30,11 @@ import {
   loadInterruptMode,
 } from './conversationPolicyService';
 import { mobileAudioBridge } from './mobileAudioBridge';
+import { getHandsTools, isHandsTool, executeHandsTool, isHandsConnected } from './handsBridgeService';
+import { getProjectTools, isProjectTool, executeProjectTool } from './projectModeService';
+import { PLANNER_TOOLS, isPlannerTool, executePlannerTool } from './monthlyPlannerService';
+import { TICKET_TOOLS, isTicketTool, executeTicketTool } from './featureTicketService';
+import { MARKET_TOOLS, isMarketTool, executeMarketTool } from './marketWatchService';
 
 interface LiveServiceCallbacks {
   onConnect: () => void;
@@ -246,6 +251,10 @@ ${memoryContext}
 ${summaryContext}
 
 ${learningContext}
+
+${isHandsConnected() ? `LOCAL EXECUTION: The Echo Hands daemon is connected. You can run shell commands, read/write files and list directories on the user's computer via the hands_* tools. Prefer them for any task the browser cannot do (git, installs, scripts, local files). Destructive actions will ask the user to confirm.
+
+PROJECT MODE: When the user asks you to build a website/app/page, use project_scaffold with ALL files (complete, production-quality HTML/CSS/JS — modern, responsive, polished). Then offer to publish with project_deploy (GitHub + Vercel) and read the live URL back to them.` : ''}
 `;
       }
       const voiceName = config?.voiceName || 'Fenrir';
@@ -264,7 +273,7 @@ ${learningContext}
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any)] },
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any), ...(getHandsTools() as any), ...(getProjectTools() as any), ...(PLANNER_TOOLS as any), ...(TICKET_TOOLS as any), ...(MARKET_TOOLS as any)] },
             googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
@@ -969,6 +978,26 @@ ${learningContext}
             name: fc.name,
             response: { result: `The current time is ${now.toLocaleTimeString()}` }
           });
+        }
+        else if (isMarketTool(fc.name)) {
+          const out = await executeMarketTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (isTicketTool(fc.name)) {
+          const out = await executeTicketTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (isPlannerTool(fc.name)) {
+          const out = await executePlannerTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (isProjectTool(fc.name)) {
+          const out = await executeProjectTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (isHandsTool(fc.name)) {
+          const out = await executeHandsTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
         }
         else {
           // 1. Try Agent Skills

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Lock, Zap, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, Zap, AlertTriangle, Fingerprint } from 'lucide-react';
 import { initVault, hasVault, getVaultMode } from '../services/cryptoService';
+import { isBiometricAvailable, isBiometricEnrolled, unlockBiometric } from '../services/webauthnService';
 
 interface UnlockVaultProps {
     onUnlocked: () => void;
@@ -12,7 +13,7 @@ interface UnlockVaultProps {
  *  - If there is no existing vault: user can either set a passphrase or
  *    pick "Quick Mode" (random key auto-generated, persisted in localStorage).
  *  - If there is an existing vault in passphrase mode: user must enter the
- *    passphrase.
+ *    passphrase — or use biometrics (Touch ID / Face ID) if enrolled.
  *  - If there is an existing vault in auto mode: we just init silently
  *    without showing the UI (handled by the parent).
  */
@@ -20,9 +21,16 @@ const UnlockVault: React.FC<UnlockVaultProps> = ({ onUnlocked }) => {
     const [passphrase, setPassphrase] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [bioReady, setBioReady] = useState(false);
 
     const existing = hasVault();
     const existingMode = existing ? getVaultMode() : null;
+
+    useEffect(() => {
+        if (existing && isBiometricEnrolled()) {
+            isBiometricAvailable().then(setBioReady);
+        }
+    }, [existing]);
 
     const handleUnlock = async () => {
         setBusy(true);
@@ -36,6 +44,19 @@ const UnlockVault: React.FC<UnlockVaultProps> = ({ onUnlocked }) => {
             onUnlocked();
         } catch (e: any) {
             setError(e?.message || 'Failed to unlock.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleBiometric = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            await unlockBiometric();
+            onUnlocked();
+        } catch (e: any) {
+            setError(e?.message || 'Biometric unlock failed. Use your passphrase.');
         } finally {
             setBusy(false);
         }
@@ -79,6 +100,18 @@ const UnlockVault: React.FC<UnlockVaultProps> = ({ onUnlocked }) => {
                 )}
 
                 <div className="space-y-3">
+                    {/* Biometric unlock — shown only when a passkey is enrolled */}
+                    {bioReady && (
+                        <button
+                            onClick={handleBiometric}
+                            disabled={busy}
+                            className="w-full px-3 py-3 rounded-lg bg-[#00E5FF]/10 border border-[#00E5FF]/40 text-[#00E5FF] hover:bg-[#00E5FF]/20 disabled:opacity-30 transition flex items-center justify-center gap-2"
+                        >
+                            <Fingerprint size={16} />
+                            <span className="text-xs tracking-widest uppercase">Unlock with Biometrics</span>
+                        </button>
+                    )}
+
                     <input
                         type="password"
                         value={passphrase}

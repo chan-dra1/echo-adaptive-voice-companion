@@ -124,7 +124,16 @@ export const proposeNewSkillToolDeclaration: FunctionDeclaration = {
                 description:
                     'List of hostnames the skill needs network access to (e.g. ["api.example.com"]). Empty array means no network.',
             },
+            testArgsJSON: {
+                type: Type.STRING,
+                description:
+                    'JSON string of realistic example args for the new tool. The skill is ' +
+                    'test-executed in the sandbox with these args BEFORE installation; if it ' +
+                    'throws or times out, installation is rejected and you get the error back ' +
+                    'to fix the code and re-propose. Use args that exercise the main code path ' +
+                    'but avoid destructive side effects.',
+            },
         },
-        required: ['name', 'purpose', 'schemaJSON', 'jsCode'],
+        required: ['name', 'purpose', 'schemaJSON', 'jsCode', 'testArgsJSON'],
     },
 };

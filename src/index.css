@@ -180,3 +180,82 @@
 .animate-pulse-gentle{animation:pulse-gentle 4s ease-in-out infinite;}
 .animate-slide-in-right{animation:slideInRight 0.35s cubic-bezier(0.16,1,0.3,1) forwards;}
 .animate-slide-in-down{animation:slideInDown 0.3s ease-out;}
+
+/* ─── Circadian theme variables (set by JS) ───────────────── */
+:root {
+    --circadian-accent:  #00E5FF;
+    --circadian-accent2: #00FF41;
+    --circadian-bg:      #000810;
+    --circadian-glow:    rgba(0,229,255,0.18);
+}
+[data-phase="dawn"]      body { background: radial-gradient(ellipse at top, rgba(125,222,255,0.05), transparent 70%), var(--circadian-bg); }
+[data-phase="morning"]   body { background: radial-gradient(ellipse at top, rgba(0,229,255,0.05),  transparent 70%), var(--circadian-bg); }
+[data-phase="afternoon"] body { background: radial-gradient(ellipse at top, rgba(0,255,65,0.05),   transparent 70%), var(--circadian-bg); }
+[data-phase="evening"]   body { background: radial-gradient(ellipse at top, rgba(255,179,0,0.06),  transparent 70%), var(--circadian-bg); }
+[data-phase="night"]     body { background: radial-gradient(ellipse at top, rgba(255,107,157,0.05),transparent 70%), var(--circadian-bg); }
+
+/* Smooth body bg transitions */
+body { transition: background 8s ease; }
+
+/* ─── EchoFrame ───────────────────────────────────────────── */
+.echo-frame { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+.echo-frame-glow {
+    position: absolute; inset: 4px;
+    border-radius: 6px;
+    transition: box-shadow 1.5s ease;
+}
+.echo-readout {
+    position: absolute;
+    font-family: 'Share Tech Mono', monospace;
+    background: rgba(0,8,20,0.55);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 6px 12px;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+.echo-readout-tl { top: 18px; left: 70px; }
+.echo-readout-tr { top: 18px; right: 70px; }
+.echo-readout-bl { bottom: 18px; left: 70px; }
+.echo-readout-br { bottom: 18px; right: 70px; }
+
+@media (max-width: 768px) {
+    .echo-readout-tl, .echo-readout-tr { top: 14px; }
+    .echo-readout-bl, .echo-readout-br { bottom: 14px; }
+    .echo-readout-tl, .echo-readout-bl { left: 60px; }
+    .echo-readout-tr, .echo-readout-br { right: 60px; }
+    .echo-readout { padding: 4px 8px; font-size: 9px; }
+}
+@media (max-width: 480px) {
+    .echo-frame:not(.echo-frame-mobile) .echo-readout { display: none; }
+}
+
+.echo-frame-scan {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    opacity: 0.6;
+    animation: echo-scan-line 8s linear infinite;
+    pointer-events: none;
+}
+@keyframes echo-scan-line {
+    0%   { top: 0%;   opacity: 0; }
+    8%   { opacity: 0.6; }
+    50%  { opacity: 0.6; }
+    92%  { opacity: 0.6; }
+    100% { top: 100%; opacity: 0; }
+}
+
+/* ─── Command palette entry animation ────────────────────── */
+@keyframes cmd-in {
+    0%   { opacity: 0; transform: translateY(-12px) scale(0.97); }
+    100% { opacity: 1; transform: translateY(0)   scale(1); }
+}
+.animate-cmd-in { animation: cmd-in 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* ─── Status dot color variants (extend) ─────────────────── */
+.status-dot.amber  { background: var(--c-amber); box-shadow: 0 0 6px var(--c-amber); }
+.status-dot.red    { background: var(--c-red);   box-shadow: 0 0 6px var(--c-red); }
+.status-dot.white  { background: rgba(255,255,255,0.5); }

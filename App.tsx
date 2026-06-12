@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GeminiLiveService } from './services/geminiLiveService';
+import { chat, chooseProvider } from './services/llmRouter';
 import { getMemories } from './services/memoryService';
 import { getHistory, saveMessage } from './services/chatHistoryService'; // Deprecated, will remove usage below
 import { proactiveAI } from './services/proactiveAIService';
@@ -169,6 +170,9 @@ export default function App() {
   });
 
   const serviceRef = useRef<GeminiLiveService | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const isBrowserVoiceConnectedRef = useRef(false);
+  const speechVolumeIntervalRef = useRef<any>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { removeToast, success, error, warning, info } = useToast();
 
@@ -358,6 +362,13 @@ export default function App() {
     else if (mql?.addListener) mql.addListener(onMqlChange); // older Safari
 
     return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch { /* ignore */ }
+      }
+      window.speechSynthesis.cancel();
+      if (speechVolumeIntervalRef.current) {
+        clearInterval(speechVolumeIntervalRef.current);
+      }
       proactiveAI.setActive(false);
       window.removeEventListener('echo-reminder', handleReminder);
       window.removeEventListener('echo-task-nudge', handleTaskNudge);
@@ -430,6 +441,155 @@ export default function App() {
   }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer]);
 
   const handleConnect = useCallback(async () => {
+    const persistedVoiceEngine = localStorage.getItem('echo_voice_engine') || 'gemini';
+
+    if (persistedVoiceEngine === 'browser') {
+      const activeBrain = chooseProvider();
+      
+      if (status === ConnectionStatus.CONNECTED || status === ConnectionStatus.CONNECTING) {
+        isBrowserVoiceConnectedRef.current = false;
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch { /* ignore */ }
+        }
+        window.speechSynthesis.cancel();
+        if (speechVolumeIntervalRef.current) {
+          clearInterval(speechVolumeIntervalRef.current);
+        }
+        setVolumeState({ inputVolume: 0, outputVolume: 0 });
+        setStatus(ConnectionStatus.DISCONNECTED);
+        info("Disconnected browser voice link");
+        return;
+      }
+
+      setStatus(ConnectionStatus.CONNECTING);
+      setMicPermissionDenied(false);
+
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        error("Web Speech API is not supported in this browser. Please use Chrome/Safari or Gemini Cloud engine.");
+        setStatus(ConnectionStatus.ERROR);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch (micError: any) {
+        setMicPermissionDenied(true);
+        setStatus(ConnectionStatus.ERROR);
+        error("Microphone access error: " + (micError.message || "Unknown error"));
+        return;
+      }
+
+      isBrowserVoiceConnectedRef.current = true;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setStatus(ConnectionStatus.CONNECTED);
+        success("Connected (Browser Speech Link)");
+      };
+
+      recognition.onerror = (e: any) => {
+        console.error("Speech recognition error:", e.error);
+      };
+
+      recognition.onend = () => {
+        if (isBrowserVoiceConnectedRef.current && !window.speechSynthesis.speaking) {
+          try { recognition.start(); } catch { /* ignore */ }
+        }
+      };
+
+      recognition.onresult = async (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (!transcript.trim()) return;
+
+        const userMsg = { id: `local_msg_${Date.now()}`, role: 'user', text: transcript, isFinal: true };
+        setChatHistory(prev => [...prev, userMsg]);
+        if (currentConvoId) {
+          addMessageToConversation(currentConvoId, 'user', transcript);
+        }
+
+        setVolumeState({ inputVolume: 0.8, outputVolume: 0 });
+        setTimeout(() => setVolumeState({ inputVolume: 0, outputVolume: 0 }), 300);
+
+        try {
+          let thinkingPhase = true;
+          const pulseInterval = setInterval(() => {
+            if (!thinkingPhase) return;
+            setVolumeState(prev => ({
+              inputVolume: 0,
+              outputVolume: 0.2 + Math.random() * 0.2
+            }));
+          }, 200);
+
+          const formattedHistory = chatHistory.map(m => ({
+            role: (m.role === 'ai' ? 'assistant' : 'user') as 'user' | 'assistant',
+            content: m.text
+          }));
+          formattedHistory.push({ role: 'user', content: transcript });
+
+          const response = await chat({
+            messages: formattedHistory,
+            provider: activeBrain
+          });
+
+          thinkingPhase = false;
+          clearInterval(pulseInterval);
+          setVolumeState({ inputVolume: 0, outputVolume: 0 });
+
+          const aiMsg = { id: `local_msg_${Date.now() + 1}`, role: 'ai', text: response.text, isFinal: true };
+          setChatHistory(prev => [...prev, aiMsg]);
+          if (currentConvoId) {
+            addMessageToConversation(currentConvoId, 'ai', response.text);
+          }
+
+          const utterance = new SpeechSynthesisUtterance(response.text);
+          
+          speechVolumeIntervalRef.current = setInterval(() => {
+            setVolumeState({
+              inputVolume: 0,
+              outputVolume: 0.5 + Math.random() * 0.5
+            });
+          }, 100);
+
+          utterance.onend = () => {
+            if (speechVolumeIntervalRef.current) {
+              clearInterval(speechVolumeIntervalRef.current);
+            }
+            setVolumeState({ inputVolume: 0, outputVolume: 0 });
+            if (isBrowserVoiceConnectedRef.current) {
+              try { recognition.start(); } catch { /* ignore */ }
+            }
+          };
+
+          utterance.onerror = () => {
+            if (speechVolumeIntervalRef.current) {
+              clearInterval(speechVolumeIntervalRef.current);
+            }
+            setVolumeState({ inputVolume: 0, outputVolume: 0 });
+            if (isBrowserVoiceConnectedRef.current) {
+              try { recognition.start(); } catch { /* ignore */ }
+            }
+          };
+
+          window.speechSynthesis.speak(utterance);
+
+        } catch (err: any) {
+          error("Error fetching AI response: " + (err.message || err));
+          if (isBrowserVoiceConnectedRef.current) {
+            try { recognition.start(); } catch { /* ignore */ }
+          }
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+      return;
+    }
+
     if (!apiKey) {
       error("Please enter your API Key in the Settings Vault to continue");
       setIsSettingsOpen(true);
@@ -588,7 +748,7 @@ export default function App() {
       setStatus(ConnectionStatus.ERROR);
       error(`Failed to connect: ${err.message || 'Unknown error'}`);
     }
-  }, [apiKey, status, isMicMuted, selectedVoice, isLocalVoiceEnabled, isStealthMode, isHandsFree, isTranslationMode, interruptMode, currentConvoId, success, error, info]);
+  }, [apiKey, status, isMicMuted, selectedVoice, isLocalVoiceEnabled, isStealthMode, isHandsFree, isTranslationMode, interruptMode, currentConvoId, success, error, info, chatHistory]);
 
   const toggleMute = () => {
     const newState = !isMicMuted;

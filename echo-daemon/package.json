@@ -1,0 +1,13 @@
+{
+  "name": "echo-hands-daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local execution daemon giving the Echo PWA shell/file powers on this machine (localhost-only, token-authed).",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -46,6 +46,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     // Multi-provider keys
     const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
     const [defaultBrain, setDefaultBrain] = useState<LlmProvider>('gemini');
+    const [voiceEngine, setVoiceEngine] = useState<'gemini' | 'browser'>('gemini');
 
     // New toggles
     const [yoloMode, setYoloMode] = useState(false);
@@ -73,6 +74,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         setStealthMode(localStorage.getItem('echo_stealth_mode') === 'true');
         setGhostActive(localStorage.getItem('echo_ghost_active') === 'true');
         setOpenaiBaseUrl(localStorage.getItem('echo_openai_base') || '');
+        setVoiceEngine((localStorage.getItem('echo_voice_engine') as 'gemini' | 'browser') || 'gemini');
 
         const pk: Record<string, string> = {};
         for (const p of PROVIDERS) {
@@ -115,6 +117,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             localStorage.setItem('echo_translation_mode', String(translationMode));
             localStorage.setItem('echo_stealth_mode', String(stealthMode));
             localStorage.setItem('echo_ghost_active', String(ghostActive));
+            localStorage.setItem('echo_voice_engine', voiceEngine);
 
             const examples = styleExamples
                 .split(/\n---\n|\n\n---\n\n/)
@@ -221,6 +224,26 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                         </select>
                         <p className="text-[10px] text-[#00ff41]/40">
                             Live voice always uses Gemini (only provider with Live audio). This setting drives text chat + tool/skill reasoning.
+                        </p>
+                    </div>
+
+                    {/* Voice Engine */}
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                            <Sparkles size={16} />
+                            <span>Voice Streaming Engine</span>
+                        </label>
+                        <select
+                            value={voiceEngine}
+                            onChange={(e) => setVoiceEngine(e.target.value as 'gemini' | 'browser')}
+                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
+                            style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
+                        >
+                            <option value="gemini">Gemini Real-Time (Cloud, streams voice constantly)</option>
+                            <option value="browser">Web Speech API (Free & Local Browser STT/TTS)</option>
+                        </select>
+                        <p className="text-[10px] text-[#00ff41]/40">
+                            "Web Speech API" runs locally in your browser for free Speech-to-Text/Text-to-Speech and routes to your Default Text Brain (Groq, Ollama, etc.). Requires no Gemini API key!
                         </p>
                     </div>
 

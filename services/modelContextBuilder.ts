@@ -15,6 +15,14 @@ import { getCached } from './cryptoService';
 import { getCompanionModeInstruction, getPersonalityInstruction } from './companionPersonaService';
 import { buildLifeCoachContext } from './lifeCoachService';
 import { buildDeadlineContext } from './deadlineGuardianService';
+import { buildMonthPlanContext } from './monthlyPlannerService';
+import { formatRagContext } from './ragService';
+
+// Cache the last RAG context so we can inject it synchronously.
+// ragService.query() is async — callers set this before buildSystemContext().
+let _pendingRagContext = '';
+export function setRagContext(ctx: string): void { _pendingRagContext = ctx; }
+export function clearRagContext(): void { _pendingRagContext = ''; }
 
 const STYLE_EXAMPLES_KEY = 'echo_style_examples';
 
@@ -89,13 +97,24 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
     const deadlineCtx = buildDeadlineContext();
     const deadlineBlock = deadlineCtx ? `\n\n${deadlineCtx}` : '';
 
+    // Month plan — current month's mission + weekly targets
+    const monthPlanCtx = buildMonthPlanContext();
+    const monthPlanBlock = monthPlanCtx ? `\n\n${monthPlanCtx}` : '';
+
+    // RAG retrieved knowledge (set async before connect via setRagContext)
+    const ragBlock = _pendingRagContext
+        ? `\n\n${_pendingRagContext}`
+        : '';
+
     const systemInstruction =
         ECHO_SYSTEM_INSTRUCTION +
         companionInstruction +
         memContext +
         lifeCoachBlock +
         deadlineBlock +
+        monthPlanBlock +
         knowledge +
+        ragBlock +
         styleBlock +
         extra;
 

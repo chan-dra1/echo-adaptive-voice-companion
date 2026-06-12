@@ -27,6 +27,7 @@ import calcSkill from '../skills/calcSkill';
 import screenIntelSkill from '../skills/screenIntelSkill';
 import jobHuntSkill from '../skills/jobHuntSkill';
 import { dynamicSkillService, DynamicSkill } from './dynamicSkillService';
+import { getOrCreateWorker, disposeWorker } from './dynamicSkillRunner';
 import { reminderService } from './reminderService';
 import { taskMissionService } from './taskMissionService';
 import { agentPolicyService } from './agentPolicyService';
@@ -76,7 +77,7 @@ const proposeNewSkillImplementation: Skill = {
     tools: [proposeNewSkillToolDeclaration],
     execute: async (toolName, args) => {
         if (toolName !== 'propose_new_skill') return { error: `Unknown tool ${toolName}` };
-        const { name, purpose, schemaJSON, jsCode, requestedPermissions } = args || {};
+        const { name, purpose, schemaJSON, jsCode, requestedPermissions, testArgsJSON } = args || {};
         if (!name || !schemaJSON || !jsCode) {
             return { error: 'Missing required fields (name, schemaJSON, jsCode).' };
         }
@@ -115,11 +116,30 @@ const proposeNewSkillImplementation: Skill = {
             approvedAt: Date.now(),
         };
 
+        // ── Sandbox self-test: run the skill against the model-supplied test
+        //    args before installing. A skill that throws, returns an error
+        //    shape, or times out never reaches the registry — the error goes
+        //    back to the model so it can fix the code and re-propose.
+        const testId = `selftest_${req.id}`;
+        try {
+            const testArgs = safeParseSchema(testArgsJSON || '{}') ?? {};
+            const worker = getOrCreateWorker(testId, ds.jsCode, ds.permissions);
+            const testResult = await worker.invoke(req.schema.name, testArgs);
+            if (testResult && typeof testResult === 'object' && 'error' in testResult && testResult.error) {
+                return { ok: false, error: `Self-test failed: skill returned error: ${testResult.error}. Fix the code and re-propose.` };
+            }
+            console.log(`[agentBootstrap] Skill "${name}" passed sandbox self-test:`, testResult);
+        } catch (e: any) {
+            return { ok: false, error: `Self-test failed: ${e?.message || e}. Fix the code and call propose_new_skill again.` };
+        } finally {
+            disposeWorker(testId);
+        }
+
         try {
             await dynamicSkillService.upsert(ds);
             return {
                 ok: true,
-                message: `Skill "${name}" installed. Call it directly on the next turn.`,
+                message: `Skill "${name}" passed its sandbox self-test and is installed. Call it directly on the next turn.`,
                 toolName: req.schema.name,
             };
         } catch (e: any) {
