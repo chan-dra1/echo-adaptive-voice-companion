@@ -14,7 +14,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Briefcase, BookOpen } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Briefcase, BookOpen, Music, MoreHorizontal } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -56,6 +56,7 @@ import OnboardingWizard from './components/OnboardingWizard';
 import InterviewPracticeMode from './components/InterviewPracticeMode';
 import RAGPanel from './components/RAGPanel';
 import FilesPanel from './components/FilesPanel';
+import SingPanel from './components/SingPanel';
 import { query as ragQuery, formatRagContext } from './services/ragService';
 import { setRagContext, clearRagContext } from './services/modelContextBuilder';
 import { warmEmbeddingModel } from './services/embeddingService';
@@ -159,6 +160,8 @@ export default function App() {
   const [interviewSystemPrompt, setInterviewSystemPrompt] = useState<string | null>(null);
   const [showRAGPanel, setShowRAGPanel] = useState(false);
   const [showFilesPanel, setShowFilesPanel] = useState(false);
+  const [showSingPanel, setShowSingPanel] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const [showCmdPalette, setShowCmdPalette] = useState(false);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -991,6 +994,9 @@ export default function App() {
     { id: 'files', label: 'Files & Downloads',
       description: 'Download drafts, campaigns & projects — individually or all', icon: <IconTerminal size={14} />, category: 'Navigation',
       color: 'var(--c-cyan)', keywords: ['files','download','export','zip','drafts','campaigns','projects','save'], run: () => setShowFilesPanel(true) },
+    { id: 'sing', label: 'Singing Studio',
+      description: 'Generate song lyrics and synthesize vocals', icon: <Music size={14} />, category: 'Creative',
+      color: 'var(--c-green)', keywords: ['sing','song','music','lyrics','vocal','bark','musicgen'], run: () => setShowSingPanel(true) },
     { id: 'chat', label: 'Open Conversation History',
       description: 'Past text chats', icon: <MessageSquare size={14} />, category: 'Navigation',
       color: 'var(--c-cyan)', keywords: ['history','transcript','chat'], run: () => setShowChat(true) },
@@ -1103,6 +1109,11 @@ export default function App() {
       {showFilesPanel && (
         <FilesPanel onClose={() => setShowFilesPanel(false)} />
       )}
+
+      {/* Singing Studio — slides in from right */}
+      <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[380px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSingPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+        <SingPanel onClose={() => setShowSingPanel(false)} />
+      </div>
       <SkillApprovalModal />
       {/* MOBILE-AGENT: dismissible install pill (Android BIP + iOS hint) */}
       <InstallPrompt isConnected={status === ConnectionStatus.CONNECTED} />
@@ -1131,6 +1142,7 @@ export default function App() {
                 setShowGhostMode(false);
                 setShowVaultOrganizer(false);
                 setShowCompanionPanel(false);
+                setShowMoreActions(false);
               }}
               aria-hidden="true"
             />
@@ -1278,6 +1290,17 @@ export default function App() {
                   <div className="text-[10px] text-white/40">Send document, pdf or code</div>
                 </div>
               </button>
+
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowSingPanel(true); }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
+              >
+                <div className="p-3 bg-[#00ff41]/10 rounded-xl text-[#00ff41]"><Music size={20} /></div>
+                <div>
+                  <div className="text-sm font-semibold">Singing Studio</div>
+                  <div className="text-[10px] text-white/40">Generate lyrics &amp; synthesize vocals</div>
+                </div>
+              </button>
             </div>
             
             <div className="border-t border-white/10 pt-4 flex items-center justify-between text-[11px] text-white/40">
@@ -1381,179 +1404,164 @@ export default function App() {
               </div>
             )}
 
-            {/* Floating Action Strip */}
-            <div className="absolute bottom-10 md:bottom-24 z-20 flex items-center gap-2 md:gap-4 px-4 md:px-8 py-3 md:py-4 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-xl pointer-events-auto shadow-2xl animate-float transition-all duration-500 scale-90 md:scale-100 keyboard-safe-bottom">
-               {/* MOBILE-AGENT: Hands-Free toggle (small, subtle, additive) */}
-               <Tooltip content={isHandsFree ? 'Hands-Free ON' : 'Hands-Free OFF'}>
-                <button
-                  onClick={toggleHandsFree}
-                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${isHandsFree ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'hover:bg-white/10 text-white/60'}`}
-                  aria-label="Toggle Hands-Free mode"
-                  aria-pressed={isHandsFree}
-                >
-                  <Headphones size={18} />
-                </button>
-              </Tooltip>
+            {/* ── Floating Action Dock ── */}
+            <div className="absolute bottom-6 md:bottom-10 z-20 pointer-events-auto flex flex-col items-center gap-3 keyboard-safe-bottom">
 
-              <Tooltip content={`Interrupt: ${interruptMode} — tap to cycle`}>
+              {/* Secondary action grid (slides up when More is open) */}
+              <div className={`transition-all duration-300 ${showMoreActions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
+                <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-black/85 border border-white/10 backdrop-blur-xl shadow-2xl">
+
+                  {/* Hands-free */}
+                  <button
+                    onClick={toggleHandsFree}
+                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isHandsFree ? 'border-[#00ff41]/40 bg-[#00ff41]/10 text-[#00ff41]' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
+                  >
+                    <Headphones size={20} />
+                    <span className="text-[9px] sc-hud-font tracking-wide">Hands-free</span>
+                  </button>
+
+                  {/* Interrupt mode */}
+                  <button
+                    onClick={toggleInterruptMode}
+                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${interruptMode === 'eager' ? 'border-amber-500/40 bg-amber-500/10 text-amber-300' : interruptMode === 'polite' ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
+                  >
+                    <Ear size={20} />
+                    <span className="text-[9px] sc-hud-font tracking-wide capitalize">{interruptMode}</span>
+                  </button>
+
+                  {/* Ghost mode */}
+                  <button
+                    onClick={() => { setShowMoreActions(false); setShowGhostMode(true); }}
+                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isStealthMode ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
+                  >
+                    <Ghost size={20} />
+                    <span className="text-[9px] sc-hud-font tracking-wide">Ghost</span>
+                  </button>
+
+                  {/* Camera */}
+                  <button
+                    onClick={async () => {
+                      if (!serviceRef.current) return;
+                      if (isCameraActive) { serviceRef.current.stopCamera(); setIsCameraActive(false); }
+                      else { try { await serviceRef.current.startCamera(); setIsCameraActive(true); } catch { error('Could not access camera'); } }
+                    }}
+                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isCameraActive ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
+                  >
+                    <Camera size={20} />
+                    <span className="text-[9px] sc-hud-font tracking-wide">Camera</span>
+                  </button>
+
+                  {/* Screen share */}
+                  <button
+                    onClick={async () => {
+                      if (!serviceRef.current) return;
+                      if (isScreenSharing) { serviceRef.current.stopScreenShare(); setIsScreenSharing(false); }
+                      else { try { await serviceRef.current.startScreenShare(); setIsScreenSharing(true); } catch { error('Could not share screen'); } }
+                    }}
+                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isScreenSharing ? 'border-purple-500/40 bg-purple-500/10 text-purple-400' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
+                  >
+                    {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+                    <span className="text-[9px] sc-hud-font tracking-wide">{isScreenSharing ? 'Stop' : 'Screen'}</span>
+                  </button>
+
+                  {/* Singing studio */}
+                  <button
+                    onClick={() => { setShowMoreActions(false); setShowSingPanel(p => !p); }}
+                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${showSingPanel ? 'border-[#00ff41]/40 bg-[#00ff41]/10 text-[#00ff41]' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
+                  >
+                    <Music size={20} />
+                    <span className="text-[9px] sc-hud-font tracking-wide">Sing</span>
+                  </button>
+
+                </div>
+              </div>
+
+              {/* Primary dock */}
+              <div className="flex items-center gap-5 px-7 py-4 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl">
+
+                {/* Interrupt / listen mode toggle */}
                 <button
                   onClick={toggleInterruptMode}
-                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${
-                    interruptMode === 'polite'
-                      ? 'bg-blue-500/15 text-blue-300'
-                      : interruptMode === 'eager'
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-white/10 text-white/70'
+                  className={`p-3 rounded-full transition-all ${interruptMode === 'eager' ? 'bg-amber-500/20 text-amber-300' : interruptMode === 'polite' ? 'bg-blue-500/15 text-blue-300' : 'hover:bg-white/10 text-white/50'}`}
+                  aria-label={`Interrupt mode: ${interruptMode}`}
+                >
+                  <Ear size={22} />
+                </button>
+
+                {/* Main mic / connect button */}
+                <button
+                  onClick={handleConnect}
+                  className={`p-5 rounded-full transition-all duration-500 shadow-lg group ${
+                    status === ConnectionStatus.CONNECTED
+                      ? 'bg-rose-500/20 text-rose-500 hover:bg-rose-500/30'
+                      : status === ConnectionStatus.CONNECTING
+                        ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                        : 'bg-[#00ff41] text-black hover:bg-[#00ff41]/80 shadow-[0_0_24px_rgba(0,255,65,0.45)]'
                   }`}
-                  aria-label={`Interrupt mode ${interruptMode}`}
                 >
-                  <Ear size={18} />
+                  {status === ConnectionStatus.CONNECTED
+                    ? <X size={26} />
+                    : isMicMuted
+                      ? <MicOff size={26} />
+                      : <Mic size={26} className="group-hover:scale-110 transition-transform" />}
                 </button>
-              </Tooltip>
 
-              <div className="w-px h-8 bg-white/10" />
-
-               <Tooltip content="Ghost Mode Settings">
+                {/* More — opens secondary grid */}
                 <button
-                  onClick={() => setShowGhostMode(true)}
-                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${isStealthMode ? 'bg-cyan-500/20 text-cyan-400' : 'hover:bg-white/10 text-white/60'}`}
+                  onClick={() => setShowMoreActions(v => !v)}
+                  className={`p-3 rounded-full transition-all ${showMoreActions ? 'bg-white/15 text-white' : 'hover:bg-white/10 text-white/50'}`}
+                  aria-label="More controls"
                 >
-                  <Ghost size={20} />
+                  <MoreHorizontal size={22} />
                 </button>
-              </Tooltip>
 
-              <div className="w-px h-8 bg-white/10" />
-
-              <Tooltip content={isCameraActive ? "Stop Camera" : "Start Camera Vision"}>
-                <button
-                  onClick={async () => {
-                    if (!serviceRef.current) return;
-                    if (isCameraActive) {
-                      serviceRef.current.stopCamera();
-                      setIsCameraActive(false);
-                    } else {
-                      try {
-                        await serviceRef.current.startCamera();
-                        setIsCameraActive(true);
-                      } catch (e) {
-                        error("Could not access camera");
-                      }
-                    }
-                  }}
-                  className={`p-3 rounded-full transition-all duration-300 ${isCameraActive ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-white/10 text-white/60'}`}
-                >
-                  <Camera size={24} />
-                </button>
-              </Tooltip>
-
-              <div className="w-px h-8 bg-white/10" />
-
-              {/* Mic Connection Button */}
-              <button
-                onClick={handleConnect}
-                className={`p-6 rounded-full transition-all duration-500 shadow-lg relative group ${
-                  status === ConnectionStatus.CONNECTED 
-                    ? 'bg-rose-500/20 text-rose-500 hover:bg-rose-500/30' 
-                    : status === ConnectionStatus.CONNECTING 
-                      ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                      : 'bg-[#00ff41] text-black hover:bg-[#00ff41]/80 shadow-[0_0_20px_rgba(0,255,65,0.4)]'
-                }`}
-              >
-                {status === ConnectionStatus.CONNECTED ? <X size={28} /> : (isMicMuted ? <MicOff size={28} /> : <Mic size={28} className="group-hover:scale-110 transition-transform" />)}
-              </button>
-
-              <div className="w-px h-8 bg-white/10" />
-
-              <Tooltip content="Screen Share">
-                <button
-                  onClick={async () => {
-                    if (!serviceRef.current) return;
-                    if (isScreenSharing) {
-                      serviceRef.current.stopScreenShare();
-                      setIsScreenSharing(false);
-                    } else {
-                      try {
-                        await serviceRef.current.startScreenShare();
-                        setIsScreenSharing(true);
-                      } catch (e) {
-                        error("Could not share screen");
-                      }
-                    }
-                  }}
-                  className={`p-3 rounded-full transition-all duration-300 ${isScreenSharing ? 'bg-purple-500/20 text-purple-400' : 'hover:bg-white/10 text-white/60'}`}
-                >
-                  {isScreenSharing ? <MonitorOff size={24} /> : <Monitor size={24} />}
-                </button>
-              </Tooltip>
+              </div>
             </div>
 
-            {/* Bottom-left buttons: hidden on mobile, visible on desktop */}
-            <div className="hidden md:flex absolute bottom-4 md:bottom-10 left-4 md:left-10 gap-2 md:gap-4 pointer-events-auto pb-safe pl-safe">
-               <Tooltip content="Settings & Key Vault">
-                <button onClick={() => setIsSettingsOpen(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <User size={18} className="text-white/60" />
+            {/* ── Desktop feature footer — fixed, labeled, z-30 ── */}
+            <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-30 pointer-events-auto items-end justify-between px-6 pb-3 pt-1">
+
+              {/* Left: system */}
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl bg-white/4 border border-white/8 hover:bg-white/10 hover:border-white/20 transition-all group"
+                >
+                  <User size={16} className="text-white/50 group-hover:text-white/80 transition-colors" />
+                  <span className="text-[9px] text-white/35 group-hover:text-white/60 sc-hud-font tracking-wide">Settings</span>
                 </button>
-              </Tooltip>
-              
-              <Tooltip content={isBackendOnline ? "Cloud Agent Online" : "Cloud Agent Offline"}>
-                <div className={`p-2 md:p-3 rounded-2xl glass-panel transition-all ${isBackendOnline ? 'border-emerald-500/30' : 'opacity-40'}`}>
-                  <Database size={18} className={isBackendOnline ? 'text-emerald-400' : 'text-white/40'} />
+
+                <div className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border transition-all ${isBackendOnline ? 'bg-emerald-500/6 border-emerald-500/20' : 'bg-white/4 border-white/8 opacity-40'}`}>
+                  <Database size={16} className={isBackendOnline ? 'text-emerald-400' : 'text-white/40'} />
+                  <span className="text-[9px] sc-hud-font tracking-wide" style={{ color: isBackendOnline ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.3)' }}>
+                    {isBackendOnline ? 'Online' : 'Offline'}
+                  </span>
                 </div>
-              </Tooltip>
-            </div>
+              </div>
 
-            {/* Bottom-right buttons: hidden on mobile, visible on desktop */}
-            <div className="hidden md:flex absolute bottom-4 md:bottom-10 right-4 md:right-10 gap-2 md:gap-4 pointer-events-auto pb-safe pr-safe">
-              <Tooltip content="Upload Knowledge">
-                <button onClick={() => setShowFileUpload(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <Plus size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-              
-              <Tooltip content="Conversation History">
-                <button onClick={() => setShowChat(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <MessageSquare size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
+              {/* Right: feature panels */}
+              <div className="flex items-end gap-1.5">
+                {([
+                  { icon: <Plus size={16} />,         label: 'Upload',    color: 'text-white/50',        action: () => setShowFileUpload(true) },
+                  { icon: <MessageSquare size={16} />, label: 'Chats',     color: 'text-white/50',        action: () => setShowChat(true) },
+                  { icon: <Brain size={16} />,         label: 'Memory',    color: 'text-white/50',        action: () => setShowMemory(true) },
+                  { icon: <Folder size={16} />,        label: 'Vault',     color: 'text-white/50',        action: () => setShowVaultOrganizer(true) },
+                  { icon: <Heart size={16} />,         label: 'Life',      color: 'text-pink-400/70',     action: () => setShowCompanionPanel(true) },
+                  { icon: <Briefcase size={16} />,     label: 'Practice',  color: 'text-amber-400/70',    action: () => setShowInterview(true) },
+                  { icon: <BookOpen size={16} />,      label: 'Knowledge', color: 'text-cyan-400/70',     action: () => setShowRAGPanel(true) },
+                  { icon: <Music size={16} />,         label: 'Sing',      color: 'text-[#00ff41]/70',    action: () => setShowSingPanel(p => !p) },
+                ] as { icon: React.ReactNode; label: string; color: string; action: () => void }[]).map(({ icon, label, color, action }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl bg-white/4 border border-white/8 hover:bg-white/10 hover:border-white/20 transition-all group"
+                  >
+                    <span className={`${color} group-hover:opacity-100 transition-opacity`}>{icon}</span>
+                    <span className="text-[9px] text-white/35 group-hover:text-white/60 sc-hud-font tracking-wide">{label}</span>
+                  </button>
+                ))}
+              </div>
 
-              <Tooltip content="Memory Bank">
-                <button onClick={() => setShowMemory(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <Brain size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Vault Organizer">
-                <button onClick={() => setShowVaultOrganizer(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <Folder size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Companion — habits, goals, daily briefing">
-                <button
-                  onClick={() => setShowCompanionPanel(true)}
-                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
-                >
-                  <Heart size={18} className="text-pink-400/80" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Interview Practice Mode">
-                <button
-                  onClick={() => setShowInterview(true)}
-                  className={`p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative ${showInterview ? 'bg-amber-500/15 border-amber-500/30' : ''}`}
-                >
-                  <Briefcase size={18} className="text-amber-400/80" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Knowledge Vault — RAG">
-                <button
-                  onClick={() => setShowRAGPanel(true)}
-                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all"
-                >
-                  <BookOpen size={18} className="text-cyan-400/80" />
-                </button>
-              </Tooltip>
             </div>
           </main>
         </div>
