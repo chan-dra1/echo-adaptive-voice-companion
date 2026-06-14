@@ -37,6 +37,7 @@ import { CAMPAIGN_TOOLS, isCampaignTool, executeCampaignTool } from './campaignS
 import { PLANNER_TOOLS, isPlannerTool, executePlannerTool } from './monthlyPlannerService';
 import { TICKET_TOOLS, isTicketTool, executeTicketTool } from './featureTicketService';
 import { MARKET_TOOLS, isMarketTool, executeMarketTool } from './marketWatchService';
+import { SMART_HOME_TOOLS, isSmartHomeTool, executeSmartHomeTool, getHaCameraSnapshot } from './smartHomeService';
 
 interface LiveServiceCallbacks {
   onConnect: () => void;
@@ -275,7 +276,7 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any), ...(getHandsTools() as any), ...(getProjectTools() as any), ...(getGithubSkillTools() as any), ...(CAMPAIGN_TOOLS as any), ...(PLANNER_TOOLS as any), ...(TICKET_TOOLS as any), ...(MARKET_TOOLS as any)] },
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any), ...(getHandsTools() as any), ...(getProjectTools() as any), ...(getGithubSkillTools() as any), ...(CAMPAIGN_TOOLS as any), ...(PLANNER_TOOLS as any), ...(TICKET_TOOLS as any), ...(MARKET_TOOLS as any), ...(SMART_HOME_TOOLS as any)] },
             googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
@@ -1003,6 +1004,22 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
         }
         else if (isCampaignTool(fc.name)) {
           const out = await executeCampaignTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (fc.name === 'ha_get_camera_snapshot') {
+          // Special case: get the image and feed it directly into the Gemini vision stream
+          const snap = await getHaCameraSnapshot((fc.args as any).entity_id);
+          if (snap) {
+            this.sessionPromise?.then(session => {
+              session.sendRealtimeInput({ video: { mimeType: snap.contentType as any, data: snap.base64 } });
+            });
+            responses.push({ id: fc.id, name: fc.name, response: { result: `Camera snapshot sent. Describe what you see in the image — identify people, objects, activity, lighting conditions.` } });
+          } else {
+            responses.push({ id: fc.id, name: fc.name, response: { error: 'Could not retrieve camera snapshot. Check that Echo Hands is running and the entity_id is correct.' } });
+          }
+        }
+        else if (isSmartHomeTool(fc.name)) {
+          const out = await executeSmartHomeTool(fc.name, fc.args as any);
           responses.push({ id: fc.id, name: fc.name, response: out });
         }
         else if (isHandsTool(fc.name)) {

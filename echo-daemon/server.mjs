@@ -30,6 +30,7 @@ const PORT = Number(process.env.EH_PORT || 8765);
 const WORKSPACE = path.resolve(process.env.EH_WORKSPACE || os.homedir());
 const CONFIG_DIR = path.join(os.homedir(), '.echo-hands');
 const TOKEN_FILE = path.join(CONFIG_DIR, 'token');
+const HA_CONFIG_FILE = path.join(CONFIG_DIR, 'ha-config.json');
 const MAX_OUTPUT = 200 * 1024;
 const CMD_TIMEOUT_MS = 60_000;
 
@@ -299,7 +300,94 @@ const tools = {
             excerpts: safe ? excerpts : [],
         };
     },
+    /* ── Home Assistant tools ── */
+
+    async ha_configure({ url, token }) {
+        if (!url || !token) throw new Error('Both url and token are required.');
+        try { new URL(url); } catch { throw new Error('Invalid URL. Example: http://homeassistant.local:8123'); }
+        const config = { url: url.replace(/\/$/, ''), token };
+        fs.writeFileSync(HA_CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
+        // Test connection — fail gracefully so config is still saved
+        try {
+            const info = await haFetch('/api/');
+            return { saved: true, haVersion: info?.version || 'unknown', message: `Connected to Home Assistant ${info?.version || ''}. Ready to control your home.` };
+        } catch (e) {
+            return { saved: true, warning: `Config saved but test connection failed: ${e.message}. Verify your URL and token.` };
+        }
+    },
+
+    async ha_get_state({ entity_id }) {
+        if (!entity_id) throw new Error('entity_id is required.');
+        const s = await haFetch(`/api/states/${entity_id}`);
+        return {
+            entity_id: s.entity_id,
+            state: s.state,
+            attributes: s.attributes,
+            last_changed: s.last_changed,
+            friendly_name: s.attributes?.friendly_name || entity_id,
+        };
+    },
+
+    async ha_call_service({ domain, service, entity_id, data }) {
+        if (!domain || !service) throw new Error('domain and service are required.');
+        const body = { ...(data || {}), ...(entity_id ? { entity_id } : {}) };
+        const result = await haFetch(`/api/services/${domain}/${service}`, { method: 'POST', body });
+        const states = (Array.isArray(result) ? result : []).map(s => ({ entity_id: s.entity_id, state: s.state }));
+        return { success: true, domain, service, entity_id: entity_id || null, affectedStates: states };
+    },
+
+    async ha_list_entities({ domain_filter } = {}) {
+        const all = await haFetch('/api/states');
+        const filtered = domain_filter
+            ? all.filter(s => s.entity_id.startsWith(`${domain_filter}.`))
+            : all;
+        const entities = filtered.slice(0, 200).map(s => ({
+            entity_id: s.entity_id,
+            state: s.state,
+            friendly_name: s.attributes?.friendly_name || '',
+            domain: s.entity_id.split('.')[0],
+        }));
+        return { total: filtered.length, shown: entities.length, entities };
+    },
+
+    async ha_get_camera_snapshot({ entity_id }) {
+        if (!entity_id) throw new Error('entity_id is required.');
+        const cfg = readHaConfig();
+        const res = await fetch(`${cfg.url}/api/camera_proxy/${entity_id}`, {
+            headers: { Authorization: `Bearer ${cfg.token}` },
+        });
+        if (!res.ok) throw new Error(`Camera snapshot failed (${res.status}). Check the entity_id and that the camera is online.`);
+        const buf = await res.arrayBuffer();
+        const base64 = Buffer.from(buf).toString('base64');
+        return {
+            entity_id,
+            base64,
+            contentType: res.headers.get('content-type') || 'image/jpeg',
+            sizeKB: Math.round(buf.byteLength / 1024),
+        };
+    },
 };
+
+/* ── Home Assistant helpers ── */
+
+function readHaConfig() {
+    if (!fs.existsSync(HA_CONFIG_FILE)) {
+        throw new Error('Home Assistant not configured. Ask Echo to run ha_configure with your HA URL and long-lived access token first.');
+    }
+    return JSON.parse(fs.readFileSync(HA_CONFIG_FILE, 'utf8'));
+}
+
+async function haFetch(apiPath, { method = 'GET', body } = {}) {
+    const cfg = readHaConfig();
+    const opts = { method, headers: { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(`${cfg.url}${apiPath}`, opts);
+    if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`HA API ${res.status}${txt ? ': ' + txt.slice(0, 200) : ''}`);
+    }
+    return res.json();
+}
 
 /* ── repo safety helpers ── */
 const SKILLS_LAB = path.join(os.homedir(), 'EchoSkillsLab');
