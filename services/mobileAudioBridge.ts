@@ -1,8 +1,8 @@
 /**
  * mobileAudioBridge.ts
  *
- * Mobile / native audio session helpers: visibility resume, optional silent
- * keepalive for iOS audio session, Capacitor bridge registration.
+ * Mobile audio session helpers for the web/PWA build: visibility resume and an
+ * optional silent keepalive for the iOS audio session during hands-free.
  */
 
 import { wakeLockService } from './wakeLockService';
@@ -15,12 +15,8 @@ let visibilityBound = false;
 let ctxPair: AudioCtxPair = {};
 
 export function isNativeShell(): boolean {
-  try {
-    // Capacitor injects this when wrapped as a native app
-    return !!(window as any).Capacitor?.isNativePlatform?.();
-  } catch {
-    return false;
-  }
+  // Web-only build: Echo runs as a browser PWA, so there is no native shell.
+  return false;
 }
 
 export async function resumeAudioContexts(pair?: AudioCtxPair): Promise<void> {
@@ -81,13 +77,6 @@ export function initMobileAudioBridge(onVisible?: () => void): void {
       } catch { /* ignore */ }
     }
   });
-
-  // Lazy-load Capacitor bridge module if present (no hard dep)
-  if (isNativeShell()) {
-    import('../mobile/capacitorBridge')
-      .then((m) => m.registerCapacitorWakeBridge())
-      .catch(() => { /* optional */ });
-  }
 }
 
 export const mobileAudioBridge = {

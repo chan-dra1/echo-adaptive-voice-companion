@@ -1,14 +1,13 @@
 // MOBILE-AGENT: thin wake-lock wrapper.
 //
-// Pure PWA path: uses the standard Screen Wake Lock API
+// Web/PWA path: uses the standard Screen Wake Lock API
 //   (https://developer.mozilla.org/docs/Web/API/Screen_Wake_Lock_API).
-// Future Capacitor / native path: when `useNativeBridge` is true and a
-//   bridge is registered via `registerNativeBridge`, calls are forwarded to
-//   the native plugin instead. This keeps the UI code identical across PWA
-//   and native shells.
+// Optional native bridge: if a host environment ever registers one via
+//   `registerNativeBridge`, calls are forwarded to it when `useNativeBridge`
+//   is set. Unused in this pure web build — kept as a harmless extension point.
 
 export interface WakeLockOptions {
-    /** Opt-in to the native bridge (Capacitor plugin etc.) if available. */
+    /** Opt-in to a registered native bridge, if one exists. Unused on web. */
     useNativeBridge?: boolean;
 }
 

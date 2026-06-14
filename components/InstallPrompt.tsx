@@ -31,7 +31,11 @@ function isStandalone(): boolean {
     return iosStandalone || !!displayStandalone;
 }
 
-const InstallPrompt: React.FC = () => {
+interface InstallPromptProps {
+    isConnected?: boolean;
+}
+
+const InstallPrompt: React.FC<InstallPromptProps> = ({ isConnected }) => {
     const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
     const [showAndroid, setShowAndroid] = useState(false);
     const [showIos, setShowIos] = useState(false);
@@ -85,13 +89,14 @@ const InstallPrompt: React.FC = () => {
         setShowIos(false);
     };
 
+    if (isConnected) return null;
     if (!showAndroid && !showIos) return null;
 
     return (
         <>
             {showAndroid && (
                 <div
-                    className="pwa-only-install-hint fixed bottom-4 right-4 z-[60] flex items-center gap-2 pl-3 pr-2 py-2 rounded-full bg-[#00ff41]/15 border border-[#00ff41]/40 backdrop-blur-md shadow-lg text-[#00ff41] text-xs font-mono"
+                    className="pwa-only-install-hint fixed bottom-4 right-4 md:bottom-28 md:right-10 z-[60] flex items-center gap-2 pl-3 pr-2 py-2 rounded-full bg-[#00ff41]/15 border border-[#00ff41]/40 backdrop-blur-md shadow-lg text-[#00ff41] text-xs font-mono"
                     role="dialog"
                     aria-label="Install Echo"
                 >

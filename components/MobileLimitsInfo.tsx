@@ -54,12 +54,12 @@ const MobileLimitsInfo: React.FC<Props> = ({ onClose }) => {
                 </section>
 
                 <section className="mb-1">
-                    <h3 className="text-[#00ff41]/80 mb-1.5">Want always-on voice?</h3>
+                    <h3 className="text-[#00ff41]/80 mb-1.5">Want the best hands-free?</h3>
                     <p className="opacity-90">
-                        The codebase is pre-wired for a <span className="text-[#00ff41]">Capacitor</span> native shell
-                        (iOS + Android). See <code className="text-[#00ff41]/80">mobile/README.md</code> for
-                        step-by-step. The wake-lock and lifecycle services are designed so the native bridge
-                        slots in without any UI changes.
+                        Echo runs entirely in your browser, so true 24/7 background listening isn't
+                        possible — no browser allows it. For the smoothest experience, install Echo to
+                        your Home Screen, keep it open, and turn on Hands-Free so the screen stays awake
+                        through a session.
                     </p>
                 </section>
             </div>

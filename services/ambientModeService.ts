@@ -21,8 +21,8 @@
  *  - Background audio (screen off) is NOT possible in PWA on iOS — this is
  *    an OS-level restriction. On Android Chrome, the tab must be open but
  *    the screen can be off with wake lock held.
- *  - For true always-on background listening, a Capacitor native app is needed.
- *    See /mobile/README.md for the native wrapper roadmap.
+ *  - True always-on background listening is not possible in any browser; this
+ *    is a hard OS-level limitation for web apps, not something Echo can bypass.
  */
 
 import { getCached, setCached } from './cryptoService';
@@ -211,7 +211,7 @@ export const AMBIENT_STATUS_COLORS: Record<AmbientStatus, string> = {
 // ─── Background / screen-off notice ──────────────────────────────────────────
 
 export const BACKGROUND_LIMITATIONS = {
-    ios: `On iOS, the browser cannot keep audio sessions running when the screen is off. To get true background voice support on iPhone/iPad, a native app (Capacitor wrapper) is needed.`,
+    ios: `On iOS, the browser cannot keep audio sessions running when the screen is off — an OS-level limit that applies to every web app. Keep Echo open and on screen for continuous voice, and install it to your Home Screen for the most app-like, full-screen experience.`,
     android: `On Android Chrome, Echo can stay connected with the screen off as long as the Wake Lock is active. Enable "Hands-Free" mode + Wake Lock in settings for best results.`,
     pwa: `As a PWA, Echo can send push notifications in the background even when the screen is off. Reminders, deadline nudges, and task alerts will still reach you.`,
 };

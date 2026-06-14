@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GeminiLiveService } from './services/geminiLiveService';
 import { chat, chooseProvider } from './services/llmRouter';
 import { getMemories } from './services/memoryService';
@@ -55,12 +55,14 @@ import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
 import InterviewPracticeMode from './components/InterviewPracticeMode';
 import RAGPanel from './components/RAGPanel';
+import FilesPanel from './components/FilesPanel';
 import { query as ragQuery, formatRagContext } from './services/ragService';
 import { setRagContext, clearRagContext } from './services/modelContextBuilder';
 import { warmEmbeddingModel } from './services/embeddingService';
 // Living HUD additions
 import EchoFrame from './components/EchoFrame';
 import AmbientField from './components/AmbientField';
+import SingularityCore from './components/SingularityCore';
 import CommandPalette, { Command } from './components/CommandPalette';
 import { startCircadianLoop } from './services/circadianThemeService';
 import { BookOpen as IconBookOpen, Fingerprint } from 'lucide-react';
@@ -156,6 +158,7 @@ export default function App() {
   const [showInterview, setShowInterview] = useState(false);
   const [interviewSystemPrompt, setInterviewSystemPrompt] = useState<string | null>(null);
   const [showRAGPanel, setShowRAGPanel] = useState(false);
+  const [showFilesPanel, setShowFilesPanel] = useState(false);
   const [showCmdPalette, setShowCmdPalette] = useState(false);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -814,9 +817,6 @@ export default function App() {
       info('Hands-Free ON — extended silence tolerance, lock-screen controls active.');
       try {
         serviceRef.current?.startHandsFreeKeepalive();
-        if (mobileAudioBridge.isNativeShell()) {
-          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(true)).catch(() => {});
-        }
       } catch { /* ignore */ }
       try {
         if ('mediaSession' in navigator) {
@@ -832,9 +832,6 @@ export default function App() {
       info('Hands-Free OFF.');
       try {
         serviceRef.current?.stopHandsFreeKeepalive();
-        if (mobileAudioBridge.isNativeShell()) {
-          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(false)).catch(() => {});
-        }
       } catch { /* ignore */ }
       try {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
@@ -921,6 +918,16 @@ export default function App() {
 
   const isUserSpeaking = volumeState.inputVolume > 10;
 
+  // ── EchoHUD (Jarvis talk-back) derived state ──
+  const lastAssistant = useMemo(() => {
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+      if (chatHistory[i].role === 'assistant') return chatHistory[i];
+    }
+    return undefined;
+  }, [chatHistory]);
+  const hudCaption = lastAssistant?.text || '';
+  const hudStreaming = !!lastAssistant && lastAssistant.isFinal === false;
+
   const handleSelectConversation = (id: string) => {
     const convo = getConversation(id);
     if (!convo) return;
@@ -981,6 +988,9 @@ export default function App() {
     { id: 'rag', label: 'Open Knowledge Vault (RAG)',
       description: 'Upload docs, semantic search', icon: <IconBookOpen size={14} />, category: 'Memory',
       color: 'var(--c-cyan)', keywords: ['rag','knowledge','documents','pdf','search'], run: () => setShowRAGPanel(true) },
+    { id: 'files', label: 'Files & Downloads',
+      description: 'Download drafts, campaigns & projects — individually or all', icon: <IconTerminal size={14} />, category: 'Navigation',
+      color: 'var(--c-cyan)', keywords: ['files','download','export','zip','drafts','campaigns','projects','save'], run: () => setShowFilesPanel(true) },
     { id: 'chat', label: 'Open Conversation History',
       description: 'Past text chats', icon: <MessageSquare size={14} />, category: 'Navigation',
       color: 'var(--c-cyan)', keywords: ['history','transcript','chat'], run: () => setShowChat(true) },
@@ -1089,9 +1099,13 @@ export default function App() {
       {showRAGPanel && (
         <RAGPanel onClose={() => setShowRAGPanel(false)} />
       )}
+
+      {showFilesPanel && (
+        <FilesPanel onClose={() => setShowFilesPanel(false)} />
+      )}
       <SkillApprovalModal />
       {/* MOBILE-AGENT: dismissible install pill (Android BIP + iOS hint) */}
-      <InstallPrompt />
+      <InstallPrompt isConnected={status === ConnectionStatus.CONNECTED} />
       <KnowledgeDropZone onFileDrop={(file) => {
         setFileToUpload(file);
         setShowFileUpload(true);
@@ -1346,27 +1360,29 @@ export default function App() {
               </div>
             </div>
 
-            {/* The Matrix Cube Display */}
-            <div className="my-auto flex-1 flex items-center justify-center w-full max-w-lg aspect-square relative">
-              <MatrixVisualizer 
-                isActive={status === ConnectionStatus.CONNECTED}
-                outputVolume={volumeState.outputVolume}
-                inputVolume={volumeState.inputVolume}
-              />
-              {isCameraActive && (
-                 <div className="absolute inset-0 z-10 border-2 border-[#00ff41] rounded-lg overflow-hidden">
-                    <AvatarDisplay 
-                      state="idle"
-                      volume={0}
-                      cameraStream={serviceRef.current?.getCameraStream()}
-                      avatarUrl={avatarUrl}
-                    />
-                 </div>
-              )}
-            </div>
+            {/* ECHO VOID — Singularity Core (replaces MatrixVisualizer + EchoHUD) */}
+            <SingularityCore
+              connected={status === ConnectionStatus.CONNECTED}
+              inputVolume={volumeState.inputVolume}
+              outputVolume={volumeState.outputVolume}
+              captionText={hudCaption}
+              streaming={hudStreaming}
+              awaitingReply={isThinking}
+            />
+            {/* Camera PiP overlay (when camera is active) */}
+            {isCameraActive && (
+              <div className="absolute top-16 right-4 z-30 w-32 h-32 border border-[#00ff41]/40 rounded-lg overflow-hidden shadow-lg shadow-[#00ff41]/10">
+                <AvatarDisplay
+                  state="idle"
+                  volume={0}
+                  cameraStream={serviceRef.current?.getCameraStream()}
+                  avatarUrl={avatarUrl}
+                />
+              </div>
+            )}
 
             {/* Floating Action Strip */}
-            <div className="absolute bottom-10 md:bottom-24 flex items-center gap-2 md:gap-4 px-4 md:px-8 py-3 md:py-4 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-xl pointer-events-auto shadow-2xl animate-float transition-all duration-500 scale-90 md:scale-100 keyboard-safe-bottom">
+            <div className="absolute bottom-10 md:bottom-24 z-20 flex items-center gap-2 md:gap-4 px-4 md:px-8 py-3 md:py-4 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-xl pointer-events-auto shadow-2xl animate-float transition-all duration-500 scale-90 md:scale-100 keyboard-safe-bottom">
                {/* MOBILE-AGENT: Hands-Free toggle (small, subtle, additive) */}
                <Tooltip content={isHandsFree ? 'Hands-Free ON' : 'Hands-Free OFF'}>
                 <button

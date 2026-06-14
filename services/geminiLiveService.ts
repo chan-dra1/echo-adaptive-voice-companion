@@ -32,6 +32,8 @@ import {
 import { mobileAudioBridge } from './mobileAudioBridge';
 import { getHandsTools, isHandsTool, executeHandsTool, isHandsConnected } from './handsBridgeService';
 import { getProjectTools, isProjectTool, executeProjectTool } from './projectModeService';
+import { getGithubSkillTools, isGithubSkillTool, executeGithubSkillTool } from './githubSkillService';
+import { CAMPAIGN_TOOLS, isCampaignTool, executeCampaignTool } from './campaignStudioService';
 import { PLANNER_TOOLS, isPlannerTool, executePlannerTool } from './monthlyPlannerService';
 import { TICKET_TOOLS, isTicketTool, executeTicketTool } from './featureTicketService';
 import { MARKET_TOOLS, isMarketTool, executeMarketTool } from './marketWatchService';
@@ -273,7 +275,7 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any), ...(getHandsTools() as any), ...(getProjectTools() as any), ...(PLANNER_TOOLS as any), ...(TICKET_TOOLS as any), ...(MARKET_TOOLS as any)] },
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any), ...(getHandsTools() as any), ...(getProjectTools() as any), ...(getGithubSkillTools() as any), ...(CAMPAIGN_TOOLS as any), ...(PLANNER_TOOLS as any), ...(TICKET_TOOLS as any), ...(MARKET_TOOLS as any)] },
             googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
@@ -993,6 +995,14 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
         }
         else if (isProjectTool(fc.name)) {
           const out = await executeProjectTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (isGithubSkillTool(fc.name)) {
+          const out = await executeGithubSkillTool(fc.name, fc.args as any);
+          responses.push({ id: fc.id, name: fc.name, response: out });
+        }
+        else if (isCampaignTool(fc.name)) {
+          const out = await executeCampaignTool(fc.name, fc.args as any);
           responses.push({ id: fc.id, name: fc.name, response: out });
         }
         else if (isHandsTool(fc.name)) {

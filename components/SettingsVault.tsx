@@ -395,7 +395,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                 <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (deprecated)</option>
                             </select>
                         <p className="text-[10px] text-cyan-400/50">
-                            Hands-free + native app (Capacitor) required for mic while screen locked. See mobile/README.md.
+                            Hands-free keeps the mic open while Echo is on screen. Browsers stop the mic when the screen locks — that's a platform limit, not a bug.
                         </p>
                     </div>
 
