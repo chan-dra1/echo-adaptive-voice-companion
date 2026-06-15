@@ -5,18 +5,22 @@
 
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
-from TTS.api import TTS
+try:
+    from TTS.api import TTS
+except ImportError:
+    TTS = None
 import os
 import io
 import base64
 import uuid
 import requests
-import torch
-
-# Fix for newer torch versions where weights_only=True is the default
-import torch
-orig_load = torch.load
-torch.load = lambda *args, **kwargs: orig_load(*args, **{**kwargs, 'weights_only': False})
+try:
+    import torch
+    # Fix for newer torch versions where weights_only=True is the default
+    orig_load = torch.load
+    torch.load = lambda *args, **kwargs: orig_load(*args, **{**kwargs, 'weights_only': False})
+except ImportError:
+    torch = None
 
 app = Flask(__name__)
 CORS(app)
@@ -29,11 +33,15 @@ UPLOAD_DIR = "server_data/uploads"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-print("⏳ Loading Coqui TTS Model... (This downloads ~3GB on first run)")
 device = "cuda" if os.getenv("USE_GPU") == "1" else "cpu"
 try:
-    tts = TTS(MODEL_NAME).to(device)
-    print(f"✅ Model Loaded on {device}!")
+    if TTS is not None:
+        print("⏳ Loading Coqui TTS Model... (This downloads ~3GB on first run)")
+        tts = TTS(MODEL_NAME).to(device)
+        print(f"✅ Model Loaded on {device}!")
+    else:
+        print("⚠️ Coqui TTS library not found. Synthesis endpoints will be disabled.")
+        tts = None
 except Exception as e:
     print(f"❌ Failed to load model: {e}")
     tts = None
@@ -41,8 +49,8 @@ except Exception as e:
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({
-        "status": "online" if tts else "error", 
-        "model": MODEL_NAME,
+        "status": "online" if tts else "partial" if TTS is None else "error", 
+        "model": MODEL_NAME if TTS is not None else "none",
         "device": device
     })
 

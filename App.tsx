@@ -24,9 +24,7 @@ import TranslationPanel from './components/TranslationPanel';
 import KnowledgeDropZone from './components/KnowledgeDropZone';
 import TextChatBar from './components/TextChatBar';
 import SettingsVault from './components/SettingsVault';
-import AvatarDisplay from './components/AvatarDisplay';
 import MatrixRain from './components/MatrixRain';
-import MatrixVisualizer from './components/MatrixVisualizer';
 import { ghostAgent } from './services/ghostAgentService';
 import SkillApprovalModal from './components/SkillApprovalModal';
 import UnlockVault from './components/UnlockVault';
@@ -56,6 +54,7 @@ import OnboardingWizard from './components/OnboardingWizard';
 import InterviewPracticeMode from './components/InterviewPracticeMode';
 import RAGPanel from './components/RAGPanel';
 import FilesPanel from './components/FilesPanel';
+import CorePanel from './components/CorePanel';
 import SingPanel from './components/SingPanel';
 import { query as ragQuery, formatRagContext } from './services/ragService';
 import { setRagContext, clearRagContext } from './services/modelContextBuilder';
@@ -69,8 +68,176 @@ import { startCircadianLoop } from './services/circadianThemeService';
 import { BookOpen as IconBookOpen, Fingerprint } from 'lucide-react';
 import { enrollBiometric, isBiometricEnrolled, unenrollBiometric } from './services/webauthnService';
 import { connectHands, isHandsConnected, setHandsToken, forgetHands, hasHandsToken } from './services/handsBridgeService';
+import { connectCore, isCoreConnected, setCoreToken, forgetCore, hasCoreToken, corePushVoiceTurn } from './services/echoCoreSync';
 import { startMarketWatchLoop } from './services/marketWatchService';
-import { Terminal as IconTerminal } from 'lucide-react';
+import { Terminal as IconTerminal, Cpu as IconCpu } from 'lucide-react';
+
+/* ── Draggable Live Camera Preview ────────────────────────────── */
+interface DraggableCameraProps {
+  stream: MediaStream | null | undefined;
+  isCameraActive: boolean;
+  color: string;
+  rgb: string;
+}
+
+const DraggableCamera = ({ stream, isCameraActive, color, rgb }: DraggableCameraProps) => {
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  // Sync stream to video element whenever it changes
+  useEffect(() => {
+    const video = videoElementRef.current;
+    if (video && stream) {
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+        video.play().catch(err => {
+          console.error("Error playing video in DraggableCamera:", err);
+        });
+      }
+    }
+  }, [stream]);
+
+  // Callback ref to capture element on mount and set stream immediately
+  const videoRef = useCallback((node: HTMLVideoElement | null) => {
+    videoElementRef.current = node;
+    if (node && stream) {
+      node.srcObject = stream;
+      node.play().catch(err => {
+        console.error("Error playing video on mount in DraggableCamera:", err);
+      });
+    }
+  }, [stream]);
+
+  // Set initial position once camera becomes active and element is rendered
+  useEffect(() => {
+    if (isCameraActive && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      if (!position) {
+        const initialX = window.innerWidth - rect.width - 24; // 24px from right
+        const initialY = window.innerHeight * 0.45; // Below the middle
+        setPosition({ x: initialX, y: initialY });
+      }
+    }
+  }, [isCameraActive]);
+
+  const handleStart = (clientX: number, clientY: number) => {
+    if (!position) return;
+    setIsDragging(true);
+    dragStart.current = {
+      x: clientX - position.x,
+      y: clientY - position.y
+    };
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (!isDragging) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    const width = rect?.width || 200;
+    const height = rect?.height || 120;
+    
+    let newX = clientX - dragStart.current.x;
+    let newY = clientY - dragStart.current.y;
+    
+    // Constraints: keep preview within viewport boundaries
+    newX = Math.max(10, Math.min(window.innerWidth - width - 10, newX));
+    newY = Math.max(10, Math.min(window.innerHeight - height - 10, newY));
+    
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handleEnd = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onMouseMove = (e: MouseEvent) => {
+      handleMove(e.clientX, e.clientY);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return;
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    };
+
+    const onMouseUp = () => handleEnd();
+    const onTouchEnd = () => handleEnd();
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchend', onTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isDragging, position]);
+
+  if (!isCameraActive || !stream) return null;
+
+  return (
+    <div 
+      ref={containerRef}
+      className={`fixed z-50 w-44 h-32 md:w-56 md:h-40 rounded-xl overflow-hidden shadow-2xl bg-black/80 select-none group transition-all duration-150 ${
+        isDragging ? 'cursor-grabbing scale-[1.02]' : 'cursor-grab'
+      }`}
+      style={{
+        left: position ? `${position.x}px` : 'auto',
+        top: position ? `${position.y}px` : 'auto',
+        right: position ? 'auto' : '1.5rem',
+        bottom: position ? 'auto' : '10rem',
+        border: `1px solid rgba(${rgb}, 0.35)`,
+        boxShadow: isDragging ? `0 0 20px rgba(${rgb}, 0.15)` : `0 0 10px rgba(${rgb}, 0.08)`,
+      }}
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        handleStart(e.clientX, e.clientY);
+      }}
+      onTouchStart={(e) => {
+        if (e.touches.length === 0) return;
+        handleStart(e.touches[0].clientX, e.touches[0].clientY);
+      }}
+    >
+      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1] pointer-events-none" />
+      
+      {/* Drag handle overlays */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex flex-col justify-between p-2">
+        <div className="text-[8px] text-white/50 tracking-wider font-mono uppercase">Drag to move</div>
+        <div className="flex justify-center">
+          <span 
+            className="sc-hud-font text-[8px] tracking-wider uppercase bg-black/75 px-1.5 py-0.5 rounded border transition-colors duration-500"
+            style={{ 
+              color: color, 
+              borderColor: `rgba(${rgb}, 0.3)`,
+              textShadow: `0 0 4px rgba(${rgb}, 0.4)`
+            }}
+          >
+            ◉ LIVE PREVIEW
+          </span>
+        </div>
+      </div>
+
+      {/* Drag dots handle (visible always but subtle) */}
+      <div 
+        className="absolute top-2 right-2 w-3 h-1.5 flex flex-wrap gap-[2px] opacity-30 group-hover:opacity-75 transition-opacity pointer-events-none justify-center content-center"
+      >
+        <div className="w-[2px] h-[2px] rounded-full bg-white" />
+        <div className="w-[2px] h-[2px] rounded-full bg-white" />
+        <div className="w-[2px] h-[2px] rounded-full bg-white" />
+        <div className="w-[2px] h-[2px] rounded-full bg-white" />
+        <div className="w-[2px] h-[2px] rounded-full bg-white" />
+        <div className="w-[2px] h-[2px] rounded-full bg-white" />
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   // Check if ANY provider key is available
@@ -160,6 +327,7 @@ export default function App() {
   const [interviewSystemPrompt, setInterviewSystemPrompt] = useState<string | null>(null);
   const [showRAGPanel, setShowRAGPanel] = useState(false);
   const [showFilesPanel, setShowFilesPanel] = useState(false);
+  const [showCorePanel, setShowCorePanel] = useState(false);
   const [showSingPanel, setShowSingPanel] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [showCmdPalette, setShowCmdPalette] = useState(false);
@@ -246,6 +414,51 @@ export default function App() {
       else warning('Echo Hands daemon disconnected.');
     };
     window.addEventListener('hands:status', handleHandsStatus);
+
+    // ── Echo Core sync (terminal ↔ web) ──
+    connectCore();
+    const handleCoreStatus = (e: any) => {
+      if (e.detail?.connected) success('Echo Core connected — terminal & web are in sync.');
+      else warning('Echo Core disconnected.');
+    };
+    const handleCoreChange = (e: any) => {
+      const { collection, op } = e.detail || {};
+      if (op === 'add' && (collection === 'drafts' || collection === 'campaigns')) {
+        info(`New ${collection.slice(0, -1)} from the terminal — check Files.`);
+      }
+    };
+    // Terminal said something → surface it in the web. Voice it via the browser
+    // only when the web voice link is idle, to avoid double audio on one machine.
+    const handleCoreSpeak = (e: any) => {
+      const text = e.detail?.text;
+      if (!text) return;
+      info(`🔊 Echo (terminal): ${text.slice(0, 140)}`);
+      try {
+        if (status !== ConnectionStatus.CONNECTED && 'speechSynthesis' in window) {
+          window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+        }
+      } catch { /* ignore */ }
+    };
+    // A reminder or briefing fired in Echo Core (even with the tab in the
+    // background). Toast it, raise an OS notification, and voice it when the
+    // live link is idle (avoids doubling the terminal's own audio).
+    const handleCoreNotify = (e: any) => {
+      const { title, text } = e.detail || {};
+      if (!text) return;
+      info(`⏰ ${title || 'Echo'}: ${text}`);
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(`Echo — ${title || 'Reminder'}`, { body: text });
+        }
+        if (status !== ConnectionStatus.CONNECTED && 'speechSynthesis' in window) {
+          window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+        }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('echocore:status', handleCoreStatus);
+    window.addEventListener('echocore:change', handleCoreChange);
+    window.addEventListener('echocore:speak', handleCoreSpeak);
+    window.addEventListener('echocore:notify', handleCoreNotify);
 
     // Deadline nudge handler
     const handleDeadlineNudge = (e: any) => {
@@ -392,6 +605,10 @@ export default function App() {
       // Companion
       window.removeEventListener('echo-deadline-nudge', handleDeadlineNudge);
       window.removeEventListener('hands:status', handleHandsStatus);
+      window.removeEventListener('echocore:status', handleCoreStatus);
+      window.removeEventListener('echocore:change', handleCoreChange);
+      window.removeEventListener('echocore:speak', handleCoreSpeak);
+      window.removeEventListener('echocore:notify', handleCoreNotify);
       window.removeEventListener('market:alert', handleMarketAlert);
       stopMarketWatch();
       window.removeEventListener('ambient:quiet', handleAmbientQuiet);
@@ -737,6 +954,10 @@ export default function App() {
               message.text
             );
           }
+          // Mirror final voice turns to Echo Core so the terminal shares the convo
+          if (message.isFinal && message.text?.trim()) {
+            corePushVoiceTurn(message.role === 'assistant' ? 'assistant' : 'user', message.text);
+          }
         }
       });
 
@@ -931,6 +1152,30 @@ export default function App() {
   const hudCaption = lastAssistant?.text || '';
   const hudStreaming = !!lastAssistant && lastAssistant.isFinal === false;
 
+  // Derive current Echo dynamic colors for the draggable camera
+  const activeEchoState = useMemo(() => {
+    const nIn = volumeState.inputVolume > 1.5 ? volumeState.inputVolume / 255 : volumeState.inputVolume;
+    const nOut = volumeState.outputVolume > 1.5 ? volumeState.outputVolume / 255 : volumeState.outputVolume;
+    const connected = status === ConnectionStatus.CONNECTED;
+
+    if (!connected) return 'STANDBY';
+    if (nOut > 0.05) return 'SPEAKING';
+    if (nIn > 0.05) return 'LISTENING';
+    if (isThinking || hudStreaming) return 'PROCESSING';
+    return 'ONLINE';
+  }, [status, volumeState.inputVolume, volumeState.outputVolume, isThinking, hudStreaming]);
+
+  const themeColors = useMemo(() => {
+    const S: Record<string, { c: string; rgb: string }> = {
+      STANDBY:    { c: '#6C5CE7', rgb: '108,92,231' },
+      ONLINE:     { c: '#00CFFF', rgb: '0,207,255'  },
+      LISTENING:  { c: '#00FF88', rgb: '0,255,136'  },
+      PROCESSING: { c: '#FFB700', rgb: '255,183,0'  },
+      SPEAKING:   { c: '#FF2D78', rgb: '255,45,120' },
+    };
+    return S[activeEchoState] || S.STANDBY;
+  }, [activeEchoState]);
+
   const handleSelectConversation = (id: string) => {
     const convo = getConversation(id);
     if (!convo) return;
@@ -994,6 +1239,9 @@ export default function App() {
     { id: 'files', label: 'Files & Downloads',
       description: 'Download drafts, campaigns & projects — individually or all', icon: <IconTerminal size={14} />, category: 'Navigation',
       color: 'var(--c-cyan)', keywords: ['files','download','export','zip','drafts','campaigns','projects','save'], run: () => setShowFilesPanel(true) },
+    { id: 'core', label: 'Mission Control',
+      description: 'Reminders, memory & live cameras from Echo Core', icon: <IconCpu size={14} />, category: 'Navigation',
+      color: 'var(--c-cyan)', keywords: ['mission','control','core','reminders','schedule','memory','cameras','briefing'], run: () => setShowCorePanel(true) },
     { id: 'sing', label: 'Singing Studio',
       description: 'Generate song lyrics and synthesize vocals', icon: <Music size={14} />, category: 'Creative',
       color: 'var(--c-green)', keywords: ['sing','song','music','lyrics','vocal','bark','musicgen'], run: () => setShowSingPanel(true) },
@@ -1067,6 +1315,22 @@ export default function App() {
           info('Pairing with Echo Hands daemon…');
         }
       }},
+    { id: 'core', label: isCoreConnected() ? 'Disconnect Echo Core' : 'Connect Echo Core',
+      description: isCoreConnected() ? 'Drop the terminal-brain sync link' : 'Pair with Echo Core so terminal & web stay in sync',
+      icon: <IconCpu size={14} />, category: 'System',
+      color: 'var(--c-cyan)', keywords: ['core','terminal','sync','brain','daemon','repl'],
+      run: () => {
+        if (isCoreConnected() || hasCoreToken()) {
+          forgetCore();
+          info('Echo Core unpaired.');
+          return;
+        }
+        const token = window.prompt('Paste the Echo Core token (printed by: cd echo-core && npm start)');
+        if (token?.trim()) {
+          setCoreToken(token);
+          info('Pairing with Echo Core…');
+        }
+      }},
   ], [status, isMicMuted, isCameraActive, isScreenSharing, isHandsFree, handleConnect, toggleMute, handleNewChat, handleScreenShare, toggleHandsFree, error, info, success]);
 
   return (
@@ -1108,6 +1372,10 @@ export default function App() {
 
       {showFilesPanel && (
         <FilesPanel onClose={() => setShowFilesPanel(false)} />
+      )}
+
+      {showCorePanel && (
+        <CorePanel onClose={() => setShowCorePanel(false)} />
       )}
 
       {/* Singing Studio — slides in from right */}
@@ -1391,18 +1659,9 @@ export default function App() {
               captionText={hudCaption}
               streaming={hudStreaming}
               awaitingReply={isThinking}
+              isCameraActive={isCameraActive}
+              cameraStream={serviceRef.current?.getCameraStream()}
             />
-            {/* Camera PiP overlay (when camera is active) */}
-            {isCameraActive && (
-              <div className="absolute top-16 right-4 z-30 w-32 h-32 border border-[#00ff41]/40 rounded-lg overflow-hidden shadow-lg shadow-[#00ff41]/10">
-                <AvatarDisplay
-                  state="idle"
-                  volume={0}
-                  cameraStream={serviceRef.current?.getCameraStream()}
-                  avatarUrl={avatarUrl}
-                />
-              </div>
-            )}
 
             {/* ── Floating Action Dock ── */}
             <div className="absolute bottom-6 md:bottom-10 z-20 pointer-events-auto flex flex-col items-center gap-3 keyboard-safe-bottom">
@@ -1566,6 +1825,12 @@ export default function App() {
           </main>
         </div>
       </KnowledgeDropZone>
+      <DraggableCamera
+        stream={serviceRef.current?.getCameraStream()}
+        isCameraActive={isCameraActive}
+        color={themeColors.c}
+        rgb={themeColors.rgb}
+      />
     </div>
   );
 }

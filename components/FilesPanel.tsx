@@ -9,6 +9,7 @@ import {
 } from '../services/artifactsService';
 import type { StoredCampaign } from '../services/campaignStudioService';
 import { isHandsConnected, handsCall } from '../services/handsBridgeService';
+import { isCoreConnected, getCoreDrafts, getCoreCampaigns } from '../services/echoCoreSync';
 
 interface Props { onClose: () => void; }
 
@@ -23,11 +24,28 @@ export default function FilesPanel({ onClose }: Props) {
     const handsOn = isHandsConnected();
 
     const refresh = async () => {
-        setDrafts(getDrafts());
-        setCampaigns(getCampaigns());
+        // Merge browser-stored artifacts with any created in the terminal (Echo Core).
+        const coreDrafts = isCoreConnected() ? getCoreDrafts() : [];
+        const coreCampaigns = isCoreConnected() ? getCoreCampaigns() : [];
+        const mergeById = (a: any[], b: any[]) => {
+            const seen = new Set(a.map(x => x.id));
+            return [...a, ...b.filter(x => !seen.has(x.id))];
+        };
+        setDrafts(mergeById(getDrafts(), coreDrafts).sort((a, b) => b.createdAt - a.createdAt));
+        setCampaigns(mergeById(getCampaigns(), coreCampaigns).sort((a, b) => b.createdAt - a.createdAt));
         if (handsOn) setProjects(await listProjects());
     };
-    useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+    useEffect(() => {
+        refresh();
+        const onCoreChange = () => refresh();
+        window.addEventListener('echocore:change', onCoreChange);
+        window.addEventListener('echocore:snapshot', onCoreChange);
+        return () => {
+            window.removeEventListener('echocore:change', onCoreChange);
+            window.removeEventListener('echocore:snapshot', onCoreChange);
+        };
+        /* eslint-disable-next-line */
+    }, []);
 
     const counts = { drafts: drafts.length, campaigns: campaigns.length, projects: projects.length };
     const total = counts.drafts + counts.campaigns + counts.projects;
