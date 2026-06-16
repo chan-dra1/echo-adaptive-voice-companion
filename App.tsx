@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GeminiLiveService } from './services/geminiLiveService';
-import { chat, chooseProvider } from './services/llmRouter';
+import { chat, chooseProvider, LlmProvider } from './services/llmRouter';
 import { getMemories } from './services/memoryService';
 import { getHistory, saveMessage } from './services/chatHistoryService'; // Deprecated, will remove usage below
 import { proactiveAI } from './services/proactiveAIService';
@@ -665,6 +665,56 @@ export default function App() {
   }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer]);
 
   const handleConnect = useCallback(async () => {
+    // 1. Pre-flight key validation based on active profile (only if attempting to connect)
+    if (status === ConnectionStatus.DISCONNECTED || status === ConnectionStatus.ERROR) {
+      const activeProfile = localStorage.getItem('echo_ai_profile') || 'auto';
+      
+      if (activeProfile === 'gemini') {
+        const geminiKey = (localStorage.getItem('echo_api_key') || '').trim();
+        if (!geminiKey) {
+          error("Google Gemini Real-Time requires a Gemini API Key. Please add it in the Settings Vault.");
+          setIsSettingsOpen(true);
+          return;
+        }
+      } else if (activeProfile === 'openai') {
+        const openaiKey = (localStorage.getItem('echo_openai_key') || '').trim();
+        if (!openaiKey) {
+          error("OpenAI Suite requires an OpenAI API Key. Please add it in the Settings Vault.");
+          setIsSettingsOpen(true);
+          return;
+        }
+      } else if (activeProfile === 'elevenlabs') {
+        const elevenlabsKey = (localStorage.getItem('echo_elevenlabs_key') || '').trim();
+        if (!elevenlabsKey) {
+          error("ElevenLabs Overlay requires an ElevenLabs API Key. Please add it in the Settings Vault.");
+          setIsSettingsOpen(true);
+          return;
+        }
+      }
+      
+      // Also validate text brain key if using browser speech link overlay/native
+      if (activeProfile === 'elevenlabs' || activeProfile === 'browser') {
+        const brain = (localStorage.getItem('echo_default_brain') || 'gemini') as LlmProvider;
+        if (brain !== 'ollama') {
+          const keyMap: Record<string, string> = {
+            gemini: 'echo_api_key',
+            groq: 'echo_groq_key',
+            openrouter: 'echo_openrouter_key',
+            openai: 'echo_openai_key',
+            mistral: 'echo_mistral_key',
+            anthropic: 'echo_anthropic_key',
+            huggingface: 'echo_hf_key'
+          };
+          const brainKey = (localStorage.getItem(keyMap[brain] || '') || '').trim();
+          if (!brainKey) {
+            error(`Your selected Text Brain (${brain}) requires an API key. Please add it in the Settings Vault.`);
+            setIsSettingsOpen(true);
+            return;
+          }
+        }
+      }
+    }
+
     const persistedVoiceEngine = localStorage.getItem('echo_voice_engine') || 'gemini';
 
     if (persistedVoiceEngine === 'browser') {

@@ -46,8 +46,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     // Multi-provider keys
     const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
     const [defaultBrain, setDefaultBrain] = useState<LlmProvider>('gemini');
-    const [voiceEngine, setVoiceEngine] = useState<'gemini' | 'browser'>('gemini');
-    const [ttsEngine, setTtsEngine] = useState<'browser' | 'openai' | 'elevenlabs'>('browser');
+    const [aiProfile, setAiProfile] = useState<'auto' | 'gemini' | 'openai' | 'elevenlabs' | 'browser'>('auto');
     const [openaiVoice, setOpenaiVoice] = useState('alloy');
     const [elevenlabsKey, setElevenlabsKey] = useState('');
     const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
@@ -78,8 +77,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         setStealthMode(localStorage.getItem('echo_stealth_mode') === 'true');
         setGhostActive(localStorage.getItem('echo_ghost_active') === 'true');
         setOpenaiBaseUrl(localStorage.getItem('echo_openai_base') || '');
-        setVoiceEngine((localStorage.getItem('echo_voice_engine') as 'gemini' | 'browser') || 'gemini');
-        setTtsEngine((localStorage.getItem('echo_tts_engine') as 'browser' | 'openai' | 'elevenlabs') || 'browser');
+        setAiProfile((localStorage.getItem('echo_ai_profile') as any) || 'auto');
         setOpenaiVoice(localStorage.getItem('echo_openai_voice') || 'alloy');
         setElevenlabsKey(localStorage.getItem('echo_elevenlabs_key') || '');
         setElevenlabsVoiceId(localStorage.getItem('echo_elevenlabs_voice_id') || '21m00Tcm4TlvDq8ikWAM');
@@ -125,11 +123,52 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             localStorage.setItem('echo_translation_mode', String(translationMode));
             localStorage.setItem('echo_stealth_mode', String(stealthMode));
             localStorage.setItem('echo_ghost_active', String(ghostActive));
-            localStorage.setItem('echo_voice_engine', voiceEngine);
-            localStorage.setItem('echo_tts_engine', ttsEngine);
+            localStorage.setItem('echo_ai_profile', aiProfile);
             localStorage.setItem('echo_openai_voice', openaiVoice);
             localStorage.setItem('echo_elevenlabs_key', elevenlabsKey.trim());
             localStorage.setItem('echo_elevenlabs_voice_id', elevenlabsVoiceId.trim());
+
+            // Legacy back-compat mapping for App.tsx and chat interfaces
+            if (aiProfile === 'auto') {
+                const hasGemini = !!(providerKeys.gemini || '').trim();
+                const hasOpenai = !!(providerKeys.openai || '').trim();
+                if (hasGemini) {
+                    localStorage.setItem('echo_voice_engine', 'gemini');
+                    localStorage.setItem('echo_tts_engine', 'browser');
+                    localStorage.setItem('echo_default_brain', 'gemini');
+                    localStorage.setItem('echo_llm_provider', 'gemini');
+                } else if (hasOpenai) {
+                    localStorage.setItem('echo_voice_engine', 'browser');
+                    localStorage.setItem('echo_tts_engine', 'openai');
+                    localStorage.setItem('echo_default_brain', 'openai');
+                    localStorage.setItem('echo_llm_provider', 'openai');
+                } else {
+                    localStorage.setItem('echo_voice_engine', 'browser');
+                    localStorage.setItem('echo_tts_engine', 'browser');
+                    localStorage.setItem('echo_default_brain', 'gemini');
+                    localStorage.setItem('echo_llm_provider', 'gemini');
+                }
+            } else if (aiProfile === 'gemini') {
+                localStorage.setItem('echo_voice_engine', 'gemini');
+                localStorage.setItem('echo_tts_engine', 'browser');
+                localStorage.setItem('echo_default_brain', 'gemini');
+                localStorage.setItem('echo_llm_provider', 'gemini');
+            } else if (aiProfile === 'openai') {
+                localStorage.setItem('echo_voice_engine', 'browser');
+                localStorage.setItem('echo_tts_engine', 'openai');
+                localStorage.setItem('echo_default_brain', 'openai');
+                localStorage.setItem('echo_llm_provider', 'openai');
+            } else if (aiProfile === 'elevenlabs') {
+                localStorage.setItem('echo_voice_engine', 'browser');
+                localStorage.setItem('echo_tts_engine', 'elevenlabs');
+                localStorage.setItem('echo_default_brain', defaultBrain);
+                localStorage.setItem('echo_llm_provider', defaultBrain);
+            } else if (aiProfile === 'browser') {
+                localStorage.setItem('echo_voice_engine', 'browser');
+                localStorage.setItem('echo_tts_engine', 'browser');
+                localStorage.setItem('echo_default_brain', defaultBrain);
+                localStorage.setItem('echo_llm_provider', defaultBrain);
+            }
 
             const examples = styleExamples
                 .split(/\n---\n|\n\n---\n\n/)
@@ -215,114 +254,103 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                         </p>
                     </div>
 
-                    {/* Default brain */}
-                    <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Cpu size={16} />
-                            <span>Default "Text Brain" provider</span>
-                        </label>
-                        <select
-                            value={defaultBrain}
-                            onChange={(e) => setDefaultBrain(e.target.value as LlmProvider)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
-                            style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
-                        >
-                            {PROVIDERS.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.label}{p.free ? ' (free tier available)' : ''}
-                                    {hasKeyFor(p.id) ? '  ✓' : ''}
-                                </option>
-                            ))}
-                        </select>
-                        <p className="text-[10px] text-[#00ff41]/40">
-                            Live voice always uses Gemini (only provider with Live audio). This setting drives text chat + tool/skill reasoning.
-                        </p>
-                    </div>
-
-                    {/* Voice Engine */}
+                    {/* Primary AI Profile */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
                             <Sparkles size={16} />
-                            <span>Voice Streaming Engine</span>
+                            <span>Primary AI Profile (Voice & Brain)</span>
                         </label>
                         <select
-                            value={voiceEngine}
-                            onChange={(e) => setVoiceEngine(e.target.value as 'gemini' | 'browser')}
+                            value={aiProfile}
+                            onChange={(e) => {
+                                const val = e.target.value as any;
+                                setAiProfile(val);
+                                if (val === 'gemini') setDefaultBrain('gemini');
+                                else if (val === 'openai') setDefaultBrain('openai');
+                            }}
                             className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
                             style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
                         >
-                            <option value="gemini">Gemini Real-Time (Cloud, streams voice constantly)</option>
-                            <option value="browser">Web Speech API (Free & Local Browser STT/TTS)</option>
+                            <option value="auto">Auto-Configure (Recommended: Gemini Real-Time → OpenAI → Free)</option>
+                            <option value="gemini">Google Gemini Real-Time (Cloud Voice + Gemini Brain)</option>
+                            <option value="openai">OpenAI Suite (OpenAI TTS Voice + GPT Brain)</option>
+                            <option value="elevenlabs">ElevenLabs Overlay (ElevenLabs Voice + Custom Text Brain)</option>
+                            <option value="browser">Free & Local (Browser Native Voice + Custom Text Brain)</option>
                         </select>
-                        <p className="text-[10px] text-[#00ff41]/40">
-                            "Web Speech API" runs locally in your browser for free Speech-to-Text/Text-to-Speech and routes to your Default Text Brain (Groq, Ollama, etc.). Requires no Gemini API key!
+                        <p className="text-[10px] text-[#00ff41]/40 leading-relaxed">
+                            {aiProfile === 'auto' && "Auto-Configure matches your active API keys. Gemini Live starts if Gemini key is set. If not, OpenAI key starts OpenAI TTS. Else falls back to local/free native tools."}
+                            {aiProfile === 'gemini' && "Google Gemini Real-Time: Constant streaming cloud audio using Google's native Fenrir/Kore voices. Requires Gemini API Key below."}
+                            {aiProfile === 'openai' && "OpenAI Suite: Human-like speech output using OpenAI TTS combined with GPT text models. Requires OpenAI API Key below."}
+                            {aiProfile === 'elevenlabs' && "ElevenLabs Overlay: Ultra-realistic voice synthesis combined with any custom text brain (Groq, Ollama, etc.) of your choice."}
+                            {aiProfile === 'browser' && "Free & Local: Compeletely free browser speech synthesis combined with offline/free text brains like local Ollama or Groq free tier."}
                         </p>
                     </div>
 
-                    {/* TTS Engine Config — only visible when Voice Engine is Browser */}
-                    {voiceEngine === 'browser' && (
-                        <div className="space-y-4 p-3 bg-white/5 border border-white/10 rounded-xl font-mono">
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-2 text-xs font-semibold text-gray-300">
-                                    <Sparkles size={14} className="text-[#00ff41]" />
-                                    <span>TTS Output Engine</span>
-                                </label>
-                                <select
-                                    value={ttsEngine}
-                                    onChange={(e) => setTtsEngine(e.target.value as 'browser' | 'openai' | 'elevenlabs')}
-                                    className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all cursor-pointer"
-                                >
-                                    <option value="browser">Browser Native (Free, offline, can sound robotic)</option>
-                                    <option value="openai">OpenAI TTS (Low cost, highly human-like)</option>
-                                    <option value="elevenlabs">ElevenLabs (Premium quality, 10k free characters)</option>
-                                </select>
+                    {/* Secondary LLM Brain Selector — only visible for custom overlay modes */}
+                    {(aiProfile === 'elevenlabs' || aiProfile === 'browser') && (
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Cpu size={16} />
+                                <span>Default "Text Brain" provider</span>
+                            </label>
+                            <select
+                                value={defaultBrain}
+                                onChange={(e) => setDefaultBrain(e.target.value as LlmProvider)}
+                                className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
+                                style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
+                            >
+                                {PROVIDERS.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.label}{p.free ? ' (free tier available)' : ''}
+                                        {hasKeyFor(p.id) ? '  ✓' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* OpenAI Voice Selector */}
+                    {aiProfile === 'openai' && (
+                        <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl font-mono">
+                            <label className="text-[10px] font-semibold text-gray-400">OpenAI Voice</label>
+                            <select
+                                value={openaiVoice}
+                                onChange={(e) => setOpenaiVoice(e.target.value)}
+                                className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all cursor-pointer"
+                            >
+                                <option value="alloy">Alloy (Balanced)</option>
+                                <option value="echo">Echo (Warm)</option>
+                                <option value="fable">Fable (Narrative)</option>
+                                <option value="onyx">Onyx (Deep)</option>
+                                <option value="nova">Nova (Energetic)</option>
+                                <option value="shimmer">Shimmer (Professional)</option>
+                            </select>
+                        </div>
+                    )}
+
+                    {/* ElevenLabs Configuration */}
+                    {aiProfile === 'elevenlabs' && (
+                        <div className="space-y-3 p-3 bg-white/5 border border-white/10 rounded-xl font-mono">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-semibold text-gray-400">ElevenLabs API Key</label>
+                                <input
+                                    type="password"
+                                    value={elevenlabsKey}
+                                    onChange={(e) => setElevenlabsKey(e.target.value)}
+                                    placeholder="elevenlabs_api_key"
+                                    className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
+                                />
                             </div>
-
-                            {ttsEngine === 'openai' && (
-                                <div className="space-y-2 border-t border-white/5 pt-2">
-                                    <label className="text-[10px] font-semibold text-gray-400">OpenAI Voice</label>
-                                    <select
-                                        value={openaiVoice}
-                                        onChange={(e) => setOpenaiVoice(e.target.value)}
-                                        className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all cursor-pointer"
-                                    >
-                                        <option value="alloy">Alloy (Balanced)</option>
-                                        <option value="echo">Echo (Warm)</option>
-                                        <option value="fable">Fable (Narrative)</option>
-                                        <option value="onyx">Onyx (Deep)</option>
-                                        <option value="nova">Nova (Energetic)</option>
-                                        <option value="shimmer">Shimmer (Professional)</option>
-                                    </select>
-                                    <p className="text-[9px] text-[#00ff41]/40">
-                                        Uses your OpenAI Key entered below to generate audio.
-                                    </p>
-                                </div>
-                            )}
-
-                            {ttsEngine === 'elevenlabs' && (
-                                <div className="space-y-3 border-t border-white/5 pt-2">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-semibold text-gray-400">ElevenLabs API Key</label>
-                                        <input
-                                            type="password"
-                                            value={elevenlabsKey}
-                                            onChange={(e) => setElevenlabsKey(e.target.value)}
-                                            placeholder="elevenlabs_api_key"
-                                            className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-semibold text-gray-400">ElevenLabs Voice ID</label>
-                                        <input
-                                            type="text"
-                                            value={elevenlabsVoiceId}
-                                            onChange={(e) => setElevenlabsVoiceId(e.target.value)}
-                                            placeholder="Voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
-                                            className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
-                                        />
-                                    </div>
-                                </div>
-                            )}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-semibold text-gray-400">ElevenLabs Voice ID</label>
+                                <input
+                                    type="text"
+                                    value={elevenlabsVoiceId}
+                                    onChange={(e) => setElevenlabsVoiceId(e.target.value)}
+                                    placeholder="Voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
+                                    className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
+                                />
+                            </div>
                         </div>
                     )}
 
