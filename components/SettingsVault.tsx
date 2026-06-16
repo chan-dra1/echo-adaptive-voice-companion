@@ -47,6 +47,10 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
     const [defaultBrain, setDefaultBrain] = useState<LlmProvider>('gemini');
     const [voiceEngine, setVoiceEngine] = useState<'gemini' | 'browser'>('gemini');
+    const [ttsEngine, setTtsEngine] = useState<'browser' | 'openai' | 'elevenlabs'>('browser');
+    const [openaiVoice, setOpenaiVoice] = useState('alloy');
+    const [elevenlabsKey, setElevenlabsKey] = useState('');
+    const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
 
     // New toggles
     const [yoloMode, setYoloMode] = useState(false);
@@ -75,6 +79,10 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         setGhostActive(localStorage.getItem('echo_ghost_active') === 'true');
         setOpenaiBaseUrl(localStorage.getItem('echo_openai_base') || '');
         setVoiceEngine((localStorage.getItem('echo_voice_engine') as 'gemini' | 'browser') || 'gemini');
+        setTtsEngine((localStorage.getItem('echo_tts_engine') as 'browser' | 'openai' | 'elevenlabs') || 'browser');
+        setOpenaiVoice(localStorage.getItem('echo_openai_voice') || 'alloy');
+        setElevenlabsKey(localStorage.getItem('echo_elevenlabs_key') || '');
+        setElevenlabsVoiceId(localStorage.getItem('echo_elevenlabs_voice_id') || '21m00Tcm4TlvDq8ikWAM');
 
         const pk: Record<string, string> = {};
         for (const p of PROVIDERS) {
@@ -118,6 +126,10 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             localStorage.setItem('echo_stealth_mode', String(stealthMode));
             localStorage.setItem('echo_ghost_active', String(ghostActive));
             localStorage.setItem('echo_voice_engine', voiceEngine);
+            localStorage.setItem('echo_tts_engine', ttsEngine);
+            localStorage.setItem('echo_openai_voice', openaiVoice);
+            localStorage.setItem('echo_elevenlabs_key', elevenlabsKey.trim());
+            localStorage.setItem('echo_elevenlabs_voice_id', elevenlabsVoiceId.trim());
 
             const examples = styleExamples
                 .split(/\n---\n|\n\n---\n\n/)
@@ -246,6 +258,73 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                             "Web Speech API" runs locally in your browser for free Speech-to-Text/Text-to-Speech and routes to your Default Text Brain (Groq, Ollama, etc.). Requires no Gemini API key!
                         </p>
                     </div>
+
+                    {/* TTS Engine Config — only visible when Voice Engine is Browser */}
+                    {voiceEngine === 'browser' && (
+                        <div className="space-y-4 p-3 bg-white/5 border border-white/10 rounded-xl font-mono">
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-xs font-semibold text-gray-300">
+                                    <Sparkles size={14} className="text-[#00ff41]" />
+                                    <span>TTS Output Engine</span>
+                                </label>
+                                <select
+                                    value={ttsEngine}
+                                    onChange={(e) => setTtsEngine(e.target.value as 'browser' | 'openai' | 'elevenlabs')}
+                                    className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all cursor-pointer"
+                                >
+                                    <option value="browser">Browser Native (Free, offline, can sound robotic)</option>
+                                    <option value="openai">OpenAI TTS (Low cost, highly human-like)</option>
+                                    <option value="elevenlabs">ElevenLabs (Premium quality, 10k free characters)</option>
+                                </select>
+                            </div>
+
+                            {ttsEngine === 'openai' && (
+                                <div className="space-y-2 border-t border-white/5 pt-2">
+                                    <label className="text-[10px] font-semibold text-gray-400">OpenAI Voice</label>
+                                    <select
+                                        value={openaiVoice}
+                                        onChange={(e) => setOpenaiVoice(e.target.value)}
+                                        className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all cursor-pointer"
+                                    >
+                                        <option value="alloy">Alloy (Balanced)</option>
+                                        <option value="echo">Echo (Warm)</option>
+                                        <option value="fable">Fable (Narrative)</option>
+                                        <option value="onyx">Onyx (Deep)</option>
+                                        <option value="nova">Nova (Energetic)</option>
+                                        <option value="shimmer">Shimmer (Professional)</option>
+                                    </select>
+                                    <p className="text-[9px] text-[#00ff41]/40">
+                                        Uses your OpenAI Key entered below to generate audio.
+                                    </p>
+                                </div>
+                            )}
+
+                            {ttsEngine === 'elevenlabs' && (
+                                <div className="space-y-3 border-t border-white/5 pt-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-gray-400">ElevenLabs API Key</label>
+                                        <input
+                                            type="password"
+                                            value={elevenlabsKey}
+                                            onChange={(e) => setElevenlabsKey(e.target.value)}
+                                            placeholder="elevenlabs_api_key"
+                                            className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-gray-400">ElevenLabs Voice ID</label>
+                                        <input
+                                            type="text"
+                                            value={elevenlabsVoiceId}
+                                            onChange={(e) => setElevenlabsVoiceId(e.target.value)}
+                                            placeholder="Voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
+                                            className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Provider key */}
                     {(() => {

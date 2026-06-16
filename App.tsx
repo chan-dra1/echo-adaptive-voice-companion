@@ -791,56 +791,158 @@ export default function App() {
             addMessageToConversation(currentConvoId, 'ai', response.text);
           }
 
-          const utterance = new SpeechSynthesisUtterance(response.text);
-          
-          const systemVoices = window.speechSynthesis.getVoices();
-          const premiumVoice = systemVoices.find(v => 
-            (v.name.includes('Siri') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural')) && 
-            v.lang.startsWith('en')
-          ) || systemVoices.find(v => v.lang.startsWith('en')) || systemVoices[0];
-          
-          if (premiumVoice) {
-            utterance.voice = premiumVoice;
+          const ttsEngine = localStorage.getItem('echo_tts_engine') || 'browser';
+
+          if (ttsEngine === 'openai' || ttsEngine === 'elevenlabs') {
+            try {
+              let audioUrl = '';
+              if (ttsEngine === 'openai') {
+                const openAiKey = localStorage.getItem('echo_openai_key') || '';
+                if (!openAiKey) throw new Error("Please add your OpenAI API Key in the Settings Vault");
+                const voice = localStorage.getItem('echo_openai_voice') || 'alloy';
+                
+                const responseAudio = await fetch('https://api.openai.com/v1/audio/speech', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openAiKey}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    model: 'tts-1',
+                    input: response.text,
+                    voice: voice
+                  })
+                });
+                
+                if (!responseAudio.ok) {
+                  const errJson = await responseAudio.json().catch(() => ({}));
+                  throw new Error(errJson?.error?.message || `OpenAI TTS error (${responseAudio.status})`);
+                }
+                
+                const blob = await responseAudio.blob();
+                audioUrl = URL.createObjectURL(blob);
+              } else {
+                const elevenlabsKey = localStorage.getItem('echo_elevenlabs_key') || '';
+                if (!elevenlabsKey) throw new Error("Please add your ElevenLabs API Key in the Settings Vault");
+                const voiceId = localStorage.getItem('echo_elevenlabs_voice_id') || '21m00Tcm4TlvDq8ikWAM';
+                
+                const responseAudio = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+                  method: 'POST',
+                  headers: {
+                    'xi-api-key': elevenlabsKey,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    text: response.text,
+                    model_id: 'eleven_monolingual_v1',
+                    voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                  })
+                });
+                
+                if (!responseAudio.ok) {
+                  const errJson = await responseAudio.json().catch(() => ({}));
+                  throw new Error(errJson?.detail?.message || `ElevenLabs error (${responseAudio.status})`);
+                }
+                
+                const blob = await responseAudio.blob();
+                audioUrl = URL.createObjectURL(blob);
+              }
+              
+              const audio = new Audio(audioUrl);
+              
+              speechVolumeIntervalRef.current = setInterval(() => {
+                setVolumeState({
+                  inputVolume: 0,
+                  outputVolume: 0.5 + Math.random() * 0.5
+                });
+              }, 100);
+              
+              const onAudioEnd = () => {
+                isAIPendingRef.current = false;
+                if (speechVolumeIntervalRef.current) {
+                  clearInterval(speechVolumeIntervalRef.current);
+                }
+                setVolumeState({ inputVolume: 0, outputVolume: 0 });
+                if (isBrowserVoiceConnectedRef.current) {
+                  setTimeout(() => {
+                    if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                      try { recognition.start(); } catch { /* ignore */ }
+                    }
+                  }, 150);
+                }
+              };
+              
+              audio.onended = onAudioEnd;
+              audio.onerror = (e) => {
+                console.error("Audio playback error:", e);
+                onAudioEnd();
+              };
+              
+              await audio.play();
+            } catch (ttsErr: any) {
+              error("TTS Error: " + (ttsErr.message || ttsErr));
+              isAIPendingRef.current = false;
+              setVolumeState({ inputVolume: 0, outputVolume: 0 });
+              if (isBrowserVoiceConnectedRef.current) {
+                setTimeout(() => {
+                  if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                    try { recognition.start(); } catch { /* ignore */ }
+                  }
+                }, 150);
+              }
+            }
+          } else {
+            const utterance = new SpeechSynthesisUtterance(response.text);
+            
+            const systemVoices = window.speechSynthesis.getVoices();
+            const premiumVoice = systemVoices.find(v => 
+              (v.name.includes('Siri') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural')) && 
+              v.lang.startsWith('en')
+            ) || systemVoices.find(v => v.lang.startsWith('en')) || systemVoices[0];
+            
+            if (premiumVoice) {
+              utterance.voice = premiumVoice;
+            }
+            
+            speechVolumeIntervalRef.current = setInterval(() => {
+              setVolumeState({
+                inputVolume: 0,
+                outputVolume: 0.5 + Math.random() * 0.5
+              });
+            }, 100);
+
+            utterance.onend = () => {
+              isAIPendingRef.current = false;
+              if (speechVolumeIntervalRef.current) {
+                clearInterval(speechVolumeIntervalRef.current);
+              }
+              setVolumeState({ inputVolume: 0, outputVolume: 0 });
+              if (isBrowserVoiceConnectedRef.current) {
+                setTimeout(() => {
+                  if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                    try { recognition.start(); } catch { /* ignore */ }
+                  }
+                }, 150);
+              }
+            };
+
+            utterance.onerror = () => {
+              isAIPendingRef.current = false;
+              if (speechVolumeIntervalRef.current) {
+                clearInterval(speechVolumeIntervalRef.current);
+              }
+              setVolumeState({ inputVolume: 0, outputVolume: 0 });
+              if (isBrowserVoiceConnectedRef.current) {
+                setTimeout(() => {
+                  if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
+                    try { recognition.start(); } catch { /* ignore */ }
+                  }
+                }, 150);
+              }
+            };
+
+            window.speechSynthesis.speak(utterance);
           }
-          
-          speechVolumeIntervalRef.current = setInterval(() => {
-            setVolumeState({
-              inputVolume: 0,
-              outputVolume: 0.5 + Math.random() * 0.5
-            });
-          }, 100);
-
-          utterance.onend = () => {
-            isAIPendingRef.current = false;
-            if (speechVolumeIntervalRef.current) {
-              clearInterval(speechVolumeIntervalRef.current);
-            }
-            setVolumeState({ inputVolume: 0, outputVolume: 0 });
-            if (isBrowserVoiceConnectedRef.current) {
-              setTimeout(() => {
-                if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                  try { recognition.start(); } catch { /* ignore */ }
-                }
-              }, 150);
-            }
-          };
-
-          utterance.onerror = () => {
-            isAIPendingRef.current = false;
-            if (speechVolumeIntervalRef.current) {
-              clearInterval(speechVolumeIntervalRef.current);
-            }
-            setVolumeState({ inputVolume: 0, outputVolume: 0 });
-            if (isBrowserVoiceConnectedRef.current) {
-              setTimeout(() => {
-                if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                  try { recognition.start(); } catch { /* ignore */ }
-                }
-              }, 150);
-            }
-          };
-
-          window.speechSynthesis.speak(utterance);
 
         } catch (err: any) {
           isAIPendingRef.current = false;
