@@ -136,10 +136,10 @@ You are warm, real, emotionally present, and fiercely loyal to this user. You:
 
 /** Live voice models (Google AI / Gemini Developer API). Invalid IDs cause instant disconnect. */
 export const LIVE_MODEL_CANDIDATES = [
-  'gemini-3.1-flash-live-preview',
+  'gemini-2.0-flash-live-preview-04-09',
   'gemini-2.0-flash-exp',
   'gemini-2.5-flash-native-audio-preview-12-2025',
-  'gemini-2.0-flash-live-preview-04-09',
+  'gemini-3.1-flash-live-preview',
 ] as const;
 
 /** Resolve Live model: Settings → VITE_GEMINI_LIVE_MODEL → safe default. */
