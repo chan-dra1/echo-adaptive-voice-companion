@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:init": "echo 'Copy capacitor.config.ts.example to capacitor.config.ts, npm run build, then npx cap sync'"
   },
   "dependencies": {
     "@google/genai": "^2.8.0",
-    "@huggingface/transformers": "^4.2.0",
     "@octokit/rest": "^22.0.1",
     "crypto-js": "^4.2.0",
     "docx": "^9.6.1",
@@ -24,12 +24,15 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",
-    "puppeteer": "^25.1.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

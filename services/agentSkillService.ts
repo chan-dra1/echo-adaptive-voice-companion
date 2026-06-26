@@ -13,6 +13,7 @@ export interface Skill {
 class AgentSkillService {
     private skills: Map<string, Skill> = new Map();
     private listeners = new Set<() => void>();
+    private executionCallback: ((toolName: string, succeeded: boolean) => void) | null = null;
 
     registerSkill(skill: Skill) {
         if (this.skills.has(skill.name)) {
@@ -31,6 +32,10 @@ class AgentSkillService {
     onChange(cb: () => void): () => void {
         this.listeners.add(cb);
         return () => this.listeners.delete(cb);
+    }
+
+    setExecutionCallback(cb: ((toolName: string, succeeded: boolean) => void) | null): void {
+        this.executionCallback = cb;
     }
 
     private emit() {
@@ -61,13 +66,26 @@ class AgentSkillService {
                 continue;
             }
             if (skill.tools.some(t => t.name === toolName)) {
+                let result: any;
+                let succeeded = true;
                 try {
                     console.log(`[AgentSkillService] Executing ${toolName} via ${skill.name}`);
-                    return await skill.execute(toolName, args);
+                    result = await skill.execute(toolName, args);
+                    // If the skill returned an error object, that counts as failure
+                    if (result && typeof result === 'object' && 'error' in result) {
+                        succeeded = false;
+                    }
                 } catch (error: any) {
                     console.error(`[AgentSkillService] Error executing ${toolName}:`, error);
-                    return { error: error.message || "Unknown error occurred" };
+                    result = { error: error.message || "Unknown error occurred" };
+                    succeeded = false;
                 }
+                try {
+                    this.executionCallback?.(toolName, succeeded);
+                } catch {
+                    /* ignore callback errors */
+                }
+                return result;
             }
         }
         throw new Error(`Tool ${toolName} not found in any registered skill`);

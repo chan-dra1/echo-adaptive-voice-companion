@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, MessageSquareText, X } from 'lucide-react';
 import { echoChatService, ChatTurn } from '../services/echoChatService';
+import { chooseProvider, hasKeyFor } from '../services/llmRouter';
 
 interface TextChatBarProps {
     onApiKeyMissing: () => void;
@@ -33,18 +34,8 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
         const text = input.trim();
         if (!text || isLoading) return;
 
-        // Determine which provider and key to use
-        const provider = localStorage.getItem('echo_llm_provider') || 'gemini';
-        let apiKey = '';
-        if (provider === 'gemini') apiKey = localStorage.getItem('echo_api_key') || '';
-        else if (provider === 'openai') apiKey = localStorage.getItem('echo_openai_key') || '';
-        else if (provider === 'anthropic') apiKey = localStorage.getItem('echo_anthropic_key') || '';
-        else if (provider === 'groq') apiKey = localStorage.getItem('echo_groq_key') || '';
-        else if (provider === 'nvidia') apiKey = localStorage.getItem('echo_nvidia_key') || '';
-        else if (provider === 'openrouter') apiKey = localStorage.getItem('echo_openrouter_key') || '';
-        else apiKey = localStorage.getItem('echo_api_key') || ''; // fallback
-
-        if (!apiKey) {
+        const provider = chooseProvider();
+        if (!hasKeyFor(provider)) {
             onApiKeyMissing();
             return;
         }
@@ -57,7 +48,7 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
         setIsLoading(true);
 
         try {
-            const reply = await echoChatService.sendMessage(provider, apiKey, text);
+            const reply = await echoChatService.sendMessage(provider, '', text);
             const aiTurn: ChatTurn = { role: 'assistant', content: reply };
             setMessages(prev => [...prev, aiTurn]);
             onNewMessage('assistant', reply);
@@ -108,11 +99,15 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
     }
 
     return (
-        <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4">
-            {/* Chat panel — slides up when open */}
+        <>
+            {/* Chat panel — fixed above the pill when open */}
             {isOpen && (
-                <div className="mb-3 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-                    style={{ maxHeight: '55vh' }}>
+                <div
+                    className="fixed bottom-[12.5rem] md:bottom-[15rem] left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4 pointer-events-auto"
+                    style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                >
+                <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                    style={{ maxHeight: '50vh' }}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
                         <div className="flex items-center gap-2">
@@ -190,13 +185,14 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                         </button>
                     </div>
                 </div>
+                </div>
             )}
 
-            {/* Pill toggle button */}
-            <div className="flex justify-center">
+            {/* Pill — just above the mic bar; only the button receives clicks */}
+            <div className="absolute bottom-[10.5rem] md:bottom-[12.75rem] left-1/2 -translate-x-1/2 z-40 pointer-events-none">
                 <button
                     onClick={() => setIsOpen(prev => !prev)}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full border backdrop-blur-md transition-all duration-300 text-sm font-medium shadow-lg ${isOpen
+                    className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full border backdrop-blur-md transition-all duration-300 text-xs md:text-sm font-medium shadow-lg ${isOpen
                         ? 'bg-[#00ff88]/20 border-[#00ff88]/40 text-[#00ff88] shadow-[0_0_20px_rgba(0,255,136,0.15)]'
                         : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
                         }`}
@@ -207,6 +203,6 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                     <span>Text Chat</span>
                 </button>
             </div>
-        </div>
+        </>
     );
 }

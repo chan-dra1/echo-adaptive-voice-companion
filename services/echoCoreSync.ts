@@ -157,3 +157,60 @@ export function coreAsk(text: string): Promise<{ ok: boolean; text: string; prov
         ws.send(JSON.stringify({ type: 'ask', id, text }));
     });
 }
+
+/** Generic request/response helper for Core WS protocol. */
+function coreRequest<T extends Record<string, any>>(
+    type: string,
+    payload: Record<string, any>,
+    resultType: string,
+    timeoutMs = 17_000
+): Promise<{ ok: boolean } & T> {
+    return new Promise((resolve) => {
+        if (!connected || !ws) {
+            return resolve({ ok: false, error: 'Echo Core not connected.' } as any);
+        }
+        const id = `${type}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+        const timer = setTimeout(() => {
+            ws?.removeEventListener('message', onMsg);
+            resolve({ ok: false, error: 'Timeout (17s).' } as any);
+        }, timeoutMs);
+        const onMsg = (ev: MessageEvent) => {
+            let m: any; try { m = JSON.parse(ev.data); } catch { return; }
+            if (m.type === resultType && m.id === id) {
+                clearTimeout(timer);
+                ws?.removeEventListener('message', onMsg);
+                resolve(m as any);
+            }
+        };
+        ws.addEventListener('message', onMsg);
+        ws.send(JSON.stringify({ type, id, ...payload }));
+    });
+}
+
+/** Run a shell command on the local Mac via Echo Core. */
+export function coreExec(command: string) {
+    return coreRequest<{ stdout?: string; stderr?: string; exitCode?: number; error?: string }>(
+        'exec', { command }, 'exec_result'
+    );
+}
+
+/** Read a file on the local filesystem via Echo Core (home directory only). */
+export function coreReadFile(filePath: string) {
+    return coreRequest<{ content?: string; truncated?: boolean; error?: string }>(
+        'read_file', { path: filePath }, 'read_file_result'
+    );
+}
+
+/** Write content to a file on the local filesystem via Echo Core. */
+export function coreWriteFile(filePath: string, content: string) {
+    return coreRequest<{ path?: string; error?: string }>(
+        'write_file', { path: filePath, content }, 'write_file_result'
+    );
+}
+
+/** List a directory on the local filesystem via Echo Core. */
+export function coreListDir(dirPath: string) {
+    return coreRequest<{ path?: string; items?: Array<{ name: string; type: 'file' | 'dir' }>; error?: string }>(
+        'list_dir', { path: dirPath }, 'list_dir_result'
+    );
+}

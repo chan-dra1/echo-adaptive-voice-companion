@@ -30,14 +30,6 @@ import {
   loadInterruptMode,
 } from './conversationPolicyService';
 import { mobileAudioBridge } from './mobileAudioBridge';
-import { getHandsTools, isHandsTool, executeHandsTool, isHandsConnected } from './handsBridgeService';
-import { getProjectTools, isProjectTool, executeProjectTool } from './projectModeService';
-import { getGithubSkillTools, isGithubSkillTool, executeGithubSkillTool } from './githubSkillService';
-import { CAMPAIGN_TOOLS, isCampaignTool, executeCampaignTool } from './campaignStudioService';
-import { PLANNER_TOOLS, isPlannerTool, executePlannerTool } from './monthlyPlannerService';
-import { TICKET_TOOLS, isTicketTool, executeTicketTool } from './featureTicketService';
-import { MARKET_TOOLS, isMarketTool, executeMarketTool } from './marketWatchService';
-import { SMART_HOME_TOOLS, isSmartHomeTool, executeSmartHomeTool, getHaCameraSnapshot } from './smartHomeService';
 
 interface LiveServiceCallbacks {
   onConnect: () => void;
@@ -103,6 +95,7 @@ export class GeminiLiveService {
   private sources = new Set<AudioBufferSourceNode>();
   private sessionPromise: Promise<any> | null = null;
   private intentionalDisconnect = false;
+  private authFailure = false;
   private sessionOpened = false;
   private inputAnalyser: AnalyserNode | null = null;
   private outputAnalyser: AnalyserNode | null = null;
@@ -254,10 +247,6 @@ ${memoryContext}
 ${summaryContext}
 
 ${learningContext}
-
-${isHandsConnected() ? `LOCAL EXECUTION: The Echo Hands daemon is connected. You can run shell commands, read/write files and list directories on the user's computer via the hands_* tools. Prefer them for any task the browser cannot do (git, installs, scripts, local files). Destructive actions will ask the user to confirm.
-
-PROJECT MODE: When the user asks you to build a website/app/page, use project_scaffold with ALL files (complete, production-quality HTML/CSS/JS — modern, responsive, polished). Then offer to publish with project_deploy (GitHub + Vercel) and read the live URL back to them.` : ''}
 `;
       }
       const voiceName = config?.voiceName || 'Fenrir';
@@ -268,6 +257,7 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
       console.log(`[GeminiLive] Total Tools: ${toolsCount}`);
 
       this.intentionalDisconnect = false;
+      this.authFailure = false;
       this.sessionOpened = false;
 
       this.sessionPromise = this.ai.live.connect({
@@ -276,7 +266,7 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any), ...(getHandsTools() as any), ...(getProjectTools() as any), ...(getGithubSkillTools() as any), ...(CAMPAIGN_TOOLS as any), ...(PLANNER_TOOLS as any), ...(TICKET_TOOLS as any), ...(MARKET_TOOLS as any), ...(SMART_HOME_TOOLS as any)] },
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any)] },
             googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
@@ -306,6 +296,18 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
             const wasConnected = this.sessionOpened;
             this.sessionOpened = false;
 
+            const authFailure =
+              event.code === 1007 ||
+              event.code === 1008 ||
+              event.code === 4001 ||
+              event.code === 4003 ||
+              /api.?key|auth|permission|invalid|unauthorized|forbidden|credential/i.test(reason);
+
+            if (authFailure) {
+              this.authFailure = true;
+              this.intentionalDisconnect = true;
+            }
+
             if (!this.intentionalDisconnect && !wasConnected) {
               this.callbacks.onError(
                 new Error(
@@ -322,9 +324,10 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
             this.stopScreenShare();
             this.stopCamera();
 
-            // Auto-reconnect only after a successful session, not on failed setup
+            // Auto-reconnect only after a successful session, not on failed setup or auth errors
             if (
               !this.intentionalDisconnect &&
+              !this.authFailure &&
               wasConnected &&
               event.code !== 1000 &&
               event.code !== 1001
@@ -982,50 +985,6 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
             response: { result: `The current time is ${now.toLocaleTimeString()}` }
           });
         }
-        else if (isMarketTool(fc.name)) {
-          const out = await executeMarketTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (isTicketTool(fc.name)) {
-          const out = await executeTicketTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (isPlannerTool(fc.name)) {
-          const out = await executePlannerTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (isProjectTool(fc.name)) {
-          const out = await executeProjectTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (isGithubSkillTool(fc.name)) {
-          const out = await executeGithubSkillTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (isCampaignTool(fc.name)) {
-          const out = await executeCampaignTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (fc.name === 'ha_get_camera_snapshot') {
-          // Special case: get the image and feed it directly into the Gemini vision stream
-          const snap = await getHaCameraSnapshot((fc.args as any).entity_id);
-          if (snap) {
-            this.sessionPromise?.then(session => {
-              session.sendRealtimeInput({ video: { mimeType: snap.contentType as any, data: snap.base64 } });
-            });
-            responses.push({ id: fc.id, name: fc.name, response: { result: `Camera snapshot sent. Describe what you see in the image — identify people, objects, activity, lighting conditions.` } });
-          } else {
-            responses.push({ id: fc.id, name: fc.name, response: { error: 'Could not retrieve camera snapshot. Check that Echo Hands is running and the entity_id is correct.' } });
-          }
-        }
-        else if (isSmartHomeTool(fc.name)) {
-          const out = await executeSmartHomeTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
-        else if (isHandsTool(fc.name)) {
-          const out = await executeHandsTool(fc.name, fc.args as any);
-          responses.push({ id: fc.id, name: fc.name, response: out });
-        }
         else {
           // 1. Try Agent Skills
           try {
@@ -1255,6 +1214,10 @@ PROJECT MODE: When the user asks you to build a website/app/page, use project_sc
         this.lastOutputRms = outputVol / 255;
       }
 
+      if (typeof window !== 'undefined') {
+        (window as any)._lastInputVol = inputVol;
+        (window as any)._lastOutputVol = outputVol;
+      }
       this.callbacks.onVolumeChange(inputVol, outputVol);
     }, 50);
   }

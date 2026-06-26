@@ -20,10 +20,16 @@
  */
 
 import { WebSocketServer } from 'ws';
+import { exec as _exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { readFile, writeFile, readdir } from 'node:fs/promises';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+const execP = promisify(_exec);
+const HOME = os.homedir();
 
 const CORE_DIR = path.join(os.homedir(), '.echo-core');
 const TOKEN_FILE = path.join(CORE_DIR, 'token');
@@ -102,6 +108,89 @@ export function startSyncHub(store, opts = {}) {
                             store.add('history', { role, text, source: 'web-voice' });
                             opts.onVoiceTurn?.(role, text);
                             for (const c of clients) if (c !== ws && c.__authed) send(c, { type: 'voice_turn', role, text });
+                        }
+                        break;
+                    }
+
+                    case 'exec': {
+                        const id = msg.id;
+                        const cmd = String(msg.command || '').trim();
+                        if (!cmd) { send(ws, { type: 'exec_result', id, ok: false, error: 'Empty command.' }); break; }
+                        // Block clearly destructive patterns
+                        const BLOCKED_EXEC = [
+                            /rm\s+-rf?\s*\/(?:\s|$)/i, /\bdd\s+if=/i, /mkfs\b/i,
+                            /:\(\)\s*\{.*\};\s*:/,      />\s*\/dev\/sd/i, /sudo\s+rm\s+-rf/i,
+                            /\bshutdown\b/i,            /\breboot\b/i,   /\bhalt\b/i,
+                        ];
+                        if (BLOCKED_EXEC.some(p => p.test(cmd))) {
+                            send(ws, { type: 'exec_result', id, ok: false, error: 'Blocked: potentially destructive command.' });
+                            break;
+                        }
+                        if (opts.onExecLog) opts.onExecLog(cmd);
+                        try {
+                            const { stdout, stderr } = await execP(cmd, { timeout: 15_000, maxBuffer: 2 * 1024 * 1024 });
+                            send(ws, { type: 'exec_result', id, ok: true, stdout: (stdout || '').slice(0, 6000), stderr: (stderr || '').slice(0, 1000), exitCode: 0 });
+                        } catch (e) {
+                            send(ws, { type: 'exec_result', id, ok: false, stdout: (e.stdout || '').slice(0, 2000), stderr: (e.stderr || e.message || '').slice(0, 1000), exitCode: e.code ?? 1 });
+                        }
+                        break;
+                    }
+
+                    case 'read_file': {
+                        const id = msg.id;
+                        const fp = path.resolve(String(msg.path || '').replace(/^~/, HOME));
+                        if (!fp.startsWith(HOME)) {
+                            send(ws, { type: 'read_file_result', id, ok: false, error: 'Access denied: only files under home directory.' });
+                            break;
+                        }
+                        const SENSITIVE = [/\.env$/i, /\.key$/i, /\.pem$/i, /id_rsa/i, /id_ed25519/i, /\.token$/i];
+                        if (SENSITIVE.some(p => p.test(path.basename(fp)))) {
+                            send(ws, { type: 'read_file_result', id, ok: false, error: 'Access denied: sensitive file type.' });
+                            break;
+                        }
+                        try {
+                            const content = await readFile(fp, 'utf8');
+                            send(ws, { type: 'read_file_result', id, ok: true, content: content.slice(0, 50_000), truncated: content.length > 50_000 });
+                        } catch (e) {
+                            send(ws, { type: 'read_file_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'write_file': {
+                        const id = msg.id;
+                        const fp = path.resolve(String(msg.path || '').replace(/^~/, HOME));
+                        const ALLOWED_WRITE = [
+                            path.join(HOME, 'Desktop'), path.join(HOME, 'Documents'),
+                            path.join(HOME, 'Downloads'), '/tmp', path.join(HOME, 'echo-projects'),
+                        ];
+                        if (!ALLOWED_WRITE.some(d => fp.startsWith(d))) {
+                            send(ws, { type: 'write_file_result', id, ok: false, error: 'Access denied. Writes allowed only in: Desktop, Documents, Downloads, /tmp, ~/echo-projects.' });
+                            break;
+                        }
+                        try {
+                            await writeFile(fp, String(msg.content || ''), 'utf8');
+                            if (opts.onWriteLog) opts.onWriteLog(fp);
+                            send(ws, { type: 'write_file_result', id, ok: true, path: fp });
+                        } catch (e) {
+                            send(ws, { type: 'write_file_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'list_dir': {
+                        const id = msg.id;
+                        const dp = path.resolve(String(msg.path || HOME).replace(/^~/, HOME));
+                        if (!dp.startsWith(HOME) && !dp.startsWith('/tmp')) {
+                            send(ws, { type: 'list_dir_result', id, ok: false, error: 'Access denied.' });
+                            break;
+                        }
+                        try {
+                            const entries = await readdir(dp, { withFileTypes: true });
+                            const items = entries.slice(0, 300).map(e => ({ name: e.name, type: e.isDirectory() ? 'dir' : 'file' }));
+                            send(ws, { type: 'list_dir_result', id, ok: true, path: dp, items });
+                        } catch (e) {
+                            send(ws, { type: 'list_dir_result', id, ok: false, error: e.message });
                         }
                         break;
                     }

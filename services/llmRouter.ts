@@ -183,6 +183,132 @@ async function callProvider(
     }
 }
 
+/**
+ * Guess which provider an API key belongs to from its shape, so a key pasted
+ * into the wrong field can be caught before it's saved or used. Order
+ * matters: check the more specific "sk-ant-"/"sk-or-" prefixes before the
+ * generic "sk-" (OpenAI) one, since those are also "sk-"-prefixed.
+ */
+export function detectProviderFromKey(value: string): LlmProvider | null {
+    const v = value.trim();
+    if (!v) return null;
+    if (v.startsWith('AIzaSy') || v.startsWith('AQ.')) return 'gemini';
+    if (v.startsWith('gsk_')) return 'groq';
+    if (v.startsWith('sk-ant-')) return 'anthropic';
+    if (v.startsWith('sk-or-')) return 'openrouter';
+    if (v.startsWith('hf_')) return 'huggingface';
+    if (v.startsWith('sk-')) return 'openai';
+    return null; // Mistral keys have no fixed signature; Ollama isn't a key.
+}
+
+export interface ApiKeyTestResult {
+    ok: boolean;
+    message: string;
+}
+
+/**
+ * Pre-flight check: make the cheapest possible authenticated call to confirm
+ * a key actually works, before it's saved or used in a real session. Uses
+ * each provider's lightest endpoint (model listing / token introspection)
+ * instead of a real chat completion, so testing costs ~nothing.
+ */
+export async function testApiKey(provider: LlmProvider, apiKey: string): Promise<ApiKeyTestResult> {
+    if (provider === 'ollama') {
+        try {
+            const res = await fetch('http://localhost:11434/api/tags');
+            if (!res.ok) return { ok: false, message: `Ollama responded ${res.status}` };
+            const data = await res.json().catch(() => ({}));
+            const count = Array.isArray(data?.models) ? data.models.length : undefined;
+            return { ok: true, message: count !== undefined ? `Running — ${count} model(s) pulled.` : 'Ollama is running.' };
+        } catch {
+            return { ok: false, message: 'Not reachable on localhost:11434. Run "ollama serve".' };
+        }
+    }
+
+    const key = apiKey.trim();
+    if (!key) return { ok: false, message: 'No key entered.' };
+
+    try {
+        switch (provider) {
+            case 'gemini': {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    return { ok: false, message: err?.error?.message || `Rejected (${res.status})` };
+                }
+                const data = await res.json();
+                return { ok: true, message: `Valid — ${data?.models?.length ?? 0} models available.` };
+            }
+            case 'groq':
+                return await testOpenAiCompatKey('https://api.groq.com/openai/v1/models', key);
+            case 'mistral':
+                return await testOpenAiCompatKey('https://api.mistral.ai/v1/models', key);
+            case 'openai': {
+                const customBase = typeof localStorage !== 'undefined' ? localStorage.getItem('echo_openai_base')?.trim() : null;
+                const base = customBase ? customBase.replace(/\/+$/, '') : 'https://api.openai.com/v1';
+                return await testOpenAiCompatKey(`${base}/models`, key);
+            }
+            case 'openrouter': {
+                // OpenRouter's /models is public even with a bad key — use the
+                // key-introspection endpoint instead so a garbage key actually fails.
+                const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+                    headers: { Authorization: `Bearer ${key}` },
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    return { ok: false, message: err?.error?.message || `Rejected (${res.status})` };
+                }
+                const data = await res.json();
+                const limit = data?.data?.limit;
+                return { ok: true, message: limit != null ? `Valid — limit ${limit}.` : 'Valid key.' };
+            }
+            case 'huggingface': {
+                const res = await fetch('https://huggingface.co/api/whoami-v2', {
+                    headers: { Authorization: `Bearer ${key}` },
+                });
+                if (!res.ok) return { ok: false, message: `Rejected (${res.status}) — check the token.` };
+                const data = await res.json().catch(() => ({}));
+                return { ok: true, message: `Valid — signed in as ${data?.name || 'unknown user'}.` };
+            }
+            case 'anthropic': {
+                // Goes through the local proxy (server.py) — a 1-token ping
+                // confirms both that the proxy is up and the key is accepted.
+                const res = await fetch('http://localhost:8000/llm/anthropic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+                    body: JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+                }).catch(() => null);
+                if (!res) return { ok: false, message: 'Local proxy (localhost:8000) not running — start server.py.' };
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    return { ok: false, message: err?.error?.message || err?.error || `Rejected (${res.status})` };
+                }
+                return { ok: true, message: 'Valid (verified via local proxy).' };
+            }
+            default:
+                return { ok: false, message: 'Unknown provider.' };
+        }
+    } catch (e: any) {
+        return { ok: false, message: e?.message || 'Network error — could not reach the provider.' };
+    }
+}
+
+async function testOpenAiCompatKey(url: string, apiKey: string): Promise<ApiKeyTestResult> {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        let msg = `Rejected (${res.status})`;
+        try {
+            const parsed = JSON.parse(errText);
+            msg = parsed?.error?.message || parsed?.message || msg;
+        } catch { /* keep generic */ }
+        return { ok: false, message: msg };
+    }
+    const data = await res.json().catch(() => ({}));
+    const count = Array.isArray(data?.data) ? data.data.length : undefined;
+    return { ok: true, message: count !== undefined ? `Valid — ${count} models available.` : 'Valid key.' };
+}
+
 async function callOpenAiCompat(
     url: string,
     apiKey: string,

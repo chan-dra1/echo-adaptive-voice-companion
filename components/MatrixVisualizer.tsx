@@ -141,7 +141,8 @@ const MatrixVisualizer: React.FC<Props> = ({ outputVolume, inputVolume, isActive
                 for (let ring = 0; ring < 3; ring++) {
                     const radius = (t * 60 + ring * 80) % (Math.max(W, H) * 0.8);
                     const alpha  = Math.max(0, 0.4 - radius / (Math.max(W, H) * 0.8)) * vol;
-                    const grad   = ctx.createRadialGradient(cx, cy, radius - 2, cx, cy, radius + 2);
+                    const rStart = Math.max(0, radius - 2);
+                    const grad   = ctx.createRadialGradient(cx, cy, rStart, cx, cy, radius + 2);
                     grad.addColorStop(0, `rgba(0,229,255,0)`);
                     grad.addColorStop(0.5, `rgba(0,229,255,${alpha})`);
                     grad.addColorStop(1, `rgba(0,229,255,0)`);

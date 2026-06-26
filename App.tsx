@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GeminiLiveService } from './services/geminiLiveService';
-import { chat, chooseProvider, LlmProvider } from './services/llmRouter';
 import { getMemories } from './services/memoryService';
 import { getHistory, saveMessage } from './services/chatHistoryService'; // Deprecated, will remove usage below
 import { proactiveAI } from './services/proactiveAIService';
@@ -14,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Briefcase, BookOpen, Music, MoreHorizontal } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -22,13 +21,14 @@ import { createConversation, getConversations, getActiveConversationId, setActiv
 import StealthPanel from './components/StealthPanel';
 import TranslationPanel from './components/TranslationPanel';
 import KnowledgeDropZone from './components/KnowledgeDropZone';
-import TextChatBar from './components/TextChatBar';
 import SettingsVault from './components/SettingsVault';
+import TextChatBar from './components/TextChatBar';
+import AvatarDisplay from './components/AvatarDisplay';
 import MatrixRain from './components/MatrixRain';
+import VoiceOrb from './components/VoiceOrb';
 import { ghostAgent } from './services/ghostAgentService';
 import SkillApprovalModal from './components/SkillApprovalModal';
-import UnlockVault from './components/UnlockVault';
-import { initVault, hasVault, getVaultMode, isUnlocked } from './services/cryptoService';
+import { initVault, isUnlocked, resetVaultKeys } from './services/cryptoService';
 import { bootstrapAgent } from './services/agentBootstrap';
 import { buildSystemContext } from './services/modelContextBuilder';
 import { taskMissionService } from './services/taskMissionService';
@@ -51,193 +51,7 @@ import { checkDeadlinesOnBoot } from './services/deadlineGuardianService';
 import { ambientModeService, getAmbientConfig } from './services/ambientModeService';
 import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
-import InterviewPracticeMode from './components/InterviewPracticeMode';
-import RAGPanel from './components/RAGPanel';
-import FilesPanel from './components/FilesPanel';
-import CorePanel from './components/CorePanel';
-import SingPanel from './components/SingPanel';
-import { query as ragQuery, formatRagContext } from './services/ragService';
-import { setRagContext, clearRagContext } from './services/modelContextBuilder';
-import { warmEmbeddingModel } from './services/embeddingService';
-// Living HUD additions
-import EchoFrame from './components/EchoFrame';
-import AmbientField from './components/AmbientField';
-import SingularityCore from './components/SingularityCore';
-import CommandPalette, { Command } from './components/CommandPalette';
-import { startCircadianLoop } from './services/circadianThemeService';
-import { BookOpen as IconBookOpen, Fingerprint } from 'lucide-react';
-import { enrollBiometric, isBiometricEnrolled, unenrollBiometric } from './services/webauthnService';
-import { connectHands, isHandsConnected, setHandsToken, forgetHands, hasHandsToken } from './services/handsBridgeService';
-import { connectCore, isCoreConnected, setCoreToken, forgetCore, hasCoreToken, corePushVoiceTurn } from './services/echoCoreSync';
-import { startMarketWatchLoop } from './services/marketWatchService';
-import { Terminal as IconTerminal, Cpu as IconCpu } from 'lucide-react';
-
-/* ── Draggable Live Camera Preview ────────────────────────────── */
-interface DraggableCameraProps {
-  stream: MediaStream | null | undefined;
-  isCameraActive: boolean;
-  color: string;
-  rgb: string;
-}
-
-const DraggableCamera = ({ stream, isCameraActive, color, rgb }: DraggableCameraProps) => {
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const videoElementRef = useRef<HTMLVideoElement | null>(null);
-
-  // Sync stream to video element whenever it changes
-  useEffect(() => {
-    const video = videoElementRef.current;
-    if (video && stream) {
-      if (video.srcObject !== stream) {
-        video.srcObject = stream;
-        video.play().catch(err => {
-          console.error("Error playing video in DraggableCamera:", err);
-        });
-      }
-    }
-  }, [stream]);
-
-  // Callback ref to capture element on mount and set stream immediately
-  const videoRef = useCallback((node: HTMLVideoElement | null) => {
-    videoElementRef.current = node;
-    if (node && stream) {
-      node.srcObject = stream;
-      node.play().catch(err => {
-        console.error("Error playing video on mount in DraggableCamera:", err);
-      });
-    }
-  }, [stream]);
-
-  // Set initial position once camera becomes active and element is rendered
-  useEffect(() => {
-    if (isCameraActive && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      if (!position) {
-        const initialX = window.innerWidth - rect.width - 24; // 24px from right
-        const initialY = window.innerHeight * 0.45; // Below the middle
-        setPosition({ x: initialX, y: initialY });
-      }
-    }
-  }, [isCameraActive]);
-
-  const handleStart = (clientX: number, clientY: number) => {
-    if (!position) return;
-    setIsDragging(true);
-    dragStart.current = {
-      x: clientX - position.x,
-      y: clientY - position.y
-    };
-  };
-
-  const handleMove = (clientX: number, clientY: number) => {
-    if (!isDragging) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    const width = rect?.width || 200;
-    const height = rect?.height || 120;
-    
-    let newX = clientX - dragStart.current.x;
-    let newY = clientY - dragStart.current.y;
-    
-    // Constraints: keep preview within viewport boundaries
-    newX = Math.max(10, Math.min(window.innerWidth - width - 10, newX));
-    newY = Math.max(10, Math.min(window.innerHeight - height - 10, newY));
-    
-    setPosition({ x: newX, y: newY });
-  };
-
-  const handleEnd = () => {
-    setIsDragging(false);
-  };
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const onMouseMove = (e: MouseEvent) => {
-      handleMove(e.clientX, e.clientY);
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 0) return;
-      handleMove(e.touches[0].clientX, e.touches[0].clientY);
-    };
-
-    const onMouseUp = () => handleEnd();
-    const onTouchEnd = () => handleEnd();
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    window.addEventListener('touchmove', onTouchMove);
-    window.addEventListener('touchend', onTouchEnd);
-
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [isDragging, position]);
-
-  if (!isCameraActive || !stream) return null;
-
-  return (
-    <div 
-      ref={containerRef}
-      className={`fixed z-50 w-44 h-32 md:w-56 md:h-40 rounded-xl overflow-hidden shadow-2xl bg-black/80 select-none group transition-all duration-150 ${
-        isDragging ? 'cursor-grabbing scale-[1.02]' : 'cursor-grab'
-      }`}
-      style={{
-        left: position ? `${position.x}px` : 'auto',
-        top: position ? `${position.y}px` : 'auto',
-        right: position ? 'auto' : '1.5rem',
-        bottom: position ? 'auto' : '10rem',
-        border: `1px solid rgba(${rgb}, 0.35)`,
-        boxShadow: isDragging ? `0 0 20px rgba(${rgb}, 0.15)` : `0 0 10px rgba(${rgb}, 0.08)`,
-      }}
-      onMouseDown={(e) => {
-        if (e.button !== 0) return;
-        handleStart(e.clientX, e.clientY);
-      }}
-      onTouchStart={(e) => {
-        if (e.touches.length === 0) return;
-        handleStart(e.touches[0].clientX, e.touches[0].clientY);
-      }}
-    >
-      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1] pointer-events-none" />
-      
-      {/* Drag handle overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex flex-col justify-between p-2">
-        <div className="text-[8px] text-white/50 tracking-wider font-mono uppercase">Drag to move</div>
-        <div className="flex justify-center">
-          <span 
-            className="sc-hud-font text-[8px] tracking-wider uppercase bg-black/75 px-1.5 py-0.5 rounded border transition-colors duration-500"
-            style={{ 
-              color: color, 
-              borderColor: `rgba(${rgb}, 0.3)`,
-              textShadow: `0 0 4px rgba(${rgb}, 0.4)`
-            }}
-          >
-            ◉ LIVE PREVIEW
-          </span>
-        </div>
-      </div>
-
-      {/* Drag dots handle (visible always but subtle) */}
-      <div 
-        className="absolute top-2 right-2 w-3 h-1.5 flex flex-wrap gap-[2px] opacity-30 group-hover:opacity-75 transition-opacity pointer-events-none justify-center content-center"
-      >
-        <div className="w-[2px] h-[2px] rounded-full bg-white" />
-        <div className="w-[2px] h-[2px] rounded-full bg-white" />
-        <div className="w-[2px] h-[2px] rounded-full bg-white" />
-        <div className="w-[2px] h-[2px] rounded-full bg-white" />
-        <div className="w-[2px] h-[2px] rounded-full bg-white" />
-        <div className="w-[2px] h-[2px] rounded-full bg-white" />
-      </div>
-    </div>
-  );
-};
+import SkillsVaultPanel from './components/SkillsVaultPanel';
 
 export default function App() {
   // Check if ANY provider key is available
@@ -247,11 +61,19 @@ export default function App() {
 
   // Vault unlock state — gates the entire UI until crypto is initialized.
   const [vaultReady, setVaultReady] = useState<boolean>(isUnlocked());
-  const [needsPassphrasePrompt, setNeedsPassphrasePrompt] = useState<boolean>(false);
 
   const [apiKey, setApiKey] = useState((localStorage.getItem('echo_api_key') || '').trim());
   const [hasKey, setHasKey] = useState(hasAnyApiKey());
   const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+
+  const refreshKeyState = useCallback(() => {
+    setApiKey((localStorage.getItem('echo_api_key') || '').trim());
+    setHasKey(hasAnyApiKey());
+  }, []);
+
+  const hasGeminiKey = !!(apiKey || localStorage.getItem('echo_api_key') || '').trim();
+  const hasOpenAiKey = !!(localStorage.getItem('echo_openai_key') || '').trim();
+  const textOnlyMode = hasOpenAiKey && !hasGeminiKey;
 
   useEffect(() => {
     const onAmbient = (e: Event) => {
@@ -270,30 +92,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (vaultReady) return;
-    const needsModal = hasVault() && getVaultMode() === 'passphrase';
-    if (needsModal) {
-      setNeedsPassphrasePrompt(true);
-      return;
+    if (!vaultReady) return;
+    const gemini = (localStorage.getItem('echo_api_key') || '').trim();
+    const openai = (localStorage.getItem('echo_openai_key') || '').trim();
+    const saved = localStorage.getItem('echo_default_brain');
+    if (!gemini && openai && (!saved || saved === 'gemini')) {
+      localStorage.setItem('echo_default_brain', 'openai');
+      localStorage.setItem('echo_llm_provider', 'openai');
     }
-    // No vault yet OR auto-mode vault → silently init quick mode.
-    initVault({ autoMode: true })
-      .then(() => bootstrapAgent())
-      .then(() => setVaultReady(true))
-      .catch((e) => {
-        console.error('[App] vault init failed:', e);
-        setNeedsPassphrasePrompt(true);
-      });
   }, [vaultReady]);
 
-  const handleVaultUnlocked = useCallback(() => {
-    bootstrapAgent()
-      .catch(e => console.error('[App] bootstrap failed:', e))
-      .finally(() => {
-        setVaultReady(true);
-        setNeedsPassphrasePrompt(false);
-      });
-  }, []);
+  useEffect(() => {
+    if (vaultReady) return;
+    (async () => {
+      try {
+        await initVault({ autoMode: true });
+      } catch (e) {
+        console.warn('[App] vault init failed, resetting to quick mode:', e);
+        resetVaultKeys();
+        await initVault({ autoMode: true });
+      }
+      await bootstrapAgent().catch(err => console.error('[App] bootstrap failed:', err));
+      setVaultReady(true);
+    })().catch((e) => {
+      console.error('[App] vault boot failed:', e);
+      setVaultReady(true);
+    });
+  }, [vaultReady]);
 
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -322,15 +147,8 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = useState<string>(localStorage.getItem('echo_avatar_url') || '/ai-avatar.png');
   // Companion system
   const [showCompanionPanel, setShowCompanionPanel] = useState(false);
+  const [showSkillsVault, setShowSkillsVault] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !getCompanionState().onboardingComplete);
-  const [showInterview, setShowInterview] = useState(false);
-  const [interviewSystemPrompt, setInterviewSystemPrompt] = useState<string | null>(null);
-  const [showRAGPanel, setShowRAGPanel] = useState(false);
-  const [showFilesPanel, setShowFilesPanel] = useState(false);
-  const [showCorePanel, setShowCorePanel] = useState(false);
-  const [showSingPanel, setShowSingPanel] = useState(false);
-  const [showMoreActions, setShowMoreActions] = useState(false);
-  const [showCmdPalette, setShowCmdPalette] = useState(false);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -344,10 +162,6 @@ export default function App() {
   });
 
   const serviceRef = useRef<GeminiLiveService | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const isBrowserVoiceConnectedRef = useRef(false);
-  const speechVolumeIntervalRef = useRef<any>(null);
-  const isAIPendingRef = useRef(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { removeToast, success, error, warning, info } = useToast();
 
@@ -397,68 +211,6 @@ export default function App() {
     // Restore ambient mode if it was enabled
     const ambientCfg = getAmbientConfig();
     if (ambientCfg.enabled) ambientModeService.setEnabled(true);
-    // Warm up the embedding model in background so RAG is ready
-    warmEmbeddingModel();
-    // Start circadian theme loop
-    const stopCircadian = startCircadianLoop();
-    // Try connecting to the Echo Hands daemon (silent no-op if not paired/running)
-    connectHands();
-    // Price alert loop (read-only market watch)
-    const stopMarketWatch = startMarketWatchLoop();
-    const handleMarketAlert = (e: any) => {
-      if (e.detail?.message) warning(`📈 ${e.detail.message}`);
-    };
-    window.addEventListener('market:alert', handleMarketAlert);
-    const handleHandsStatus = (e: any) => {
-      if (e.detail?.connected) success(`Echo Hands connected — workspace: ${e.detail.workspace}`);
-      else warning('Echo Hands daemon disconnected.');
-    };
-    window.addEventListener('hands:status', handleHandsStatus);
-
-    // ── Echo Core sync (terminal ↔ web) ──
-    connectCore();
-    const handleCoreStatus = (e: any) => {
-      if (e.detail?.connected) success('Echo Core connected — terminal & web are in sync.');
-      else warning('Echo Core disconnected.');
-    };
-    const handleCoreChange = (e: any) => {
-      const { collection, op } = e.detail || {};
-      if (op === 'add' && (collection === 'drafts' || collection === 'campaigns')) {
-        info(`New ${collection.slice(0, -1)} from the terminal — check Files.`);
-      }
-    };
-    // Terminal said something → surface it in the web. Voice it via the browser
-    // only when the web voice link is idle, to avoid double audio on one machine.
-    const handleCoreSpeak = (e: any) => {
-      const text = e.detail?.text;
-      if (!text) return;
-      info(`🔊 Echo (terminal): ${text.slice(0, 140)}`);
-      try {
-        if (status !== ConnectionStatus.CONNECTED && 'speechSynthesis' in window) {
-          window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-        }
-      } catch { /* ignore */ }
-    };
-    // A reminder or briefing fired in Echo Core (even with the tab in the
-    // background). Toast it, raise an OS notification, and voice it when the
-    // live link is idle (avoids doubling the terminal's own audio).
-    const handleCoreNotify = (e: any) => {
-      const { title, text } = e.detail || {};
-      if (!text) return;
-      info(`⏰ ${title || 'Echo'}: ${text}`);
-      try {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(`Echo — ${title || 'Reminder'}`, { body: text });
-        }
-        if (status !== ConnectionStatus.CONNECTED && 'speechSynthesis' in window) {
-          window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-        }
-      } catch { /* ignore */ }
-    };
-    window.addEventListener('echocore:status', handleCoreStatus);
-    window.addEventListener('echocore:change', handleCoreChange);
-    window.addEventListener('echocore:speak', handleCoreSpeak);
-    window.addEventListener('echocore:notify', handleCoreNotify);
 
     // Deadline nudge handler
     const handleDeadlineNudge = (e: any) => {
@@ -529,8 +281,6 @@ export default function App() {
         setShowVaultOrganizer(false);
         setShowMobileMenu(false);
         setShowCompanionPanel(false);
-        setShowRAGPanel(false);
-        setShowInterview(false);
       }
     };
 
@@ -582,13 +332,6 @@ export default function App() {
     else if (mql?.addListener) mql.addListener(onMqlChange); // older Safari
 
     return () => {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch { /* ignore */ }
-      }
-      window.speechSynthesis.cancel();
-      if (speechVolumeIntervalRef.current) {
-        clearInterval(speechVolumeIntervalRef.current);
-      }
       proactiveAI.setActive(false);
       window.removeEventListener('echo-reminder', handleReminder);
       window.removeEventListener('echo-task-nudge', handleTaskNudge);
@@ -604,39 +347,11 @@ export default function App() {
       else if (mql?.removeListener) mql.removeListener(onMqlChange);
       // Companion
       window.removeEventListener('echo-deadline-nudge', handleDeadlineNudge);
-      window.removeEventListener('hands:status', handleHandsStatus);
-      window.removeEventListener('echocore:status', handleCoreStatus);
-      window.removeEventListener('echocore:change', handleCoreChange);
-      window.removeEventListener('echocore:speak', handleCoreSpeak);
-      window.removeEventListener('echocore:notify', handleCoreNotify);
-      window.removeEventListener('market:alert', handleMarketAlert);
-      stopMarketWatch();
       window.removeEventListener('ambient:quiet', handleAmbientQuiet);
       window.removeEventListener('ambient:resumed', handleAmbientResume);
       window.removeEventListener('ambient:silence-checkin', handleSilenceCheckin);
-      stopCircadian();
     };
   }, [success, info, warning]);
-
-  // ⌘K / Ctrl+K to open command palette from anywhere
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const isCmd = e.metaKey || e.ctrlKey;
-      const target = e.target as HTMLElement | null;
-      const inField = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-      if (isCmd && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        setShowCmdPalette(p => !p);
-      } else if (e.key === '/' && !inField && !showCmdPalette) {
-        e.preventDefault();
-        setShowCmdPalette(true);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [showCmdPalette]);
-
-
 
   // Keyboard navigation: ESC to close sidebars and modals
   useEffect(() => {
@@ -665,358 +380,20 @@ export default function App() {
   }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer]);
 
   const handleConnect = useCallback(async () => {
-    // 1. Pre-flight key validation based on active profile (only if attempting to connect)
-    if (status === ConnectionStatus.DISCONNECTED || status === ConnectionStatus.ERROR) {
-      const activeProfile = localStorage.getItem('echo_ai_profile') || 'auto';
-      
-      if (activeProfile === 'gemini') {
-        const geminiKey = (localStorage.getItem('echo_api_key') || '').trim();
-        if (!geminiKey) {
-          error("Google Gemini Real-Time requires a Gemini API Key. Please add it in the Settings Vault.");
-          setIsSettingsOpen(true);
-          return;
-        }
-      } else if (activeProfile === 'openai') {
-        const openaiKey = (localStorage.getItem('echo_openai_key') || '').trim();
-        if (!openaiKey) {
-          error("OpenAI Suite requires an OpenAI API Key. Please add it in the Settings Vault.");
-          setIsSettingsOpen(true);
-          return;
-        }
-      } else if (activeProfile === 'elevenlabs') {
-        const elevenlabsKey = (localStorage.getItem('echo_elevenlabs_key') || '').trim();
-        if (!elevenlabsKey) {
-          error("ElevenLabs Overlay requires an ElevenLabs API Key. Please add it in the Settings Vault.");
-          setIsSettingsOpen(true);
-          return;
-        }
+    const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
+    const openaiKey = (localStorage.getItem('echo_openai_key') || '').trim();
+
+    if (!geminiKey) {
+      if (openaiKey) {
+        error('Voice needs a Google Gemini API key. Your OpenAI key works for text chat — open the chat bar below.');
+      } else {
+        error('Add a Google Gemini API key in Settings for voice, or OpenAI for text chat.');
       }
-      
-      // Also validate text brain key if using browser speech link overlay/native
-      if (activeProfile === 'elevenlabs' || activeProfile === 'browser') {
-        const brain = (localStorage.getItem('echo_default_brain') || 'gemini') as LlmProvider;
-        if (brain !== 'ollama') {
-          const keyMap: Record<string, string> = {
-            gemini: 'echo_api_key',
-            groq: 'echo_groq_key',
-            openrouter: 'echo_openrouter_key',
-            openai: 'echo_openai_key',
-            mistral: 'echo_mistral_key',
-            anthropic: 'echo_anthropic_key',
-            huggingface: 'echo_hf_key'
-          };
-          const brainKey = (localStorage.getItem(keyMap[brain] || '') || '').trim();
-          if (!brainKey) {
-            error(`Your selected Text Brain (${brain}) requires an API key. Please add it in the Settings Vault.`);
-            setIsSettingsOpen(true);
-            return;
-          }
-        }
-      }
-    }
-
-    const persistedVoiceEngine = localStorage.getItem('echo_voice_engine') || 'gemini';
-
-    if (persistedVoiceEngine === 'browser') {
-      const activeBrain = chooseProvider();
-      
-      if (status === ConnectionStatus.CONNECTED || status === ConnectionStatus.CONNECTING) {
-        isBrowserVoiceConnectedRef.current = false;
-        isAIPendingRef.current = false;
-        if (recognitionRef.current) {
-          try { recognitionRef.current.abort(); } catch { /* ignore */ }
-        }
-        window.speechSynthesis.cancel();
-        if (speechVolumeIntervalRef.current) {
-          clearInterval(speechVolumeIntervalRef.current);
-        }
-        setVolumeState({ inputVolume: 0, outputVolume: 0 });
-        setStatus(ConnectionStatus.DISCONNECTED);
-        info("Disconnected browser voice link");
-        return;
-      }
-
-      setStatus(ConnectionStatus.CONNECTING);
-      setMicPermissionDenied(false);
-
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        error("Web Speech API is not supported in this browser. Please use Chrome/Safari or Gemini Cloud engine.");
-        setStatus(ConnectionStatus.ERROR);
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-      } catch (micError: any) {
-        setMicPermissionDenied(true);
-        setStatus(ConnectionStatus.ERROR);
-        error("Microphone access error: " + (micError.message || "Unknown error"));
-        return;
-      }
-
-      isBrowserVoiceConnectedRef.current = true;
-      isAIPendingRef.current = false;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setStatus(ConnectionStatus.CONNECTED);
-        success("Connected (Browser Speech Link)");
-      };
-
-      recognition.onerror = (e: any) => {
-        console.error("Speech recognition error:", e.error);
-        if (e.error === 'not-allowed') {
-          error("Browser Speech: Microphone permission denied or blocked.");
-          setStatus(ConnectionStatus.ERROR);
-          isBrowserVoiceConnectedRef.current = false;
-        } else if (e.error === 'network') {
-          error("Browser Speech: Network error occurred.");
-          setStatus(ConnectionStatus.ERROR);
-          isBrowserVoiceConnectedRef.current = false;
-        } else if (e.error !== 'no-speech') {
-          error(`Browser Speech error: ${e.error}`);
-          setStatus(ConnectionStatus.ERROR);
-          isBrowserVoiceConnectedRef.current = false;
-        }
-      };
-
-      recognition.onend = () => {
-        if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current && !window.speechSynthesis.speaking) {
-          setTimeout(() => {
-            if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current && !window.speechSynthesis.speaking) {
-              try { recognition.start(); } catch { /* ignore */ }
-            }
-          }, 150);
-        }
-      };
-
-      recognition.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (!transcript.trim()) return;
-
-        isAIPendingRef.current = true;
-
-        const userMsg = { id: `local_msg_${Date.now()}`, role: 'user', text: transcript, isFinal: true };
-        setChatHistory(prev => [...prev, userMsg]);
-        if (currentConvoId) {
-          addMessageToConversation(currentConvoId, 'user', transcript);
-        }
-
-        setVolumeState({ inputVolume: 0.8, outputVolume: 0 });
-        setTimeout(() => setVolumeState({ inputVolume: 0, outputVolume: 0 }), 300);
-
-        try {
-          let thinkingPhase = true;
-          const pulseInterval = setInterval(() => {
-            if (!thinkingPhase) return;
-            setVolumeState(prev => ({
-              inputVolume: 0,
-              outputVolume: 0.2 + Math.random() * 0.2
-            }));
-          }, 200);
-
-          const formattedHistory = chatHistory.map(m => ({
-            role: (m.role === 'ai' ? 'assistant' : 'user') as 'user' | 'assistant',
-            content: m.text
-          }));
-          formattedHistory.push({ role: 'user', content: transcript });
-
-          const response = await chat({
-            messages: formattedHistory,
-            provider: activeBrain
-          });
-
-          thinkingPhase = false;
-          clearInterval(pulseInterval);
-          setVolumeState({ inputVolume: 0, outputVolume: 0 });
-
-          const aiMsg = { id: `local_msg_${Date.now() + 1}`, role: 'ai', text: response.text, isFinal: true };
-          setChatHistory(prev => [...prev, aiMsg]);
-          if (currentConvoId) {
-            addMessageToConversation(currentConvoId, 'ai', response.text);
-          }
-
-          const ttsEngine = localStorage.getItem('echo_tts_engine') || 'browser';
-
-          if (ttsEngine === 'openai' || ttsEngine === 'elevenlabs') {
-            try {
-              let audioUrl = '';
-              if (ttsEngine === 'openai') {
-                const openAiKey = localStorage.getItem('echo_openai_key') || '';
-                if (!openAiKey) throw new Error("Please add your OpenAI API Key in the Settings Vault");
-                const voice = localStorage.getItem('echo_openai_voice') || 'alloy';
-                
-                const responseAudio = await fetch('https://api.openai.com/v1/audio/speech', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${openAiKey}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    model: 'tts-1',
-                    input: response.text,
-                    voice: voice
-                  })
-                });
-                
-                if (!responseAudio.ok) {
-                  const errJson = await responseAudio.json().catch(() => ({}));
-                  throw new Error(errJson?.error?.message || `OpenAI TTS error (${responseAudio.status})`);
-                }
-                
-                const blob = await responseAudio.blob();
-                audioUrl = URL.createObjectURL(blob);
-              } else {
-                const elevenlabsKey = localStorage.getItem('echo_elevenlabs_key') || '';
-                if (!elevenlabsKey) throw new Error("Please add your ElevenLabs API Key in the Settings Vault");
-                const voiceId = localStorage.getItem('echo_elevenlabs_voice_id') || '21m00Tcm4TlvDq8ikWAM';
-                
-                const responseAudio = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-                  method: 'POST',
-                  headers: {
-                    'xi-api-key': elevenlabsKey,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    text: response.text,
-                    model_id: 'eleven_monolingual_v1',
-                    voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-                  })
-                });
-                
-                if (!responseAudio.ok) {
-                  const errJson = await responseAudio.json().catch(() => ({}));
-                  throw new Error(errJson?.detail?.message || `ElevenLabs error (${responseAudio.status})`);
-                }
-                
-                const blob = await responseAudio.blob();
-                audioUrl = URL.createObjectURL(blob);
-              }
-              
-              const audio = new Audio(audioUrl);
-              
-              speechVolumeIntervalRef.current = setInterval(() => {
-                setVolumeState({
-                  inputVolume: 0,
-                  outputVolume: 0.5 + Math.random() * 0.5
-                });
-              }, 100);
-              
-              const onAudioEnd = () => {
-                isAIPendingRef.current = false;
-                if (speechVolumeIntervalRef.current) {
-                  clearInterval(speechVolumeIntervalRef.current);
-                }
-                setVolumeState({ inputVolume: 0, outputVolume: 0 });
-                if (isBrowserVoiceConnectedRef.current) {
-                  setTimeout(() => {
-                    if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                      try { recognition.start(); } catch { /* ignore */ }
-                    }
-                  }, 150);
-                }
-              };
-              
-              audio.onended = onAudioEnd;
-              audio.onerror = (e) => {
-                console.error("Audio playback error:", e);
-                onAudioEnd();
-              };
-              
-              await audio.play();
-            } catch (ttsErr: any) {
-              error("TTS Error: " + (ttsErr.message || ttsErr));
-              isAIPendingRef.current = false;
-              setVolumeState({ inputVolume: 0, outputVolume: 0 });
-              if (isBrowserVoiceConnectedRef.current) {
-                setTimeout(() => {
-                  if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                    try { recognition.start(); } catch { /* ignore */ }
-                  }
-                }, 150);
-              }
-            }
-          } else {
-            const utterance = new SpeechSynthesisUtterance(response.text);
-            
-            const systemVoices = window.speechSynthesis.getVoices();
-            const premiumVoice = systemVoices.find(v => 
-              (v.name.includes('Siri') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural')) && 
-              v.lang.startsWith('en')
-            ) || systemVoices.find(v => v.lang.startsWith('en')) || systemVoices[0];
-            
-            if (premiumVoice) {
-              utterance.voice = premiumVoice;
-            }
-            
-            speechVolumeIntervalRef.current = setInterval(() => {
-              setVolumeState({
-                inputVolume: 0,
-                outputVolume: 0.5 + Math.random() * 0.5
-              });
-            }, 100);
-
-            utterance.onend = () => {
-              isAIPendingRef.current = false;
-              if (speechVolumeIntervalRef.current) {
-                clearInterval(speechVolumeIntervalRef.current);
-              }
-              setVolumeState({ inputVolume: 0, outputVolume: 0 });
-              if (isBrowserVoiceConnectedRef.current) {
-                setTimeout(() => {
-                  if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                    try { recognition.start(); } catch { /* ignore */ }
-                  }
-                }, 150);
-              }
-            };
-
-            utterance.onerror = () => {
-              isAIPendingRef.current = false;
-              if (speechVolumeIntervalRef.current) {
-                clearInterval(speechVolumeIntervalRef.current);
-              }
-              setVolumeState({ inputVolume: 0, outputVolume: 0 });
-              if (isBrowserVoiceConnectedRef.current) {
-                setTimeout(() => {
-                  if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                    try { recognition.start(); } catch { /* ignore */ }
-                  }
-                }, 150);
-              }
-            };
-
-            window.speechSynthesis.speak(utterance);
-          }
-
-        } catch (err: any) {
-          isAIPendingRef.current = false;
-          error("Error fetching AI response: " + (err.message || err));
-          if (isBrowserVoiceConnectedRef.current) {
-            setTimeout(() => {
-              if (isBrowserVoiceConnectedRef.current && !isAIPendingRef.current) {
-                try { recognition.start(); } catch { /* ignore */ }
-              }
-            }, 150);
-          }
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-      return;
-    }
-
-    if (!apiKey) {
-      error("Please enter your API Key in the Settings Vault to continue");
       setIsSettingsOpen(true);
       return;
     }
+
+    if (geminiKey !== apiKey) setApiKey(geminiKey);
 
     if (status === ConnectionStatus.CONNECTED || status === ConnectionStatus.CONNECTING) {
       await serviceRef.current?.disconnect();
@@ -1046,7 +423,7 @@ export default function App() {
         return;
       }
 
-      const trimmedKey = apiKey.trim();
+      const trimmedKey = geminiKey;
       const service = new GeminiLiveService(trimmedKey, {
         onConnect: () => {
           setStatus(ConnectionStatus.CONNECTED);
@@ -1071,10 +448,13 @@ export default function App() {
           console.error(err);
           setStatus(ConnectionStatus.ERROR);
           const errorMessage = err.message || 'Unknown connection error';
-          const isRealKeyError = (errorMessage.includes('API key expired') || errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('API key not valid')) ||
-                                 (errorMessage.includes('API key') && !errorMessage.includes('not found') && !errorMessage.includes('supported for bidiGenerateContent'));
-          if (isRealKeyError) {
-            error("Invalid API key. Please check your Gemini API key.");
+          const hasOpenAi = !!openaiKey;
+          if (errorMessage.includes('API key') || errorMessage.includes('Verify Gemini')) {
+            if (hasOpenAi) {
+              error('Gemini key rejected for voice. Check your Google Gemini key in Settings, or use text chat with OpenAI.');
+            } else {
+              error('Invalid Gemini API key. Create one at aistudio.google.com/apikey');
+            }
           } else if (errorMessage.includes('network')) {
             error("Network error. Please check your internet connection.");
           } else if (errorMessage.includes('quota')) {
@@ -1106,15 +486,14 @@ export default function App() {
               message.text
             );
           }
-          // Mirror final voice turns to Echo Core so the terminal shares the convo
-          if (message.isFinal && message.text?.trim()) {
-            corePushVoiceTurn(message.role === 'assistant' ? 'assistant' : 'user', message.text);
-          }
         }
       });
 
       service.setMuted(isMicMuted);
       serviceRef.current = service;
+      if (typeof window !== 'undefined') {
+        (window as any).liveService = service;
+      }
 
       // Build mode-specific extras
       const persistedTranslation = localStorage.getItem('echo_translation_mode') === 'true';
@@ -1132,20 +511,6 @@ export default function App() {
           extras.push(`[GHOST PERSONA] Style: ${cfg.style}; allow interruptions: ${cfg.allowInterruptions}; filler words: ${cfg.useFillerWords}; emotional: ${cfg.emotionalResponses}.`);
         } catch { /* ignore */ }
       }
-
-      // ── RAG: retrieve relevant knowledge for this session ─────────────────
-      // We use the companion name + recent chat as the seed query.
-      // This runs async before connect so it's ready when the session starts.
-      try {
-        const seedQuery = `${getCompanionState().userName || 'user'} personal knowledge goals habits`;
-        const ragChunks = await ragQuery(seedQuery, { topK: 5, threshold: 0.28 });
-        if (ragChunks.length > 0) {
-          setRagContext(formatRagContext(ragChunks));
-        } else {
-          clearRagContext();
-        }
-      } catch { clearRagContext(); }
-      // ─────────────────────────────────────────────────────────────────────
 
       const builtSys = buildSystemContext({
         destination: 'cloud',
@@ -1174,7 +539,7 @@ export default function App() {
       setStatus(ConnectionStatus.ERROR);
       error(`Failed to connect: ${err.message || 'Unknown error'}`);
     }
-  }, [apiKey, status, isMicMuted, selectedVoice, isLocalVoiceEnabled, isStealthMode, isHandsFree, isTranslationMode, interruptMode, currentConvoId, success, error, info, chatHistory]);
+  }, [apiKey, status, isMicMuted, selectedVoice, isLocalVoiceEnabled, isStealthMode, isHandsFree, isTranslationMode, interruptMode, currentConvoId, success, error, info]);
 
   const toggleMute = () => {
     const newState = !isMicMuted;
@@ -1193,6 +558,9 @@ export default function App() {
       info('Hands-Free ON — extended silence tolerance, lock-screen controls active.');
       try {
         serviceRef.current?.startHandsFreeKeepalive();
+        if (mobileAudioBridge.isNativeShell()) {
+          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(true)).catch(() => {});
+        }
       } catch { /* ignore */ }
       try {
         if ('mediaSession' in navigator) {
@@ -1208,6 +576,9 @@ export default function App() {
       info('Hands-Free OFF.');
       try {
         serviceRef.current?.stopHandsFreeKeepalive();
+        if (mobileAudioBridge.isNativeShell()) {
+          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(false)).catch(() => {});
+        }
       } catch { /* ignore */ }
       try {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
@@ -1294,40 +665,6 @@ export default function App() {
 
   const isUserSpeaking = volumeState.inputVolume > 10;
 
-  // ── EchoHUD (Jarvis talk-back) derived state ──
-  const lastAssistant = useMemo(() => {
-    for (let i = chatHistory.length - 1; i >= 0; i--) {
-      if (chatHistory[i].role === 'assistant') return chatHistory[i];
-    }
-    return undefined;
-  }, [chatHistory]);
-  const hudCaption = lastAssistant?.text || '';
-  const hudStreaming = !!lastAssistant && lastAssistant.isFinal === false;
-
-  // Derive current Echo dynamic colors for the draggable camera
-  const activeEchoState = useMemo(() => {
-    const nIn = volumeState.inputVolume > 1.5 ? volumeState.inputVolume / 255 : volumeState.inputVolume;
-    const nOut = volumeState.outputVolume > 1.5 ? volumeState.outputVolume / 255 : volumeState.outputVolume;
-    const connected = status === ConnectionStatus.CONNECTED;
-
-    if (!connected) return 'STANDBY';
-    if (nOut > 0.05) return 'SPEAKING';
-    if (nIn > 0.05) return 'LISTENING';
-    if (isThinking || hudStreaming) return 'PROCESSING';
-    return 'ONLINE';
-  }, [status, volumeState.inputVolume, volumeState.outputVolume, isThinking, hudStreaming]);
-
-  const themeColors = useMemo(() => {
-    const S: Record<string, { c: string; rgb: string }> = {
-      STANDBY:    { c: '#6C5CE7', rgb: '108,92,231' },
-      ONLINE:     { c: '#00CFFF', rgb: '0,207,255'  },
-      LISTENING:  { c: '#00FF88', rgb: '0,255,136'  },
-      PROCESSING: { c: '#FFB700', rgb: '255,183,0'  },
-      SPEAKING:   { c: '#FF2D78', rgb: '255,45,120' },
-    };
-    return S[activeEchoState] || S.STANDBY;
-  }, [activeEchoState]);
-
   const handleSelectConversation = (id: string) => {
     const convo = getConversation(id);
     if (!convo) return;
@@ -1370,173 +707,21 @@ export default function App() {
     }
   }
 
-  // Build the command list for the palette
-  const paletteCommands: Command[] = React.useMemo(() => [
-    { id: 'connect', label: status === ConnectionStatus.CONNECTED ? 'Disconnect Echo' : 'Connect to Echo',
-      description: 'Toggle the voice neural link', icon: <Mic size={14} />, category: 'Voice',
-      color: status === ConnectionStatus.CONNECTED ? 'var(--c-red)' : 'var(--c-green)',
-      keywords: ['mic','voice','start','stop','call'], run: () => handleConnect() },
-    { id: 'mute', label: isMicMuted ? 'Unmute microphone' : 'Mute microphone',
-      description: 'Toggle mic without disconnecting', icon: <MicOff size={14} />, category: 'Voice',
-      color: 'var(--c-cyan)', keywords: ['mute','silence'], run: () => toggleMute() },
-    { id: 'companion', label: 'Open Companion Panel',
-      description: 'Habits, goals, mood, briefing', icon: <Heart size={14} />, category: 'Navigation',
-      color: 'var(--c-pink)', keywords: ['habits','goals','mood','briefing'], run: () => setShowCompanionPanel(true) },
-    { id: 'memory', label: 'Open Memory Bank',
-      description: 'What Echo remembers about you', icon: <Brain size={14} />, category: 'Memory',
-      color: 'var(--c-pink)', keywords: ['memories','remember','notes'], run: () => setShowMemory(true) },
-    { id: 'rag', label: 'Open Knowledge Vault (RAG)',
-      description: 'Upload docs, semantic search', icon: <IconBookOpen size={14} />, category: 'Memory',
-      color: 'var(--c-cyan)', keywords: ['rag','knowledge','documents','pdf','search'], run: () => setShowRAGPanel(true) },
-    { id: 'files', label: 'Files & Downloads',
-      description: 'Download drafts, campaigns & projects — individually or all', icon: <IconTerminal size={14} />, category: 'Navigation',
-      color: 'var(--c-cyan)', keywords: ['files','download','export','zip','drafts','campaigns','projects','save'], run: () => setShowFilesPanel(true) },
-    { id: 'core', label: 'Mission Control',
-      description: 'Reminders, memory & live cameras from Echo Core', icon: <IconCpu size={14} />, category: 'Navigation',
-      color: 'var(--c-cyan)', keywords: ['mission','control','core','reminders','schedule','memory','cameras','briefing'], run: () => setShowCorePanel(true) },
-    { id: 'sing', label: 'Singing Studio',
-      description: 'Generate song lyrics and synthesize vocals', icon: <Music size={14} />, category: 'Creative',
-      color: 'var(--c-green)', keywords: ['sing','song','music','lyrics','vocal','bark','musicgen'], run: () => setShowSingPanel(true) },
-    { id: 'chat', label: 'Open Conversation History',
-      description: 'Past text chats', icon: <MessageSquare size={14} />, category: 'Navigation',
-      color: 'var(--c-cyan)', keywords: ['history','transcript','chat'], run: () => setShowChat(true) },
-    { id: 'new-chat', label: 'Start a new conversation',
-      description: 'Clear current session', icon: <Plus size={14} />, category: 'Action',
-      color: 'var(--c-green)', keywords: ['fresh','reset','clear'], run: () => handleNewChat() },
-    { id: 'interview', label: 'Interview Practice Mode',
-      description: 'Echo becomes your interviewer', icon: <Briefcase size={14} />, category: 'Practice',
-      color: 'var(--c-amber)', keywords: ['job','practice','behavioral','technical'], run: () => setShowInterview(true) },
-    { id: 'vault', label: 'Vault Organizer',
-      description: 'Manage encrypted files and notes', icon: <Folder size={14} />, category: 'Navigation',
-      color: 'var(--c-cyan)', keywords: ['files','notes','folders'], run: () => setShowVaultOrganizer(true) },
-    { id: 'voice-vault', label: 'Voice Vault',
-      description: 'Manage voice models', icon: <Lock size={14} />, category: 'System',
-      color: 'var(--c-cyan)', keywords: ['voices','speech','tts'], run: () => setShowVoiceVault(true) },
-    { id: 'settings', label: 'Settings & Keys',
-      description: 'API keys and defaults', icon: <User size={14} />, category: 'System',
-      color: 'rgba(255,255,255,0.7)', keywords: ['api','config','preferences'], run: () => setIsSettingsOpen(true) },
-    { id: 'camera', label: isCameraActive ? 'Stop camera' : 'Start camera vision',
-      description: 'Echo can see what you see', icon: <Camera size={14} />, category: 'Voice',
-      color: 'var(--c-green)', keywords: ['vision','webcam','see'], run: async () => {
-        if (!serviceRef.current) return;
-        if (isCameraActive) { serviceRef.current.stopCamera(); setIsCameraActive(false); }
-        else { try { await serviceRef.current.startCamera(); setIsCameraActive(true); } catch { error('Could not access camera'); } }
-      }},
-    { id: 'screen', label: isScreenSharing ? 'Stop screen share' : 'Share screen with Echo',
-      description: 'Echo reads your active window', icon: <Monitor size={14} />, category: 'Voice',
-      color: 'var(--c-purple)', keywords: ['screen','share','show'], run: () => handleScreenShare() },
-    { id: 'handsfree', label: isHandsFree ? 'Hands-Free OFF' : 'Hands-Free ON',
-      description: 'Extended silence tolerance', icon: <Headphones size={14} />, category: 'Voice',
-      color: 'var(--c-green)', keywords: ['mobile','background'], run: () => toggleHandsFree() },
-    { id: 'ghost', label: 'Open Ghost persona settings',
-      description: 'Configure interview persona', icon: <Ghost size={14} />, category: 'Practice',
-      color: 'var(--c-cyan)', keywords: ['persona','style'], run: () => setShowGhostMode(true) },
-    { id: 'upload', label: 'Upload a file',
-      description: 'Send a doc, PDF or code file to Echo', icon: <Plus size={14} />, category: 'Action',
-      color: 'var(--c-amber)', keywords: ['file','pdf','document','code'], run: () => setShowFileUpload(true) },
-    { id: 'biometric', label: isBiometricEnrolled() ? 'Disable biometric unlock' : 'Enable biometric unlock',
-      description: isBiometricEnrolled() ? 'Remove the passkey wrap for this vault' : 'Touch ID / Face ID / Windows Hello via passkey',
-      icon: <Fingerprint size={14} />, category: 'System',
-      color: 'var(--c-cyan)', keywords: ['touchid','faceid','passkey','webauthn','fingerprint'],
-      run: async () => {
-        if (isBiometricEnrolled()) {
-          unenrollBiometric();
-          info('Biometric unlock disabled.');
-          return;
-        }
-        try {
-          await enrollBiometric(getCompanionState().userName || 'Echo User');
-          success('Biometric unlock enabled — next unlock can use Touch ID / Face ID.');
-        } catch (e: any) {
-          error(e?.message || 'Biometric enrollment failed.');
-        }
-      }},
-    { id: 'hands', label: isHandsConnected() ? 'Disconnect Echo Hands' : 'Connect Echo Hands',
-      description: isHandsConnected() ? 'Drop the local execution daemon link' : 'Pair with the local daemon for shell & file powers',
-      icon: <IconTerminal size={14} />, category: 'System',
-      color: 'var(--c-green)', keywords: ['daemon','shell','terminal','local','execute','computer'],
-      run: () => {
-        if (isHandsConnected() || hasHandsToken()) {
-          forgetHands();
-          info('Echo Hands unpaired. Run the daemon and re-pair anytime.');
-          return;
-        }
-        const token = window.prompt('Paste the Echo Hands token (printed by: cd echo-daemon && npm start)');
-        if (token?.trim()) {
-          setHandsToken(token);
-          info('Pairing with Echo Hands daemon…');
-        }
-      }},
-    { id: 'core', label: isCoreConnected() ? 'Disconnect Echo Core' : 'Connect Echo Core',
-      description: isCoreConnected() ? 'Drop the terminal-brain sync link' : 'Pair with Echo Core so terminal & web stay in sync',
-      icon: <IconCpu size={14} />, category: 'System',
-      color: 'var(--c-cyan)', keywords: ['core','terminal','sync','brain','daemon','repl'],
-      run: () => {
-        if (isCoreConnected() || hasCoreToken()) {
-          forgetCore();
-          info('Echo Core unpaired.');
-          return;
-        }
-        const token = window.prompt('Paste the Echo Core token (printed by: cd echo-core && npm start)');
-        if (token?.trim()) {
-          setCoreToken(token);
-          info('Pairing with Echo Core…');
-        }
-      }},
-  ], [status, isMicMuted, isCameraActive, isScreenSharing, isHandsFree, handleConnect, toggleMute, handleNewChat, handleScreenShare, toggleHandsFree, error, info, success]);
+  const hideBottomChrome = isSettingsOpen || showFileUpload || (vaultReady && showOnboarding);
 
   return (
 
     <div className={`relative w-screen h-screen overflow-hidden bg-black text-[#00ff41] font-mono selection:bg-[#00ff41]/30 flex flex-col${isMobileCoarse ? ' mobile-lite' : ''}`}>
-      {/* Living HUD — ambient field behind everything */}
-      <AmbientField
-        status={status}
-        outputVolume={volumeState.outputVolume}
-        inputVolume={volumeState.inputVolume}
-      />
-      {/* Iron-Man-style viewport frame with corner readouts */}
-      {vaultReady && !showOnboarding && (
-        <EchoFrame status={status} />
-      )}
-      {/* Global command palette — Cmd/Ctrl+K to open */}
-      <CommandPalette
-        open={showCmdPalette}
-        onClose={() => setShowCmdPalette(false)}
-        commands={paletteCommands}
-      />
-
-      {needsPassphrasePrompt && <UnlockVault onUnlocked={handleVaultUnlocked} />}
       {/* Onboarding Wizard — shows on first launch after vault is ready */}
       {vaultReady && showOnboarding && (
         <OnboardingWizard
           onComplete={() => setShowOnboarding(false)}
+          onSkip={() => setShowOnboarding(false)}
         />
       )}
-      {showInterview && (
-        <InterviewPracticeMode
-          onClose={() => { setShowInterview(false); setInterviewSystemPrompt(null); }}
-          onSystemPromptOverride={setInterviewSystemPrompt}
-        />
-      )}
-      {showRAGPanel && (
-        <RAGPanel onClose={() => setShowRAGPanel(false)} />
-      )}
-
-      {showFilesPanel && (
-        <FilesPanel onClose={() => setShowFilesPanel(false)} />
-      )}
-
-      {showCorePanel && (
-        <CorePanel onClose={() => setShowCorePanel(false)} />
-      )}
-
-      {/* Singing Studio — slides in from right */}
-      <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[380px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSingPanel ? 'translate-x-0' : 'translate-x-full'}`}>
-        <SingPanel onClose={() => setShowSingPanel(false)} />
-      </div>
       <SkillApprovalModal />
       {/* MOBILE-AGENT: dismissible install pill (Android BIP + iOS hint) */}
-      <InstallPrompt isConnected={status === ConnectionStatus.CONNECTED} />
+      {!isSettingsOpen && <InstallPrompt />}
       <KnowledgeDropZone onFileDrop={(file) => {
         setFileToUpload(file);
         setShowFileUpload(true);
@@ -1550,7 +735,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col relative z-20 w-full h-full">
           {/* Backdrop Overlay for Sidebars */}
-          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel) && (
+          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault) && (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-md z-30 transition-opacity duration-300"
               onClick={() => {
@@ -1562,7 +747,7 @@ export default function App() {
                 setShowGhostMode(false);
                 setShowVaultOrganizer(false);
                 setShowCompanionPanel(false);
-                setShowMoreActions(false);
+                setShowSkillsVault(false);
               }}
               aria-hidden="true"
             />
@@ -1572,6 +757,7 @@ export default function App() {
           <SettingsVault
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
+            onSaved={refreshKeyState}
           />
 
           {/* File Upload Popup (Modal) */}
@@ -1624,109 +810,9 @@ export default function App() {
             <CompanionPanel onClose={() => setShowCompanionPanel(false)} />
           </div>
 
-          {/* Mobile Menu Drawer (Control Panel) */}
-          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[320px] bg-black/90 backdrop-blur-xl border-l border-white/10 p-6 flex flex-col gap-6 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showMobileMenu ? 'translate-x-0' : 'translate-x-full'} pointer-events-auto`}>
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <span className="text-sm tracking-widest uppercase text-[#00ff41]">Echo Control Panel</span>
-              <button onClick={() => setShowMobileMenu(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
-              <button
-                onClick={() => { setShowMobileMenu(false); setIsSettingsOpen(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-white/5 rounded-xl text-white/70"><User size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Settings & Vault</div>
-                  <div className="text-[10px] text-white/40">API Keys and defaults</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowChat(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-white/5 rounded-xl text-white/70"><MessageSquare size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Conversation History</div>
-                  <div className="text-[10px] text-white/40">View previous text chats</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowMemory(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-white/5 rounded-xl text-white/70"><Brain size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Memory Bank</div>
-                  <div className="text-[10px] text-white/40">What Echo remembers about you</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowVaultOrganizer(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-white/5 rounded-xl text-white/70"><Folder size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Vault Organizer</div>
-                  <div className="text-[10px] text-white/40">Manage files and notes</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowCompanionPanel(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-pink-500/10 rounded-xl text-pink-400"><Heart size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Companion panel</div>
-                  <div className="text-[10px] text-white/40">Habits, goals & briefing</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowRAGPanel(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-cyan-500/10 rounded-xl text-cyan-400"><BookOpen size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Knowledge Vault</div>
-                  <div className="text-[10px] text-white/40">RAG — upload docs, search memory</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowFileUpload(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-white/5 rounded-xl text-white/70"><Plus size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Upload Knowledge</div>
-                  <div className="text-[10px] text-white/40">Send document, pdf or code</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { setShowMobileMenu(false); setShowSingPanel(true); }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-[#00ff41]/10 hover:border-[#00ff41]/30 transition-all text-left text-white"
-              >
-                <div className="p-3 bg-[#00ff41]/10 rounded-xl text-[#00ff41]"><Music size={20} /></div>
-                <div>
-                  <div className="text-sm font-semibold">Singing Studio</div>
-                  <div className="text-[10px] text-white/40">Generate lyrics &amp; synthesize vocals</div>
-                </div>
-              </button>
-            </div>
-            
-            <div className="border-t border-white/10 pt-4 flex items-center justify-between text-[11px] text-white/40">
-              <span>Cloud Agent: <span className={isBackendOnline ? "text-emerald-400" : "text-rose-400"}>{isBackendOnline ? "Online" : "Offline"}</span></span>
-              <span>v1.2.0</span>
-            </div>
+          {/* Skills Vault Panel */}
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSkillsVault ? 'translate-x-0' : 'translate-x-full'}`}>
+            <SkillsVaultPanel onClose={() => setShowSkillsVault(false)} />
           </div>
 
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVoiceVault ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -1770,13 +856,10 @@ export default function App() {
                 </div>
               </div>
             )}
-            {/* Top Bar (Status / Mobile Menu Button) */}
-            <div className="absolute top-4 md:top-10 left-0 right-0 flex items-center justify-between px-6 z-10 pointer-events-none pt-safe">
-              {/* Left spacer on mobile, to balance the menu button */}
-              <div className="w-10 h-10 md:hidden" />
-
+            {/* Top Bar (Status) */}
+            <div className="absolute top-4 md:top-10 left-0 right-0 flex justify-center z-10 pointer-events-none pt-safe">
               <div className="flex flex-col items-center gap-1 md:gap-2">
-                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 pointer-events-auto">
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                   <div className={`w-2 h-2 rounded-full ${status === ConnectionStatus.CONNECTED ? 'bg-emerald-500 animate-pulse' : 'bg-white/20'}`} />
                   <span className="text-[10px] md:text-xs font-mono tracking-widest uppercase opacity-70">
                     Echo Neural Link
@@ -1790,199 +873,267 @@ export default function App() {
                       : 'Ready to Connect'}
                 </span>
               </div>
-
-              {/* Hamburger menu button for small screens */}
-              <div className="pointer-events-auto md:hidden">
-                <button
-                  onClick={() => setShowMobileMenu(true)}
-                  className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-white/80"
-                  aria-label="Open control panel"
-                >
-                  <Menu size={20} />
-                </button>
-              </div>
             </div>
 
-            {/* ECHO VOID — Singularity Core (replaces MatrixVisualizer + EchoHUD) */}
-            <SingularityCore
-              connected={status === ConnectionStatus.CONNECTED}
-              inputVolume={volumeState.inputVolume}
-              outputVolume={volumeState.outputVolume}
-              captionText={hudCaption}
-              streaming={hudStreaming}
-              awaitingReply={isThinking}
-              isCameraActive={isCameraActive}
-              cameraStream={serviceRef.current?.getCameraStream()}
+            {/* Voice Orb — main interactive centerpiece */}
+            <div className="my-auto flex-1 flex items-center justify-center w-full max-w-xl aspect-square relative">
+              <VoiceOrb
+                isActive={status === ConnectionStatus.CONNECTED}
+                outputVolume={volumeState.outputVolume}
+                inputVolume={volumeState.inputVolume}
+                isThinking={isThinking}
+              />
+
+              {/* Live response preview — last Echo message floats over the orb */}
+              {status === ConnectionStatus.CONNECTED && (() => {
+                const last = [...chatHistory].reverse().find(m => m.role === 'assistant');
+                if (!last?.text?.trim()) return null;
+                const text = last.text.trim();
+                const preview = text.length > 90 ? '…' + text.slice(-90) : text;
+                return (
+                  <div
+                    key={last.id}
+                    className="absolute inset-x-4 flex justify-center pointer-events-none z-10"
+                    style={{ bottom: '22%' }}
+                  >
+                    <p className="text-[9px] md:text-[11px] font-mono leading-relaxed text-center max-w-xs animate-fade-up"
+                       style={{ color: 'rgba(255,255,255,0.28)' }}>
+                      {preview}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {isCameraActive && (
+                 <div className="absolute inset-0 z-20 border-2 border-[#00ff41] rounded-lg overflow-hidden">
+                    <AvatarDisplay
+                      state="idle"
+                      volume={0}
+                      cameraStream={serviceRef.current?.getCameraStream()}
+                      avatarUrl={avatarUrl}
+                    />
+                 </div>
+              )}
+            </div>
+
+            {/* Text chat + bottom dock — hidden while modals are open */}
+            {!hideBottomChrome && (
+            <>
+            <TextChatBar
+              onApiKeyMissing={() => setIsSettingsOpen(true)}
+              onNewMessage={(role, text) => {
+                const message: ChatMessage = {
+                  id: crypto.randomUUID(),
+                  role,
+                  text,
+                  timestamp: Date.now(),
+                  isFinal: true,
+                };
+                setChatHistory(prev => [...prev, message]);
+                if (currentConvoId) {
+                  addMessageToConversation(
+                    currentConvoId,
+                    role === 'assistant' ? 'ai' : 'user',
+                    text,
+                  );
+                }
+              }}
             />
 
-            {/* ── Floating Action Dock ── */}
-            <div className="absolute bottom-6 md:bottom-10 z-20 pointer-events-auto flex flex-col items-center gap-3 keyboard-safe-bottom">
+            {/* Floating Action Strip */}
+            <div className={`absolute bottom-10 md:bottom-24 z-50 flex items-center gap-2 md:gap-4 px-4 md:px-8 py-3 md:py-4 rounded-[2rem] bg-white/5 backdrop-blur-xl pointer-events-auto shadow-2xl animate-float transition-all duration-500 scale-90 md:scale-100 keyboard-safe-bottom ${
+              status === ConnectionStatus.CONNECTED
+                ? 'border border-[#00ff41]/18 shadow-[0_0_35px_rgba(0,255,65,0.07)]'
+                : 'border border-white/10'
+            }`}>
+               {/* MOBILE-AGENT: Hands-Free toggle (small, subtle, additive) */}
+               <Tooltip content={isHandsFree ? 'Hands-Free ON' : 'Hands-Free OFF'}>
+                <button
+                  onClick={toggleHandsFree}
+                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${isHandsFree ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'hover:bg-white/10 text-white/60'}`}
+                  aria-label="Toggle Hands-Free mode"
+                  aria-pressed={isHandsFree}
+                >
+                  <Headphones size={18} />
+                </button>
+              </Tooltip>
 
-              {/* Secondary action grid (slides up when More is open) */}
-              <div className={`transition-all duration-300 ${showMoreActions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
-                <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-black/85 border border-white/10 backdrop-blur-xl shadow-2xl">
-
-                  {/* Hands-free */}
-                  <button
-                    onClick={toggleHandsFree}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isHandsFree ? 'border-[#00ff41]/40 bg-[#00ff41]/10 text-[#00ff41]' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
-                  >
-                    <Headphones size={20} />
-                    <span className="text-[9px] sc-hud-font tracking-wide">Hands-free</span>
-                  </button>
-
-                  {/* Interrupt mode */}
-                  <button
-                    onClick={toggleInterruptMode}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${interruptMode === 'eager' ? 'border-amber-500/40 bg-amber-500/10 text-amber-300' : interruptMode === 'polite' ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
-                  >
-                    <Ear size={20} />
-                    <span className="text-[9px] sc-hud-font tracking-wide capitalize">{interruptMode}</span>
-                  </button>
-
-                  {/* Ghost mode */}
-                  <button
-                    onClick={() => { setShowMoreActions(false); setShowGhostMode(true); }}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isStealthMode ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
-                  >
-                    <Ghost size={20} />
-                    <span className="text-[9px] sc-hud-font tracking-wide">Ghost</span>
-                  </button>
-
-                  {/* Camera */}
-                  <button
-                    onClick={async () => {
-                      if (!serviceRef.current) return;
-                      if (isCameraActive) { serviceRef.current.stopCamera(); setIsCameraActive(false); }
-                      else { try { await serviceRef.current.startCamera(); setIsCameraActive(true); } catch { error('Could not access camera'); } }
-                    }}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isCameraActive ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
-                  >
-                    <Camera size={20} />
-                    <span className="text-[9px] sc-hud-font tracking-wide">Camera</span>
-                  </button>
-
-                  {/* Screen share */}
-                  <button
-                    onClick={async () => {
-                      if (!serviceRef.current) return;
-                      if (isScreenSharing) { serviceRef.current.stopScreenShare(); setIsScreenSharing(false); }
-                      else { try { await serviceRef.current.startScreenShare(); setIsScreenSharing(true); } catch { error('Could not share screen'); } }
-                    }}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${isScreenSharing ? 'border-purple-500/40 bg-purple-500/10 text-purple-400' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
-                  >
-                    {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
-                    <span className="text-[9px] sc-hud-font tracking-wide">{isScreenSharing ? 'Stop' : 'Screen'}</span>
-                  </button>
-
-                  {/* Singing studio */}
-                  <button
-                    onClick={() => { setShowMoreActions(false); setShowSingPanel(p => !p); }}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border transition-all ${showSingPanel ? 'border-[#00ff41]/40 bg-[#00ff41]/10 text-[#00ff41]' : 'border-white/8 hover:bg-white/8 text-white/55'}`}
-                  >
-                    <Music size={20} />
-                    <span className="text-[9px] sc-hud-font tracking-wide">Sing</span>
-                  </button>
-
-                </div>
-              </div>
-
-              {/* Primary dock */}
-              <div className="flex items-center gap-5 px-7 py-4 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl">
-
-                {/* Interrupt / listen mode toggle */}
+              <Tooltip content={`Interrupt: ${interruptMode} — tap to cycle`}>
                 <button
                   onClick={toggleInterruptMode}
-                  className={`p-3 rounded-full transition-all ${interruptMode === 'eager' ? 'bg-amber-500/20 text-amber-300' : interruptMode === 'polite' ? 'bg-blue-500/15 text-blue-300' : 'hover:bg-white/10 text-white/50'}`}
-                  aria-label={`Interrupt mode: ${interruptMode}`}
+                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${
+                    interruptMode === 'polite'
+                      ? 'bg-blue-500/15 text-blue-300'
+                      : interruptMode === 'eager'
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-white/10 text-white/70'
+                  }`}
+                  aria-label={`Interrupt mode ${interruptMode}`}
                 >
-                  <Ear size={22} />
+                  <Ear size={18} />
                 </button>
+              </Tooltip>
 
-                {/* Main mic / connect button */}
+              <div className="w-px h-8 bg-white/10" />
+
+               <Tooltip content="Ghost Mode Settings">
+                <button
+                  onClick={() => setShowGhostMode(true)}
+                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${isStealthMode ? 'bg-cyan-500/20 text-cyan-400' : 'hover:bg-white/10 text-white/60'}`}
+                >
+                  <Ghost size={20} />
+                </button>
+              </Tooltip>
+
+              <div className="w-px h-8 bg-white/10" />
+
+              <Tooltip content={isCameraActive ? "Stop Camera" : "Start Camera Vision"}>
+                <button
+                  onClick={async () => {
+                    if (!serviceRef.current) return;
+                    if (isCameraActive) {
+                      serviceRef.current.stopCamera();
+                      setIsCameraActive(false);
+                    } else {
+                      try {
+                        await serviceRef.current.startCamera();
+                        setIsCameraActive(true);
+                      } catch (e) {
+                        error("Could not access camera");
+                      }
+                    }
+                  }}
+                  className={`p-3 rounded-full transition-all duration-300 ${isCameraActive ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-white/10 text-white/60'}`}
+                >
+                  <Camera size={24} />
+                </button>
+              </Tooltip>
+
+              <div className="w-px h-8 bg-white/10" />
+
+              {/* Mic button with pulsing sonar rings when live */}
+              <div className="relative flex items-center justify-center">
+                {status === ConnectionStatus.CONNECTED && (
+                  <>
+                    <div className="absolute inset-0 rounded-full pointer-events-none mic-ring-1"
+                         style={{ border: '2px solid rgba(0,255,65,0.6)' }} />
+                    <div className="absolute inset-0 rounded-full pointer-events-none mic-ring-2"
+                         style={{ border: '2px solid rgba(0,255,65,0.4)' }} />
+                  </>
+                )}
+                <Tooltip content={
+                  textOnlyMode
+                    ? 'Voice needs a Google Gemini API key'
+                    : status === ConnectionStatus.CONNECTED
+                      ? 'Disconnect voice'
+                      : status === ConnectionStatus.CONNECTING
+                        ? 'Connecting…'
+                        : 'Connect voice (Gemini Live)'
+                }>
                 <button
                   onClick={handleConnect}
-                  className={`p-5 rounded-full transition-all duration-500 shadow-lg group ${
+                  className={`p-6 rounded-full transition-all duration-500 shadow-lg relative group ${
                     status === ConnectionStatus.CONNECTED
                       ? 'bg-rose-500/20 text-rose-500 hover:bg-rose-500/30'
                       : status === ConnectionStatus.CONNECTING
                         ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                        : 'bg-[#00ff41] text-black hover:bg-[#00ff41]/80 shadow-[0_0_24px_rgba(0,255,65,0.45)]'
+                        : textOnlyMode
+                          ? 'bg-[#00ff41]/40 text-black/70 hover:bg-[#00ff41]/60'
+                          : 'bg-[#00ff41] text-black hover:bg-[#00ff41]/80 shadow-[0_0_20px_rgba(0,255,65,0.4)]'
                   }`}
                 >
-                  {status === ConnectionStatus.CONNECTED
-                    ? <X size={26} />
-                    : isMicMuted
-                      ? <MicOff size={26} />
-                      : <Mic size={26} className="group-hover:scale-110 transition-transform" />}
+                  {status === ConnectionStatus.CONNECTED ? <X size={28} /> : (isMicMuted ? <MicOff size={28} /> : <Mic size={28} className="group-hover:scale-110 transition-transform" />)}
                 </button>
-
-                {/* More — opens secondary grid */}
-                <button
-                  onClick={() => setShowMoreActions(v => !v)}
-                  className={`p-3 rounded-full transition-all ${showMoreActions ? 'bg-white/15 text-white' : 'hover:bg-white/10 text-white/50'}`}
-                  aria-label="More controls"
-                >
-                  <MoreHorizontal size={22} />
-                </button>
-
+                </Tooltip>
               </div>
+
+              <div className="w-px h-8 bg-white/10" />
+
+              <Tooltip content="Screen Share">
+                <button
+                  onClick={async () => {
+                    if (!serviceRef.current) return;
+                    if (isScreenSharing) {
+                      serviceRef.current.stopScreenShare();
+                      setIsScreenSharing(false);
+                    } else {
+                      try {
+                        await serviceRef.current.startScreenShare();
+                        setIsScreenSharing(true);
+                      } catch (e) {
+                        error("Could not share screen");
+                      }
+                    }
+                  }}
+                  className={`p-3 rounded-full transition-all duration-300 ${isScreenSharing ? 'bg-purple-500/20 text-purple-400' : 'hover:bg-white/10 text-white/60'}`}
+                >
+                  {isScreenSharing ? <MonitorOff size={24} /> : <Monitor size={24} />}
+                </button>
+              </Tooltip>
             </div>
 
-            {/* ── Desktop feature footer — fixed, labeled, z-30 ── */}
-            <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-30 pointer-events-auto items-end justify-between px-6 pb-3 pt-1">
-
-              {/* Left: system */}
-              <div className="flex items-end gap-2">
-                <button
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl bg-white/4 border border-white/8 hover:bg-white/10 hover:border-white/20 transition-all group"
-                >
-                  <User size={16} className="text-white/50 group-hover:text-white/80 transition-colors" />
-                  <span className="text-[9px] text-white/35 group-hover:text-white/60 sc-hud-font tracking-wide">Settings</span>
+            <div className="absolute bottom-4 md:bottom-10 left-4 md:left-10 flex gap-2 md:gap-4 pointer-events-auto pb-safe pl-safe z-50">
+               <Tooltip content="Settings & Key Vault">
+                <button onClick={() => setIsSettingsOpen(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
+                  <User size={18} className="text-white/60" />
                 </button>
-
-                <div className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border transition-all ${isBackendOnline ? 'bg-emerald-500/6 border-emerald-500/20' : 'bg-white/4 border-white/8 opacity-40'}`}>
-                  <Database size={16} className={isBackendOnline ? 'text-emerald-400' : 'text-white/40'} />
-                  <span className="text-[9px] sc-hud-font tracking-wide" style={{ color: isBackendOnline ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.3)' }}>
-                    {isBackendOnline ? 'Online' : 'Offline'}
-                  </span>
+              </Tooltip>
+              
+              <Tooltip content={isBackendOnline ? "Cloud Agent Online" : "Cloud Agent Offline"}>
+                <div className={`p-2 md:p-3 rounded-2xl glass-panel transition-all ${isBackendOnline ? 'border-emerald-500/30' : 'opacity-40'}`}>
+                  <Database size={18} className={isBackendOnline ? 'text-emerald-400' : 'text-white/40'} />
                 </div>
-              </div>
-
-              {/* Right: feature panels */}
-              <div className="flex items-end gap-1.5">
-                {([
-                  { icon: <Plus size={16} />,         label: 'Upload',    color: 'text-white/50',        action: () => setShowFileUpload(true) },
-                  { icon: <MessageSquare size={16} />, label: 'Chats',     color: 'text-white/50',        action: () => setShowChat(true) },
-                  { icon: <Brain size={16} />,         label: 'Memory',    color: 'text-white/50',        action: () => setShowMemory(true) },
-                  { icon: <Folder size={16} />,        label: 'Vault',     color: 'text-white/50',        action: () => setShowVaultOrganizer(true) },
-                  { icon: <Heart size={16} />,         label: 'Life',      color: 'text-pink-400/70',     action: () => setShowCompanionPanel(true) },
-                  { icon: <Briefcase size={16} />,     label: 'Practice',  color: 'text-amber-400/70',    action: () => setShowInterview(true) },
-                  { icon: <BookOpen size={16} />,      label: 'Knowledge', color: 'text-cyan-400/70',     action: () => setShowRAGPanel(true) },
-                  { icon: <Music size={16} />,         label: 'Sing',      color: 'text-[#00ff41]/70',    action: () => setShowSingPanel(p => !p) },
-                ] as { icon: React.ReactNode; label: string; color: string; action: () => void }[]).map(({ icon, label, color, action }) => (
-                  <button
-                    key={label}
-                    onClick={action}
-                    className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl bg-white/4 border border-white/8 hover:bg-white/10 hover:border-white/20 transition-all group"
-                  >
-                    <span className={`${color} group-hover:opacity-100 transition-opacity`}>{icon}</span>
-                    <span className="text-[9px] text-white/35 group-hover:text-white/60 sc-hud-font tracking-wide">{label}</span>
-                  </button>
-                ))}
-              </div>
-
+              </Tooltip>
             </div>
+
+            <div className="absolute bottom-4 md:bottom-10 right-4 md:right-10 flex gap-2 md:gap-4 pointer-events-auto pb-safe pr-safe z-50">
+              <Tooltip content="Upload Knowledge">
+                <button onClick={() => setShowFileUpload(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
+                  <Plus size={18} className="text-white/60" />
+                </button>
+              </Tooltip>
+              
+              <Tooltip content="Conversation History">
+                <button onClick={() => setShowChat(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
+                  <MessageSquare size={18} className="text-white/60" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Memory Bank">
+                <button onClick={() => setShowMemory(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
+                  <Brain size={18} className="text-white/60" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Vault Organizer">
+                <button onClick={() => setShowVaultOrganizer(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
+                  <Folder size={18} className="text-white/60" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Companion — habits, goals, daily briefing">
+                <button
+                  onClick={() => setShowCompanionPanel(true)}
+                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
+                >
+                  <Heart size={18} className="text-pink-400/80" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Skills Vault — teach, browse & manage Echo skills">
+                <button
+                  onClick={() => setShowSkillsVault(true)}
+                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
+                >
+                  <Sparkles size={18} className="text-[#00ff41]/70" />
+                </button>
+              </Tooltip>
+            </div>
+            </>
+            )}
           </main>
         </div>
       </KnowledgeDropZone>
-      <DraggableCamera
-        stream={serviceRef.current?.getCameraStream()}
-        isCameraActive={isCameraActive}
-        color={themeColors.c}
-        rgb={themeColors.rgb}
-      />
     </div>
   );
 }

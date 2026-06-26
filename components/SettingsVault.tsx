@@ -7,11 +7,12 @@ import Button from './Button';
 import { useToast } from '../hooks/useToast';
 import { changePassphrase, getVaultMode } from '../services/cryptoService';
 import { getCached, setCached } from '../services/cryptoService';
-import { hasKeyFor, LlmProvider } from '../services/llmRouter';
+import { hasKeyFor, chooseProvider, LlmProvider, detectProviderFromKey } from '../services/llmRouter';
 
 interface SettingsVaultProps {
     isOpen: boolean;
     onClose: () => void;
+    onSaved?: () => void;
 }
 
 interface ProviderRow {
@@ -30,10 +31,9 @@ const PROVIDERS: ProviderRow[] = [
     { id: 'mistral', label: 'Mistral', storageKey: 'echo_mistral_key', placeholder: 'mst_...' },
     { id: 'huggingface', label: 'Hugging Face Inference', storageKey: 'echo_hf_key', placeholder: 'hf_...', free: true },
     { id: 'anthropic', label: 'Anthropic (via localhost proxy)', storageKey: 'echo_anthropic_key', placeholder: 'sk-ant-...' },
-    { id: 'ollama', label: 'Local Ollama (completely offline & free)', storageKey: 'echo_ollama_model', placeholder: 'Model name (default: llama3)', free: true },
 ];
 
-export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
+export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaultProps) {
     const { success, error } = useToast();
 
     // Existing simple keys
@@ -41,15 +41,10 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     const [serpApiKey, setSerpApiKey] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
     const [baseResume, setBaseResume] = useState('');
-    const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
 
     // Multi-provider keys
     const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
     const [defaultBrain, setDefaultBrain] = useState<LlmProvider>('gemini');
-    const [aiProfile, setAiProfile] = useState<'auto' | 'gemini' | 'openai' | 'elevenlabs' | 'browser'>('auto');
-    const [openaiVoice, setOpenaiVoice] = useState('alloy');
-    const [elevenlabsKey, setElevenlabsKey] = useState('');
-    const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
 
     // New toggles
     const [yoloMode, setYoloMode] = useState(false);
@@ -71,16 +66,12 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         setSerpApiKey(localStorage.getItem('VITE_SERP_API_KEY') || '');
         setAvatarUrl(localStorage.getItem('echo_avatar_url') || '/ai-avatar.png');
         setBaseResume(localStorage.getItem('echo_base_resume') || '');
-        setDefaultBrain((localStorage.getItem('echo_default_brain') as LlmProvider) || 'gemini');
+        const savedBrain = (localStorage.getItem('echo_default_brain') as LlmProvider) || 'gemini';
+        setDefaultBrain(hasKeyFor(savedBrain) ? savedBrain : chooseProvider());
         setYoloMode(localStorage.getItem('echo_yolo_mode') === 'true');
         setTranslationMode(localStorage.getItem('echo_translation_mode') === 'true');
         setStealthMode(localStorage.getItem('echo_stealth_mode') === 'true');
         setGhostActive(localStorage.getItem('echo_ghost_active') === 'true');
-        setOpenaiBaseUrl(localStorage.getItem('echo_openai_base') || '');
-        setAiProfile((localStorage.getItem('echo_ai_profile') as any) || 'auto');
-        setOpenaiVoice(localStorage.getItem('echo_openai_voice') || 'alloy');
-        setElevenlabsKey(localStorage.getItem('echo_elevenlabs_key') || '');
-        setElevenlabsVoiceId(localStorage.getItem('echo_elevenlabs_voice_id') || '21m00Tcm4TlvDq8ikWAM');
 
         const pk: Record<string, string> = {};
         for (const p of PROVIDERS) {
@@ -106,7 +97,6 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             if (serpApiKey) localStorage.setItem('VITE_SERP_API_KEY', serpApiKey);
             if (avatarUrl) localStorage.setItem('echo_avatar_url', avatarUrl);
             if (baseResume) localStorage.setItem('echo_base_resume', baseResume);
-            localStorage.setItem('echo_openai_base', openaiBaseUrl.trim());
 
             for (const p of PROVIDERS) {
                 const val = providerKeys[p.id] || '';
@@ -117,58 +107,13 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             // Back-compat with App.tsx hasAnyApiKey()
             if (providerKeys.gemini) localStorage.setItem('echo_api_key', providerKeys.gemini.trim());
 
-            localStorage.setItem('echo_default_brain', defaultBrain);
-            localStorage.setItem('echo_llm_provider', defaultBrain); // legacy alias
+            const brainToSave = hasKeyFor(defaultBrain) ? defaultBrain : chooseProvider();
+            localStorage.setItem('echo_default_brain', brainToSave);
+            localStorage.setItem('echo_llm_provider', brainToSave); // legacy alias
             localStorage.setItem('echo_yolo_mode', String(yoloMode));
             localStorage.setItem('echo_translation_mode', String(translationMode));
             localStorage.setItem('echo_stealth_mode', String(stealthMode));
             localStorage.setItem('echo_ghost_active', String(ghostActive));
-            localStorage.setItem('echo_ai_profile', aiProfile);
-            localStorage.setItem('echo_openai_voice', openaiVoice);
-            localStorage.setItem('echo_elevenlabs_key', elevenlabsKey.trim());
-            localStorage.setItem('echo_elevenlabs_voice_id', elevenlabsVoiceId.trim());
-
-            // Legacy back-compat mapping for App.tsx and chat interfaces
-            if (aiProfile === 'auto') {
-                const hasGemini = !!(providerKeys.gemini || '').trim();
-                const hasOpenai = !!(providerKeys.openai || '').trim();
-                if (hasGemini) {
-                    localStorage.setItem('echo_voice_engine', 'gemini');
-                    localStorage.setItem('echo_tts_engine', 'browser');
-                    localStorage.setItem('echo_default_brain', 'gemini');
-                    localStorage.setItem('echo_llm_provider', 'gemini');
-                } else if (hasOpenai) {
-                    localStorage.setItem('echo_voice_engine', 'browser');
-                    localStorage.setItem('echo_tts_engine', 'openai');
-                    localStorage.setItem('echo_default_brain', 'openai');
-                    localStorage.setItem('echo_llm_provider', 'openai');
-                } else {
-                    localStorage.setItem('echo_voice_engine', 'browser');
-                    localStorage.setItem('echo_tts_engine', 'browser');
-                    localStorage.setItem('echo_default_brain', 'gemini');
-                    localStorage.setItem('echo_llm_provider', 'gemini');
-                }
-            } else if (aiProfile === 'gemini') {
-                localStorage.setItem('echo_voice_engine', 'gemini');
-                localStorage.setItem('echo_tts_engine', 'browser');
-                localStorage.setItem('echo_default_brain', 'gemini');
-                localStorage.setItem('echo_llm_provider', 'gemini');
-            } else if (aiProfile === 'openai') {
-                localStorage.setItem('echo_voice_engine', 'browser');
-                localStorage.setItem('echo_tts_engine', 'openai');
-                localStorage.setItem('echo_default_brain', 'openai');
-                localStorage.setItem('echo_llm_provider', 'openai');
-            } else if (aiProfile === 'elevenlabs') {
-                localStorage.setItem('echo_voice_engine', 'browser');
-                localStorage.setItem('echo_tts_engine', 'elevenlabs');
-                localStorage.setItem('echo_default_brain', defaultBrain);
-                localStorage.setItem('echo_llm_provider', defaultBrain);
-            } else if (aiProfile === 'browser') {
-                localStorage.setItem('echo_voice_engine', 'browser');
-                localStorage.setItem('echo_tts_engine', 'browser');
-                localStorage.setItem('echo_default_brain', defaultBrain);
-                localStorage.setItem('echo_llm_provider', defaultBrain);
-            }
 
             const examples = styleExamples
                 .split(/\n---\n|\n\n---\n\n/)
@@ -192,8 +137,8 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
             }
 
             success('Settings saved securely.');
+            onSaved?.();
             onClose();
-            window.location.reload();
         } catch (e) {
             error('Failed to save settings');
         }
@@ -206,7 +151,6 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
         }
         if (key === 'echo_github_token') setGithubToken('');
         if (key === 'VITE_SERP_API_KEY') setSerpApiKey('');
-        if (key === 'echo_openai_key') setOpenaiBaseUrl('');
         success('Key cleared');
     };
 
@@ -215,7 +159,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
     const vaultMode = getVaultMode();
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/80 backdrop-blur-xl transition-opacity" onClick={onClose} />
 
             <div className="relative w-full max-w-md bg-black border border-[#00ff41]/20 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,1)] p-6 overflow-hidden max-h-[90dvh] overflow-y-auto scrollbar-hide font-mono text-[#00ff41]">
@@ -254,135 +198,57 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                         </p>
                     </div>
 
-                    {/* Primary AI Profile */}
+                    {/* Default brain */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Sparkles size={16} />
-                            <span>Primary AI Profile (Voice & Brain)</span>
+                            <Cpu size={16} />
+                            <span>Default "Text Brain" provider</span>
                         </label>
                         <select
-                            value={aiProfile}
-                            onChange={(e) => {
-                                const val = e.target.value as any;
-                                setAiProfile(val);
-                                if (val === 'gemini') setDefaultBrain('gemini');
-                                else if (val === 'openai') setDefaultBrain('openai');
-                            }}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
+                            value={defaultBrain}
+                            onChange={(e) => setDefaultBrain(e.target.value as LlmProvider)}
+                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
                             style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
                         >
-                            <option value="auto">Auto-Configure (Recommended: Gemini Real-Time → OpenAI → Free)</option>
-                            <option value="gemini">Google Gemini Real-Time (Cloud Voice + Gemini Brain)</option>
-                            <option value="openai">OpenAI Suite (OpenAI TTS Voice + GPT Brain)</option>
-                            <option value="elevenlabs">ElevenLabs Overlay (ElevenLabs Voice + Custom Text Brain)</option>
-                            <option value="browser">Free & Local (Browser Native Voice + Custom Text Brain)</option>
+                            {PROVIDERS.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.label}{p.free ? ' (free tier available)' : ''}
+                                    {hasKeyFor(p.id) ? '  ✓' : ''}
+                                </option>
+                            ))}
                         </select>
-                        <p className="text-[10px] text-[#00ff41]/40 leading-relaxed">
-                            {aiProfile === 'auto' && "Auto-Configure matches your active API keys. Gemini Live starts if Gemini key is set. If not, OpenAI key starts OpenAI TTS. Else falls back to local/free native tools."}
-                            {aiProfile === 'gemini' && "Google Gemini Real-Time: Constant streaming cloud audio using Google's native Fenrir/Kore voices. Requires Gemini API Key below."}
-                            {aiProfile === 'openai' && "OpenAI Suite: Human-like speech output using OpenAI TTS combined with GPT text models. Requires OpenAI API Key below."}
-                            {aiProfile === 'elevenlabs' && "ElevenLabs Overlay: Ultra-realistic voice synthesis combined with any custom text brain (Groq, Ollama, etc.) of your choice."}
-                            {aiProfile === 'browser' && "Free & Local: Compeletely free browser speech synthesis combined with offline/free text brains like local Ollama or Groq free tier."}
+                        <p className="text-[10px] text-[#00ff41]/40">
+                            Live voice always uses Gemini (only provider with Live audio). This setting drives text chat + tool/skill reasoning.
                         </p>
                     </div>
 
-                    {/* Secondary LLM Brain Selector — only visible for custom overlay modes */}
-                    {(aiProfile === 'elevenlabs' || aiProfile === 'browser') && (
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                                <Cpu size={16} />
-                                <span>Default "Text Brain" provider</span>
-                            </label>
-                            <select
-                                value={defaultBrain}
-                                onChange={(e) => setDefaultBrain(e.target.value as LlmProvider)}
-                                className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
-                                style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
-                            >
-                                {PROVIDERS.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.label}{p.free ? ' (free tier available)' : ''}
-                                        {hasKeyFor(p.id) ? '  ✓' : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                    {/* OpenAI Voice Selector */}
-                    {aiProfile === 'openai' && (
-                        <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl font-mono">
-                            <label className="text-[10px] font-semibold text-gray-400">OpenAI Voice</label>
-                            <select
-                                value={openaiVoice}
-                                onChange={(e) => setOpenaiVoice(e.target.value)}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all cursor-pointer"
-                            >
-                                <option value="alloy">Alloy (Balanced)</option>
-                                <option value="echo">Echo (Warm)</option>
-                                <option value="fable">Fable (Narrative)</option>
-                                <option value="onyx">Onyx (Deep)</option>
-                                <option value="nova">Nova (Energetic)</option>
-                                <option value="shimmer">Shimmer (Professional)</option>
-                            </select>
-                        </div>
-                    )}
-
-                    {/* ElevenLabs Configuration */}
-                    {aiProfile === 'elevenlabs' && (
-                        <div className="space-y-3 p-3 bg-white/5 border border-white/10 rounded-xl font-mono">
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-gray-400">ElevenLabs API Key</label>
-                                <input
-                                    type="password"
-                                    value={elevenlabsKey}
-                                    onChange={(e) => setElevenlabsKey(e.target.value)}
-                                    placeholder="elevenlabs_api_key"
-                                    className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-gray-400">ElevenLabs Voice ID</label>
-                                <input
-                                    type="text"
-                                    value={elevenlabsVoiceId}
-                                    onChange={(e) => setElevenlabsVoiceId(e.target.value)}
-                                    placeholder="Voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
-                                    className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500/50 transition-all"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Provider key */}
-                    {(() => {
-                        const currentProvider = PROVIDERS.find(p => p.id === defaultBrain);
-                        if (!currentProvider) return null;
-                        return (
-                            <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
+                    {/* Provider keys */}
+                    <div className="space-y-3">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                            <Key size={16} />
+                            <span>Provider API Keys</span>
+                        </label>
+                        {PROVIDERS.map(p => (
+                            <div key={p.id} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                    <span className="text-gray-300 font-semibold flex items-center gap-1.5">
-                                        <Key size={14} className="text-[#00ff41]" />
-                                        {defaultBrain === 'ollama' ? 'Ollama Configuration' : `${currentProvider.label} API Key`}
-                                    </span>
-                                    {currentProvider.free && (
+                                    <span className="text-[#00ff41]/80">{p.label}</span>
+                                    {p.free && (
                                         <span className="text-[9px] uppercase tracking-widest text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">
                                             free tier
                                         </span>
                                     )}
                                 </div>
-
                                 <div className="relative group">
                                     <input
-                                        type={defaultBrain === 'ollama' ? 'text' : 'password'}
-                                        value={providerKeys[defaultBrain] || ''}
-                                        onChange={(e) => setProviderKeys(prev => ({ ...prev, [defaultBrain]: e.target.value }))}
-                                        placeholder={currentProvider.placeholder}
+                                        type="password"
+                                        value={providerKeys[p.id] || ''}
+                                        onChange={(e) => setProviderKeys(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                        placeholder={p.placeholder}
                                         className="w-full bg-black/50 border border-white/10 rounded-lg pl-3 pr-8 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 transition-all font-mono"
                                     />
-                                    {providerKeys[defaultBrain] && (
+                                    {providerKeys[p.id] && (
                                         <button
-                                            onClick={() => handleClear(currentProvider.storageKey, defaultBrain)}
+                                            onClick={() => handleClear(p.storageKey, p.id)}
                                             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
                                             type="button"
                                         >
@@ -390,27 +256,39 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                         </button>
                                     )}
                                 </div>
-
-                                {defaultBrain === 'openai' && (
-                                    <div className="pt-1">
-                                        <input
-                                            type="text"
-                                            value={openaiBaseUrl}
-                                            onChange={(e) => setOpenaiBaseUrl(e.target.value)}
-                                            placeholder="Custom Base URL (e.g. http://localhost:11434/v1)"
-                                            className="w-full bg-black/30 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-green-500/30 transition-all font-mono"
-                                        />
-                                    </div>
-                                )}
-
-                                {defaultBrain === 'ollama' && (
-                                    <p className="text-[10px] text-[#00ff41]/60 leading-relaxed mt-1">
-                                        No API key needed. Runs locally on your machine. Ensure Ollama is running (`ollama run llama3`) and start the voice server (`python server.py`) to bypass CORS restrictions.
-                                    </p>
-                                )}
+                                {(() => {
+                                    const keyVal = providerKeys[p.id] || '';
+                                    if (!keyVal) return null;
+                                    const detected = detectProviderFromKey(keyVal);
+                                    if (detected && detected !== p.id) {
+                                        return (
+                                            <div className="text-[10px] text-rose-400 mt-0.5 flex items-center gap-1 font-mono">
+                                                <AlertTriangle size={10} />
+                                                <span>Format matches {PROVIDERS.find(pr => pr.id === detected)?.label || detected} key!</span>
+                                            </div>
+                                        );
+                                    }
+                                    if (p.id === 'gemini' && !keyVal.startsWith('AIzaSy') && !keyVal.startsWith('AQ.')) {
+                                        return (
+                                            <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-1 font-mono">
+                                                <AlertTriangle size={10} />
+                                                <span>Should start with AIzaSy or AQ.</span>
+                                            </div>
+                                        );
+                                    }
+                                    if (p.id === 'openai' && !keyVal.startsWith('sk-')) {
+                                        return (
+                                            <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-1 font-mono">
+                                                <AlertTriangle size={10} />
+                                                <span>Should start with sk-</span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
-                        );
-                    })()}
+                        ))}
+                    </div>
 
                     {/* YOLO toggle */}
                     <div className="space-y-2 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
@@ -491,18 +369,18 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                                 <option value="eager">Eager — quick barge-in</option>
                             </select>
                         </label>
+                        <label className="block text-xs text-gray-300 mt-2">
                             Live voice model
                             <select
-                                defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.0-flash-live-preview-04-09'}
+                                defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.5-flash-native-audio-preview-12-2025'}
                                 onChange={(e) => localStorage.setItem('echo_live_model', e.target.value)}
                                 className="mt-1 w-full bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-xs text-white font-mono"
                             >
-                                <option value="gemini-2.0-flash-live-preview-04-09">gemini-2.0-flash-live-preview-04-09 (default / recommended)</option>
-                                <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio-preview-12-2025</option>
-                                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (deprecated)</option>
+                                <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio-preview-12-2025 (default)</option>
                             </select>
+                        </label>
                         <p className="text-[10px] text-cyan-400/50">
-                            Hands-free keeps the mic open while Echo is on screen. Browsers stop the mic when the screen locks — that's a platform limit, not a bug.
+                            Hands-free + native app (Capacitor) required for mic while screen locked. See mobile/README.md.
                         </p>
                     </div>
 
@@ -611,7 +489,7 @@ export default function SettingsVault({ isOpen, onClose }: SettingsVaultProps) {
                     <div className="pt-4 flex gap-3">
                         <Button onClick={handleSave} variant="primary" className="w-full justify-center group">
                             <Check className="mr-2 group-hover:scale-110 transition-transform" size={18} />
-                            Save & Reload
+                            Save & Apply
                         </Button>
                     </div>
                 </div>

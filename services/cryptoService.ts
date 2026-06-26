@@ -246,15 +246,20 @@ export interface InitVaultOptions {
 export async function initVault(opts: InitVaultOptions = {}): Promise<void> {
     if (state.dek) return; // already unlocked
 
+    const forceQuick = !!opts.autoMode;
+
+    // Quick mode never blocks on a passphrase vault — wipe and start fresh.
+    if (forceQuick && localStorage.getItem(VAULT_MODE_KEY) === 'passphrase') {
+        resetVaultKeys();
+    }
+
     const salt = getOrCreateSalt();
     let secret = opts.passphrase;
     let chosenMode: 'auto' | 'passphrase';
 
     if (!secret) {
-        // No passphrase provided. If a vault already exists in passphrase mode
-        // we can't unlock it silently.
         const storedMode = localStorage.getItem(VAULT_MODE_KEY) as 'auto' | 'passphrase' | null;
-        if (storedMode === 'passphrase' && !opts.autoMode) {
+        if (storedMode === 'passphrase' && !forceQuick) {
             throw new Error('Vault is locked with a passphrase. Please unlock.');
         }
         secret = getOrCreateAutoSecret();
@@ -264,18 +269,28 @@ export async function initVault(opts: InitVaultOptions = {}): Promise<void> {
     }
 
     const kek = await deriveKEK(secret, salt);
-
     const wrappedDek = localStorage.getItem(WRAPPED_DEK_KEY);
+
     if (wrappedDek) {
         try {
             state.dek = await unwrapDEK(wrappedDek, kek);
-        } catch (e) {
-            throw new Error('Incorrect passphrase or corrupted vault.');
+        } catch {
+            if (!forceQuick) {
+                throw new Error('Incorrect passphrase or corrupted vault.');
+            }
+            // Stale passphrase wrap or corrupt DEK — recreate a quick-mode vault.
+            resetVaultKeys();
+            const freshSalt = getOrCreateSalt();
+            const freshSecret = getOrCreateAutoSecret();
+            const freshKek = await deriveKEK(freshSecret, freshSalt);
+            const dek = await generateDEK();
+            localStorage.setItem(WRAPPED_DEK_KEY, await wrapDEK(dek, freshKek));
+            state.dek = dek;
+            chosenMode = 'auto';
         }
     } else {
         const dek = await generateDEK();
-        const wrapped = await wrapDEK(dek, kek);
-        localStorage.setItem(WRAPPED_DEK_KEY, wrapped);
+        localStorage.setItem(WRAPPED_DEK_KEY, await wrapDEK(dek, kek));
         state.dek = dek;
     }
 
@@ -314,6 +329,15 @@ export function lockVault(): void {
     state.dek = null;
     state.cache.clear();
     state.mode = 'locked';
+}
+
+/** Wipe vault key material so a fresh Quick Mode vault can be created. */
+export function resetVaultKeys(): void {
+    lockVault();
+    localStorage.removeItem(WRAPPED_DEK_KEY);
+    localStorage.removeItem(VAULT_MODE_KEY);
+    localStorage.removeItem(AUTO_SECRET_KEY);
+    localStorage.removeItem(SALT_KEY);
 }
 
 /* ─────────── Biometric (WebAuthn PRF) wrap ───────────

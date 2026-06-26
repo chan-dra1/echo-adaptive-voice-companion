@@ -30,6 +30,14 @@ export interface DynamicSkill {
     permissions: SkillPermissions;
     createdAt: number;
     approvedAt: number;
+    // Optional stats fields (backward compat with existing DB records)
+    version?: number;
+    tags?: string[];
+    usageCount?: number;
+    successCount?: number;
+    failCount?: number;
+    lastUsed?: number;       // epoch ms
+    fromRegistry?: string;   // registry URL if imported from community
 }
 
 const DB_NAME = 'echo-dynamic-skills';
@@ -61,8 +69,11 @@ function toSkill(ds: DynamicSkill): Skill {
             try {
                 const worker = getOrCreateWorker(ds.id, ds.jsCode, ds.permissions);
                 const result = await worker.invoke(toolName, args);
+                const ok = !(result && typeof result === 'object' && 'error' in result);
+                dynamicSkillService.updateStats(ds.id, ok).catch(() => {});
                 return result;
             } catch (e: any) {
+                dynamicSkillService.updateStats(ds.id, false).catch(() => {});
                 return { error: e?.message || String(e) };
             }
         },
@@ -97,6 +108,26 @@ export const dynamicSkillService = {
         const conn = await db();
         await conn.delete(STORE, id);
         disposeWorker(id);
+    },
+
+    async updateStats(id: string, succeeded: boolean): Promise<void> {
+        const conn = await db();
+        const ds = (await conn.get(STORE, id)) as DynamicSkill | undefined;
+        if (!ds) return;
+        ds.usageCount = (ds.usageCount ?? 0) + 1;
+        if (succeeded) {
+            ds.successCount = (ds.successCount ?? 0) + 1;
+        } else {
+            ds.failCount = (ds.failCount ?? 0) + 1;
+        }
+        ds.lastUsed = Date.now();
+        await conn.put(STORE, ds);
+        // Warn if skill is degrading: 3+ failures AND >50% failure rate
+        if ((ds.failCount ?? 0) >= 3 && (ds.failCount! / ds.usageCount!) > 0.5) {
+            window.dispatchEvent(new CustomEvent('echo:skill:degraded', {
+                detail: { id: ds.id, name: ds.name },
+            }));
+        }
     },
 
     async loadAndRegisterAll(): Promise<void> {

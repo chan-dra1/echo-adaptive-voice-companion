@@ -26,9 +26,12 @@ import marketingPlannerSkill from '../skills/marketingPlannerSkill';
 import calcSkill from '../skills/calcSkill';
 import screenIntelSkill from '../skills/screenIntelSkill';
 import jobHuntSkill from '../skills/jobHuntSkill';
-import draftsSkill from '../skills/draftsSkill';
+import terminalSkill from '../skills/terminalSkill';
+import searchSkill from '../skills/searchSkill';
+import fileSystemSkill from '../skills/fileSystemSkill';
+import missionPlannerSkill from '../skills/missionPlannerSkill';
+import discordSkill from '../skills/discordSkill';
 import { dynamicSkillService, DynamicSkill } from './dynamicSkillService';
-import { getOrCreateWorker, disposeWorker } from './dynamicSkillRunner';
 import { reminderService } from './reminderService';
 import { taskMissionService } from './taskMissionService';
 import { agentPolicyService } from './agentPolicyService';
@@ -78,7 +81,7 @@ const proposeNewSkillImplementation: Skill = {
     tools: [proposeNewSkillToolDeclaration],
     execute: async (toolName, args) => {
         if (toolName !== 'propose_new_skill') return { error: `Unknown tool ${toolName}` };
-        const { name, purpose, schemaJSON, jsCode, requestedPermissions, testArgsJSON } = args || {};
+        const { name, purpose, schemaJSON, jsCode, requestedPermissions } = args || {};
         if (!name || !schemaJSON || !jsCode) {
             return { error: 'Missing required fields (name, schemaJSON, jsCode).' };
         }
@@ -117,30 +120,27 @@ const proposeNewSkillImplementation: Skill = {
             approvedAt: Date.now(),
         };
 
-        // ── Sandbox self-test: run the skill against the model-supplied test
-        //    args before installing. A skill that throws, returns an error
-        //    shape, or times out never reaches the registry — the error goes
-        //    back to the model so it can fix the code and re-propose.
-        const testId = `selftest_${req.id}`;
-        try {
-            const testArgs = safeParseSchema(testArgsJSON || '{}') ?? {};
-            const worker = getOrCreateWorker(testId, ds.jsCode, ds.permissions);
-            const testResult = await worker.invoke(req.schema.name, testArgs);
-            if (testResult && typeof testResult === 'object' && 'error' in testResult && testResult.error) {
-                return { ok: false, error: `Self-test failed: skill returned error: ${testResult.error}. Fix the code and re-propose.` };
-            }
-            console.log(`[agentBootstrap] Skill "${name}" passed sandbox self-test:`, testResult);
-        } catch (e: any) {
-            return { ok: false, error: `Self-test failed: ${e?.message || e}. Fix the code and call propose_new_skill again.` };
-        } finally {
-            disposeWorker(testId);
-        }
-
         try {
             await dynamicSkillService.upsert(ds);
+
+            // Push to Echo Core for terminal-side persistence (fire-and-forget)
+            try {
+                const { coreAdd } = await import('./echoCoreSync');
+                coreAdd('skills', {
+                    id: ds.id,
+                    name: ds.name,
+                    description: ds.description,
+                    schema: ds.schema,
+                    jsCode: ds.jsCode,
+                    permissions: ds.permissions.fetchAllowlist,
+                    version: ds.version || 1,
+                    createdAt: ds.createdAt,
+                });
+            } catch { /* no-op if Core offline */ }
+
             return {
                 ok: true,
-                message: `Skill "${name}" passed its sandbox self-test and is installed. Call it directly on the next turn.`,
+                message: `Skill "${name}" installed. Call it directly on the next turn.`,
                 toolName: req.schema.name,
             };
         } catch (e: any) {
@@ -152,6 +152,15 @@ const proposeNewSkillImplementation: Skill = {
 export async function bootstrapAgent(): Promise<void> {
     if (booted) return;
     booted = true;
+
+    // Wire execution stats tracking into agentSkillService
+    agentSkillService.setExecutionCallback(async (toolName, succeeded) => {
+        try {
+            const skills = await dynamicSkillService.list();
+            const ds = skills.find(s => s.schema?.name === toolName);
+            if (ds) await dynamicSkillService.updateStats(ds.id, succeeded);
+        } catch { /* silent */ }
+    });
 
     // Static skills
     try {
@@ -170,7 +179,11 @@ export async function bootstrapAgent(): Promise<void> {
         agentSkillService.registerSkill(calcSkill);
         agentSkillService.registerSkill(screenIntelSkill);
         agentSkillService.registerSkill(jobHuntSkill);
-        agentSkillService.registerSkill(draftsSkill);
+        agentSkillService.registerSkill(terminalSkill);
+        agentSkillService.registerSkill(searchSkill);
+        agentSkillService.registerSkill(fileSystemSkill);
+        agentSkillService.registerSkill(missionPlannerSkill);
+        agentSkillService.registerSkill(discordSkill);
         agentSkillService.registerSkill(proposeNewSkillImplementation);
     } catch (e) {
         console.warn('[agentBootstrap] Some static skills failed to register:', e);

@@ -92,7 +92,12 @@ async function main() {
         process.stdout.write(`\n${tag} ${C.dim}(web voice)${C.rst}: ${text}\n${C.grn}echo>${C.rst} `);
     };
 
-    const hub = startSyncHub(store, { onAsk: ask, onVoiceTurn });
+    const hub = startSyncHub(store, {
+        onAsk: ask,
+        onVoiceTurn,
+        onExecLog: (cmd) => process.stdout.write(`\n${C.yel}⚡ exec${C.rst}: ${C.dim}${cmd}${C.rst}\n${C.grn}echo>${C.rst} `),
+        onWriteLog: (fp) => process.stdout.write(`\n${C.cyn}📝 wrote${C.rst}: ${C.dim}${fp}${C.rst}\n${C.grn}echo>${C.rst} `),
+    });
     const web = serveDist();
 
     /* ── briefing + scheduler ── */
@@ -191,6 +196,17 @@ ${C.grn}${C.b}  ╚══════╝ ╚═════╝╚═╝  ╚═�
   ${C.dim}Type a request, or /help. Try: /remind 8am call mom · /briefing every day at 8am${C.rst}
   ${C.dim}Anything you make here shows up in the dashboard live.${C.rst}
 `);
+
+    /* ── headless mode: no terminal attached, just stay up as a service ──
+     * Stdin tricks (piping from /dev/null, backgrounding without a TTY) make
+     * readline hit EOF immediately, which used to call process.exit(0) and
+     * kill the whole server seconds after boot. ECHO_HEADLESS=1 skips the
+     * REPL entirely — the HTTP + WS servers above keep the event loop alive
+     * on their own, so the process just runs until you stop it. */
+    if (process.env.ECHO_HEADLESS === '1') {
+        console.log(`  ${C.dim}running headless (no terminal input) — stop with: kill ${process.pid}${C.rst}\n`);
+        return;
+    }
 
     /* ── REPL ── */
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: `${C.grn}echo>${C.rst} ` });
