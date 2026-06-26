@@ -201,8 +201,9 @@ function Section({ children, empty, emptyText, bulk, bulkLabel }: {
 }
 
 function Row({ title, sub, preview, onDownload, secondary }: {
-    title: string; sub: string; preview: string; onDownload: () => void;
-    secondary?: { label: string; onClick: () => void };
+    key?: any;
+    title: string; sub: string; preview: string; onDownload: () => void | Promise<void>;
+    secondary?: { label: string; onClick: () => void | Promise<any> };
 }) {
     return (
         <div className="group relative p-3 rounded-lg bg-white/[0.03] border border-white/8 hover:border-[#00E5FF]/30 transition">

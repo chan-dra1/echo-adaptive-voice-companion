@@ -264,7 +264,8 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
 
 // ── Row ───────────────────────────────────────────────────────────────────────
 function CommandRow({ active, onClick, onHover, label, description, icon, color }: {
-    active: boolean; onClick: () => void; onHover: () => void;
+    key?: any;
+    active: boolean; onClick: () => void | Promise<void>; onHover: () => void;
     label: string; description?: string; icon: React.ReactNode; color: string;
 }) {
     return (

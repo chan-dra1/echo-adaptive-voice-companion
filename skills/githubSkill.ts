@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { Skill } from "../services/agentSkillService";
+import { Type } from "@google/genai";
 
 // Helper to get Octokit instance
 const getOctokit = () => {
@@ -16,16 +17,16 @@ const githubSkill: Skill = {
             name: 'list_github_repos',
             description: 'List the authenticated user\'s repositories',
             parameters: {
-                type: 'object',
+                type: Type.OBJECT,
                 properties: {
                     sort: {
-                        type: 'string',
+                        type: Type.STRING,
                         enum: ['created', 'updated', 'pushed', 'full_name'],
                         description: 'Property to sort by',
                         default: 'updated'
                     },
                     limit: {
-                        type: 'number',
+                        type: Type.NUMBER,
                         description: 'Number of repositories to return (max 30)',
                         default: 5
                     }
@@ -37,11 +38,11 @@ const githubSkill: Skill = {
             name: 'get_github_issue',
             description: 'Get details of a specific GitHub issue or pull request',
             parameters: {
-                type: 'object',
+                type: Type.OBJECT,
                 properties: {
-                    owner: { type: 'string', description: 'Repository owner (username or org)' },
-                    repo: { type: 'string', description: 'Repository name' },
-                    issue_number: { type: 'number', description: 'Issue or PR number' }
+                    owner: { type: Type.STRING, description: 'Repository owner (username or org)' },
+                    repo: { type: Type.STRING, description: 'Repository name' },
+                    issue_number: { type: Type.NUMBER, description: 'Issue or PR number' }
                 },
                 required: ['owner', 'repo', 'issue_number']
             }
@@ -50,11 +51,11 @@ const githubSkill: Skill = {
             name: 'search_github_code',
             description: 'Search for code within a repository or globally',
             parameters: {
-                type: 'object',
+                type: Type.OBJECT,
                 properties: {
-                    query: { type: 'string', description: 'Search query (e.g., "auth function")' },
-                    owner: { type: 'string', description: 'Limit search to this owner (optional)' },
-                    repo: { type: 'string', description: 'Limit search to this repo (optional)' }
+                    query: { type: Type.STRING, description: 'Search query (e.g., "auth function")' },
+                    owner: { type: Type.STRING, description: 'Limit search to this owner (optional)' },
+                    repo: { type: Type.STRING, description: 'Limit search to this repo (optional)' }
                 },
                 required: ['query']
             }

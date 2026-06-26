@@ -427,7 +427,7 @@ export default function RAGPanel({ onClose }: Props) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function SourceRow({ source, onDelete }: { source: RagSource; onDelete: () => void }) {
+function SourceRow({ source, onDelete }: { source: RagSource; onDelete: () => void | Promise<void>; key?: any }) {
     const [expanded, setExpanded] = useState(false);
     const col = TYPE_COLOR[source.type];
     return (

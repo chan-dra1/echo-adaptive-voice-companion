@@ -8,7 +8,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { saveOnboardingMemory, saveCompanionState, COMPANION_MODES, CompanionMode } from '../services/companionPersonaService';
 import { addHabit, addGoal, HABIT_TEMPLATES } from '../services/lifeCoachService';
 
-interface Props { onComplete: () => void; }
+interface Props {
+    onComplete: () => void;
+    onSkip?: () => void;
+}
 
 // ── STEPS ────────────────────────────────────────────────────────────────────
 type StepType = 'text' | 'choice' | 'multiChoice';
@@ -92,7 +95,7 @@ const STEPS: Step[] = [
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function OnboardingWizard({ onComplete }: Props) {
+export default function OnboardingWizard({ onComplete, onSkip }: Props) {
     const [stepIdx, setStepIdx]       = useState(0);
     const [bootLine, setBootLine]     = useState(0);
     const [showInput, setShowInput]   = useState(false);
@@ -172,21 +175,33 @@ export default function OnboardingWizard({ onComplete }: Props) {
         const mode = (ans.companionMode || 'friend') as CompanionMode;
         saveCompanionState({ mode, userName: ans.userName, onboardingComplete: true });
 
-        await saveOnboardingMemory({
-            userName:    ans.userName    || '',
-            workStyle:   ans.workStyle   || '',
-            primaryGoal: ans.primaryGoal || '',
-            wakeTime:    ans.wakeTime    || '',
-            bedTime:     ans.bedTime     || '',
-        });
+        saveOnboardingMemory('userName',    ans.userName    || '');
+        saveOnboardingMemory('workStyle',   ans.workStyle   || '');
+        saveOnboardingMemory('primaryGoal', ans.primaryGoal || '');
+        saveOnboardingMemory('wakeTime',    ans.wakeTime    || '');
+        saveOnboardingMemory('bedTime',     ans.bedTime     || '');
 
         if (ans.habits) {
             const names = ans.habits.split(', ');
             HABIT_TEMPLATES.filter(h => names.includes(h.name))
-                .forEach(h => addHabit({ name: h.name, icon: h.icon, frequency: 'daily', category: h.category }));
+                .forEach(h => addHabit({
+                    name: h.name,
+                    icon: h.icon,
+                    frequency: 'daily',
+                    category: h.category,
+                    lastCompleted: null
+                }));
         }
 
-        if (ans.primaryGoal) addGoal({ title: ans.primaryGoal, category: 'personal' });
+        if (ans.primaryGoal) {
+            addGoal({
+                title: ans.primaryGoal,
+                category: 'personal',
+                why: '',
+                milestones: [],
+                notes: ''
+            });
+        }
 
         setTimeout(onComplete, 2400);
     };
@@ -240,8 +255,15 @@ export default function OnboardingWizard({ onComplete }: Props) {
                         {finished ? STEPS.length : stepIdx + 1}/{STEPS.length}
                     </span>
                     <button
-                        onClick={() => { saveCompanionState({ onboardingComplete: true }); onComplete(); }}
-                        style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em' }}
+                        onClick={() => {
+                            saveCompanionState({ onboardingComplete: true });
+                            if (onSkip) {
+                                onSkip();
+                            } else {
+                                onComplete();
+                            }
+                        }}
+                        style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em', cursor: 'pointer' }}
                     >[SKIP]</button>
                 </div>
             </div>

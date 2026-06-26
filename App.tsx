@@ -711,7 +711,7 @@ export default function App() {
 
   return (
 
-    <div className={`relative w-screen h-screen overflow-hidden bg-black text-[#00ff41] font-mono selection:bg-[#00ff41]/30 flex flex-col${isMobileCoarse ? ' mobile-lite' : ''}`}>
+    <div className={`relative w-screen h-screen overflow-hidden flex flex-col selection:bg-[#00ff88]/20${isMobileCoarse ? ' mobile-lite' : ''}`} style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}>
       {/* Onboarding Wizard — shows on first launch after vault is ready */}
       {vaultReady && showOnboarding && (
         <OnboardingWizard
@@ -845,38 +845,202 @@ export default function App() {
             </div>
           </div>
 
-          {/* Main Agent Area */}
-          <main className="flex-1 relative flex flex-col items-center justify-center p-4 pt-safe pb-safe h-full">
-            {/* SCREEN_READ_LINK badge (only when screen-share is on AND metadata extraction just succeeded) */}
+          {/* ═══ PREMIUM MAIN LAYOUT ════════════════════════════════ */}
+
+          {/* LEFT SIDEBAR — icon navigation strip */}
+          <nav className="echo-sidebar hidden md:flex" aria-label="Echo navigation">
+            {/* Logo mark */}
+            <div className="sidebar-logo mb-2">
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--accent-green)', letterSpacing: '0.05em' }}>E</span>
+            </div>
+
+            <div style={{ width: '100%', height: 1, background: 'var(--border-subtle)', margin: '8px 0 12px' }} />
+
+            <Tooltip content="Chat History">
+              <button
+                onClick={() => setShowChat(true)}
+                className={`sidebar-btn ${showChat ? 'active' : ''}`}
+                aria-label="Chat history"
+              >
+                <MessageSquare size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Memory Bank">
+              <button
+                onClick={() => setShowMemory(true)}
+                className={`sidebar-btn ${showMemory ? 'active' : ''}`}
+                aria-label="Memory bank"
+              >
+                <Brain size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Vault Organizer">
+              <button
+                onClick={() => setShowVaultOrganizer(true)}
+                className={`sidebar-btn ${showVaultOrganizer ? 'active-cyan' : ''}`}
+                aria-label="Vault organizer"
+              >
+                <Folder size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Skills Vault">
+              <button
+                onClick={() => setShowSkillsVault(true)}
+                className={`sidebar-btn ${showSkillsVault ? 'active' : ''}`}
+                aria-label="Skills vault"
+              >
+                <Sparkles size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Companion">
+              <button
+                onClick={() => setShowCompanionPanel(true)}
+                className={`sidebar-btn ${showCompanionPanel ? 'active-pink' : ''}`}
+                aria-label="Companion"
+              >
+                <Heart size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Ghost Mode">
+              <button
+                onClick={() => setShowGhostMode(true)}
+                className={`sidebar-btn ${isStealthMode ? 'active-cyan' : ''}`}
+                aria-label="Ghost mode"
+              >
+                <Ghost size={18} />
+              </button>
+            </Tooltip>
+
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            <Tooltip content={isBackendOnline ? 'Cloud Agent Online' : 'Cloud Agent Offline'}>
+              <div className={`sidebar-btn ${isBackendOnline ? 'active' : ''}`} style={{ cursor: 'default' }}>
+                <Database size={16} />
+              </div>
+            </Tooltip>
+
+            <Tooltip content="Settings & Key Vault">
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="sidebar-btn"
+                aria-label="Settings"
+              >
+                <User size={18} />
+              </button>
+            </Tooltip>
+          </nav>
+
+          {/* MAIN STAGE */}
+          <main
+            className="flex-1 relative flex flex-col items-center justify-center h-full overflow-hidden"
+            style={{ paddingLeft: 'max(env(safe-area-inset-left), 0px)', paddingRight: 'max(env(safe-area-inset-right), 0px)' }}
+          >
+            {/* Ambient mesh blobs — pure CSS background depth */}
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                width: 600, height: 600,
+                borderRadius: '50%',
+                background: status === ConnectionStatus.CONNECTED
+                  ? 'radial-gradient(circle, rgba(0,255,136,0.055) 0%, transparent 70%)'
+                  : 'radial-gradient(circle, rgba(30,140,255,0.04) 0%, transparent 70%)',
+                top: '-10%', left: '50%', transform: 'translateX(-50%)',
+                filter: 'blur(60px)',
+                transition: 'background 2s ease',
+                animation: 'float-slow 12s ease-in-out infinite',
+                willChange: 'transform',
+              }}
+            />
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                width: 400, height: 400,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(0,100,255,0.04) 0%, transparent 70%)',
+                bottom: '-5%', right: '10%',
+                filter: 'blur(80px)',
+                animation: 'float-slow 16s ease-in-out infinite reverse',
+                willChange: 'transform',
+              }}
+            />
+
+            {/* SCREEN_READ badge */}
             {isScreenSharing && screenReadBadge && (
-              <div className="absolute top-4 right-4 md:top-10 md:right-10 z-20 pointer-events-none">
-                <div className="px-3 py-1 rounded-md bg-black/70 backdrop-blur-md border border-[#00ff41]/40 shadow-[0_0_10px_rgba(0,255,65,0.25)] font-mono text-[10px] md:text-xs text-[#00ff41] tracking-widest uppercase animate-pulse max-w-[260px] truncate">
-                  SCREEN_READ_LINK :: {screenReadBadge.source}
+              <div className="absolute top-4 right-4 z-20 pointer-events-none">
+                <div
+                  className="px-3 py-1 rounded-md animate-pulse"
+                  style={{
+                    background: 'rgba(5,8,16,0.85)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(0,255,136,0.35)',
+                    boxShadow: 'var(--glow-green-sm)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'var(--accent-green)',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    maxWidth: 260,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  SCREEN_READ :: {screenReadBadge.source}
                   {screenReadBadge.title ? ` — ${screenReadBadge.title}` : ''}
                 </div>
               </div>
             )}
-            {/* Top Bar (Status) */}
-            <div className="absolute top-4 md:top-10 left-0 right-0 flex justify-center z-10 pointer-events-none pt-safe">
-              <div className="flex flex-col items-center gap-1 md:gap-2">
-                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                  <div className={`w-2 h-2 rounded-full ${status === ConnectionStatus.CONNECTED ? 'bg-emerald-500 animate-pulse' : 'bg-white/20'}`} />
-                  <span className="text-[10px] md:text-xs font-mono tracking-widest uppercase opacity-70">
-                    Echo Neural Link
-                  </span>
-                </div>
-                <span className="text-[10px] md:text-xs tracking-widest uppercase opacity-40">
+
+            {/* STATUS PILL — top center */}
+            <div className="absolute top-5 left-0 right-0 flex justify-center z-10 pointer-events-none pt-safe">
+              <div
+                className={`status-pill ${
+                  status === ConnectionStatus.CONNECTED ? 'connected' : ''
+                }`}
+              >
+                <span
+                  className="status-dot"
+                  style={{
+                    background: status === ConnectionStatus.CONNECTED
+                      ? 'var(--accent-green)'
+                      : status === ConnectionStatus.CONNECTING
+                        ? 'var(--accent-amber)'
+                        : 'rgba(255,255,255,0.2)',
+                    boxShadow: status === ConnectionStatus.CONNECTED
+                      ? '0 0 8px var(--accent-green)'
+                      : 'none',
+                    animation: status !== ConnectionStatus.DISCONNECTED ? 'pulse-glow 2s ease-in-out infinite' : 'none',
+                  }}
+                />
+                <span>
                   {deferHint && status === ConnectionStatus.CONNECTED
-                    ? 'Listening — holding (ambient audio)'
+                    ? 'Ambient Hold'
                     : status === ConnectionStatus.CONNECTED
-                      ? (isStealthMode ? 'Ghost Mode Active' : 'System Online')
-                      : 'Ready to Connect'}
+                      ? (isStealthMode ? 'Ghost Mode' : 'Neural Link Active')
+                      : status === ConnectionStatus.CONNECTING
+                        ? 'Connecting…'
+                        : 'Echo · Standby'}
                 </span>
               </div>
             </div>
 
-            {/* Voice Orb — main interactive centerpiece */}
-            <div className="my-auto flex-1 flex items-center justify-center w-full max-w-xl aspect-square relative">
+            {/* ORB STAGE — the centerpiece */}
+            <div
+              className="relative flex items-center justify-center"
+              style={{
+                width: 'clamp(280px, min(60vw, 60vh), 520px)',
+                height: 'clamp(280px, min(60vw, 60vh), 520px)',
+                maxWidth: 520,
+                maxHeight: 520,
+                flexShrink: 0,
+              }}
+            >
               <VoiceOrb
                 isActive={status === ConnectionStatus.CONNECTED}
                 outputVolume={volumeState.outputVolume}
@@ -884,20 +1048,27 @@ export default function App() {
                 isThinking={isThinking}
               />
 
-              {/* Live response preview — last Echo message floats over the orb */}
+              {/* AI response preview — floats below orb core */}
               {status === ConnectionStatus.CONNECTED && (() => {
                 const last = [...chatHistory].reverse().find(m => m.role === 'assistant');
                 if (!last?.text?.trim()) return null;
                 const text = last.text.trim();
-                const preview = text.length > 90 ? '…' + text.slice(-90) : text;
+                const preview = text.length > 100 ? '…' + text.slice(-100) : text;
                 return (
                   <div
                     key={last.id}
                     className="absolute inset-x-4 flex justify-center pointer-events-none z-10"
-                    style={{ bottom: '22%' }}
+                    style={{ bottom: '10%' }}
                   >
-                    <p className="text-[9px] md:text-[11px] font-mono leading-relaxed text-center max-w-xs animate-fade-up"
-                       style={{ color: 'rgba(255,255,255,0.28)' }}>
+                    <p
+                      className="animate-fade-up text-center max-w-xs leading-relaxed"
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 'clamp(9px, 1.3vw, 11px)',
+                        color: 'rgba(255,255,255,0.32)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
                       {preview}
                     </p>
                   </div>
@@ -905,231 +1076,238 @@ export default function App() {
               })()}
 
               {isCameraActive && (
-                 <div className="absolute inset-0 z-20 border-2 border-[#00ff41] rounded-lg overflow-hidden">
-                    <AvatarDisplay
-                      state="idle"
-                      volume={0}
-                      cameraStream={serviceRef.current?.getCameraStream()}
-                      avatarUrl={avatarUrl}
-                    />
-                 </div>
+                <div
+                  className="absolute inset-0 z-20 rounded-full overflow-hidden"
+                  style={{ border: '2px solid var(--accent-green)', boxShadow: 'var(--glow-green-sm)' }}
+                >
+                  <AvatarDisplay
+                    state="idle"
+                    volume={0}
+                    cameraStream={serviceRef.current?.getCameraStream()}
+                    avatarUrl={avatarUrl}
+                  />
+                </div>
               )}
             </div>
 
-            {/* Text chat + bottom dock — hidden while modals are open */}
+            {/* TEXT CHAT BAR + BOTTOM DOCK — hidden while modals open */}
             {!hideBottomChrome && (
-            <>
-            <TextChatBar
-              onApiKeyMissing={() => setIsSettingsOpen(true)}
-              onNewMessage={(role, text) => {
-                const message: ChatMessage = {
-                  id: crypto.randomUUID(),
-                  role,
-                  text,
-                  timestamp: Date.now(),
-                  isFinal: true,
-                };
-                setChatHistory(prev => [...prev, message]);
-                if (currentConvoId) {
-                  addMessageToConversation(
-                    currentConvoId,
-                    role === 'assistant' ? 'ai' : 'user',
-                    text,
-                  );
-                }
-              }}
-            />
-
-            {/* Floating Action Strip */}
-            <div className={`absolute bottom-10 md:bottom-24 z-50 flex items-center gap-2 md:gap-4 px-4 md:px-8 py-3 md:py-4 rounded-[2rem] bg-white/5 backdrop-blur-xl pointer-events-auto shadow-2xl animate-float transition-all duration-500 scale-90 md:scale-100 keyboard-safe-bottom ${
-              status === ConnectionStatus.CONNECTED
-                ? 'border border-[#00ff41]/18 shadow-[0_0_35px_rgba(0,255,65,0.07)]'
-                : 'border border-white/10'
-            }`}>
-               {/* MOBILE-AGENT: Hands-Free toggle (small, subtle, additive) */}
-               <Tooltip content={isHandsFree ? 'Hands-Free ON' : 'Hands-Free OFF'}>
-                <button
-                  onClick={toggleHandsFree}
-                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${isHandsFree ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'hover:bg-white/10 text-white/60'}`}
-                  aria-label="Toggle Hands-Free mode"
-                  aria-pressed={isHandsFree}
-                >
-                  <Headphones size={18} />
-                </button>
-              </Tooltip>
-
-              <Tooltip content={`Interrupt: ${interruptMode} — tap to cycle`}>
-                <button
-                  onClick={toggleInterruptMode}
-                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${
-                    interruptMode === 'polite'
-                      ? 'bg-blue-500/15 text-blue-300'
-                      : interruptMode === 'eager'
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-white/10 text-white/70'
-                  }`}
-                  aria-label={`Interrupt mode ${interruptMode}`}
-                >
-                  <Ear size={18} />
-                </button>
-              </Tooltip>
-
-              <div className="w-px h-8 bg-white/10" />
-
-               <Tooltip content="Ghost Mode Settings">
-                <button
-                  onClick={() => setShowGhostMode(true)}
-                  className={`p-2 md:p-3 rounded-full transition-all duration-300 ${isStealthMode ? 'bg-cyan-500/20 text-cyan-400' : 'hover:bg-white/10 text-white/60'}`}
-                >
-                  <Ghost size={20} />
-                </button>
-              </Tooltip>
-
-              <div className="w-px h-8 bg-white/10" />
-
-              <Tooltip content={isCameraActive ? "Stop Camera" : "Start Camera Vision"}>
-                <button
-                  onClick={async () => {
-                    if (!serviceRef.current) return;
-                    if (isCameraActive) {
-                      serviceRef.current.stopCamera();
-                      setIsCameraActive(false);
-                    } else {
-                      try {
-                        await serviceRef.current.startCamera();
-                        setIsCameraActive(true);
-                      } catch (e) {
-                        error("Could not access camera");
-                      }
+              <>
+                <TextChatBar
+                  onApiKeyMissing={() => setIsSettingsOpen(true)}
+                  onNewMessage={(role, text) => {
+                    const message: ChatMessage = {
+                      id: crypto.randomUUID(),
+                      role,
+                      text,
+                      timestamp: Date.now(),
+                      isFinal: true,
+                    };
+                    setChatHistory(prev => [...prev, message]);
+                    if (currentConvoId) {
+                      addMessageToConversation(
+                        currentConvoId,
+                        role === 'assistant' ? 'ai' : 'user',
+                        text,
+                      );
                     }
                   }}
-                  className={`p-3 rounded-full transition-all duration-300 ${isCameraActive ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-white/10 text-white/60'}`}
-                >
-                  <Camera size={24} />
-                </button>
-              </Tooltip>
+                />
 
-              <div className="w-px h-8 bg-white/10" />
-
-              {/* Mic button with pulsing sonar rings when live */}
-              <div className="relative flex items-center justify-center">
-                {status === ConnectionStatus.CONNECTED && (
-                  <>
-                    <div className="absolute inset-0 rounded-full pointer-events-none mic-ring-1"
-                         style={{ border: '2px solid rgba(0,255,65,0.6)' }} />
-                    <div className="absolute inset-0 rounded-full pointer-events-none mic-ring-2"
-                         style={{ border: '2px solid rgba(0,255,65,0.4)' }} />
-                  </>
-                )}
-                <Tooltip content={
-                  textOnlyMode
-                    ? 'Voice needs a Google Gemini API key'
-                    : status === ConnectionStatus.CONNECTED
-                      ? 'Disconnect voice'
-                      : status === ConnectionStatus.CONNECTING
-                        ? 'Connecting…'
-                        : 'Connect voice (Gemini Live)'
-                }>
-                <button
-                  onClick={handleConnect}
-                  className={`p-6 rounded-full transition-all duration-500 shadow-lg relative group ${
-                    status === ConnectionStatus.CONNECTED
-                      ? 'bg-rose-500/20 text-rose-500 hover:bg-rose-500/30'
-                      : status === ConnectionStatus.CONNECTING
-                        ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                        : textOnlyMode
-                          ? 'bg-[#00ff41]/40 text-black/70 hover:bg-[#00ff41]/60'
-                          : 'bg-[#00ff41] text-black hover:bg-[#00ff41]/80 shadow-[0_0_20px_rgba(0,255,65,0.4)]'
+                {/* PREMIUM FLOATING DOCK */}
+                <div
+                  className={`absolute z-50 pointer-events-auto echo-dock ${
+                    status === ConnectionStatus.CONNECTED ? 'connected' : ''
                   }`}
-                >
-                  {status === ConnectionStatus.CONNECTED ? <X size={28} /> : (isMicMuted ? <MicOff size={28} /> : <Mic size={28} className="group-hover:scale-110 transition-transform" />)}
-                </button>
-                </Tooltip>
-              </div>
-
-              <div className="w-px h-8 bg-white/10" />
-
-              <Tooltip content="Screen Share">
-                <button
-                  onClick={async () => {
-                    if (!serviceRef.current) return;
-                    if (isScreenSharing) {
-                      serviceRef.current.stopScreenShare();
-                      setIsScreenSharing(false);
-                    } else {
-                      try {
-                        await serviceRef.current.startScreenShare();
-                        setIsScreenSharing(true);
-                      } catch (e) {
-                        error("Could not share screen");
-                      }
-                    }
+                  style={{
+                    bottom: 'max(env(safe-area-inset-bottom, 20px), 20px)',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    animation: 'float 8s ease-in-out infinite',
                   }}
-                  className={`p-3 rounded-full transition-all duration-300 ${isScreenSharing ? 'bg-purple-500/20 text-purple-400' : 'hover:bg-white/10 text-white/60'}`}
                 >
-                  {isScreenSharing ? <MonitorOff size={24} /> : <Monitor size={24} />}
-                </button>
-              </Tooltip>
-            </div>
+                  {/* Hands-free */}
+                  <Tooltip content={isHandsFree ? 'Hands-Free ON' : 'Hands-Free OFF'}>
+                    <button
+                      onClick={toggleHandsFree}
+                      className={`icon-btn ${isHandsFree ? 'active-green' : ''}`}
+                      aria-label="Toggle Hands-Free"
+                      aria-pressed={isHandsFree}
+                    >
+                      <Headphones size={17} />
+                    </button>
+                  </Tooltip>
 
-            <div className="absolute bottom-4 md:bottom-10 left-4 md:left-10 flex gap-2 md:gap-4 pointer-events-auto pb-safe pl-safe z-50">
-               <Tooltip content="Settings & Key Vault">
-                <button onClick={() => setIsSettingsOpen(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <User size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-              
-              <Tooltip content={isBackendOnline ? "Cloud Agent Online" : "Cloud Agent Offline"}>
-                <div className={`p-2 md:p-3 rounded-2xl glass-panel transition-all ${isBackendOnline ? 'border-emerald-500/30' : 'opacity-40'}`}>
-                  <Database size={18} className={isBackendOnline ? 'text-emerald-400' : 'text-white/40'} />
+                  {/* Interrupt mode */}
+                  <Tooltip content={`Interrupt: ${interruptMode}`}>
+                    <button
+                      onClick={toggleInterruptMode}
+                      className={`icon-btn ${
+                        interruptMode === 'polite' ? 'active-cyan'
+                        : interruptMode === 'eager' ? 'active-amber'
+                        : ''
+                      }`}
+                      aria-label={`Interrupt mode: ${interruptMode}`}
+                    >
+                      <Ear size={17} />
+                    </button>
+                  </Tooltip>
+
+                  <div className="dock-divider" />
+
+                  {/* Ghost mode toggle */}
+                  <Tooltip content="Ghost Mode">
+                    <button
+                      onClick={() => setShowGhostMode(true)}
+                      className={`icon-btn md:hidden ${isStealthMode ? 'active-cyan' : ''}`}
+                      aria-label="Ghost mode"
+                    >
+                      <Ghost size={17} />
+                    </button>
+                  </Tooltip>
+
+                  {/* Camera */}
+                  <Tooltip content={isCameraActive ? 'Stop Camera' : 'Camera Vision'}>
+                    <button
+                      onClick={async () => {
+                        if (!serviceRef.current) return;
+                        if (isCameraActive) {
+                          serviceRef.current.stopCamera();
+                          setIsCameraActive(false);
+                        } else {
+                          try { await serviceRef.current.startCamera(); setIsCameraActive(true); }
+                          catch { error('Could not access camera'); }
+                        }
+                      }}
+                      className={`icon-btn ${isCameraActive ? 'active-green' : ''}`}
+                      aria-label="Camera"
+                    >
+                      <Camera size={17} />
+                    </button>
+                  </Tooltip>
+
+                  {/* Mute audio output */}
+                  <Tooltip content={isAudioMuted ? 'Unmute Audio' : 'Mute Audio'}>
+                    <button
+                      onClick={toggleAudioMute}
+                      className={`icon-btn ${isAudioMuted ? 'danger' : ''}`}
+                      aria-label="Toggle audio"
+                    >
+                      {isAudioMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                    </button>
+                  </Tooltip>
+
+                  <div className="dock-divider" />
+
+                  {/* ── THE MIC BUTTON ── */}
+                  <div className="relative flex items-center justify-center">
+                    {/* Sonar rings */}
+                    {status === ConnectionStatus.CONNECTED && (
+                      <>
+                        <div
+                          className="absolute inset-0 rounded-full pointer-events-none mic-ring-1"
+                          style={{ border: '2px solid rgba(0,255,136,0.55)' }}
+                        />
+                        <div
+                          className="absolute inset-0 rounded-full pointer-events-none mic-ring-2"
+                          style={{ border: '2px solid rgba(0,255,136,0.35)' }}
+                        />
+                      </>
+                    )}
+                    <Tooltip content={
+                      textOnlyMode
+                        ? 'Voice requires Gemini API key'
+                        : status === ConnectionStatus.CONNECTED
+                          ? 'Disconnect voice'
+                          : status === ConnectionStatus.CONNECTING
+                            ? 'Connecting…'
+                            : 'Start voice (Gemini Live)'
+                    }>
+                      <button
+                        onClick={handleConnect}
+                        className={`mic-btn ${
+                          status === ConnectionStatus.CONNECTED ? 'muted' :
+                          status === ConnectionStatus.CONNECTING ? '' :
+                          'active'
+                        }`}
+                        style={{
+                          background: status === ConnectionStatus.CONNECTED
+                            ? 'rgba(255,59,92,0.12)'
+                            : status === ConnectionStatus.CONNECTING
+                              ? 'rgba(255,179,0,0.12)'
+                              : undefined,
+                          borderColor: status === ConnectionStatus.CONNECTED
+                            ? 'rgba(255,59,92,0.5)'
+                            : status === ConnectionStatus.CONNECTING
+                              ? 'rgba(255,179,0,0.5)'
+                              : undefined,
+                          color: status === ConnectionStatus.CONNECTED
+                            ? 'var(--accent-red)'
+                            : status === ConnectionStatus.CONNECTING
+                              ? 'var(--accent-amber)'
+                              : undefined,
+                          animation: status === ConnectionStatus.CONNECTING
+                            ? 'pulse-gentle 1s ease-in-out infinite'
+                            : undefined,
+                        }}
+                        aria-label="Toggle voice connection"
+                      >
+                        {status === ConnectionStatus.CONNECTED
+                          ? <X size={24} />
+                          : isMicMuted
+                            ? <MicOff size={24} />
+                            : <Mic size={24} />}
+                      </button>
+                    </Tooltip>
+                  </div>
+
+                  <div className="dock-divider" />
+
+                  {/* Screen share */}
+                  <Tooltip content={isScreenSharing ? 'Stop Screen Share' : 'Screen Share'}>
+                    <button
+                      onClick={async () => {
+                        if (!serviceRef.current) return;
+                        if (isScreenSharing) {
+                          serviceRef.current.stopScreenShare();
+                          setIsScreenSharing(false);
+                        } else {
+                          try { await serviceRef.current.startScreenShare(); setIsScreenSharing(true); }
+                          catch { error('Could not share screen'); }
+                        }
+                      }}
+                      className={`icon-btn ${isScreenSharing ? 'active-pink' : ''}`}
+                      aria-label="Screen share"
+                    >
+                      {isScreenSharing ? <MonitorOff size={17} /> : <Monitor size={17} />}
+                    </button>
+                  </Tooltip>
+
+                  {/* File upload */}
+                  <Tooltip content="Upload Knowledge">
+                    <button
+                      onClick={() => setShowFileUpload(true)}
+                      className="icon-btn"
+                      aria-label="Upload file"
+                    >
+                      <Plus size={17} />
+                    </button>
+                  </Tooltip>
+
+                  <div className="dock-divider" />
+
+                  {/* Settings — mobile only (sidebar handles desktop) */}
+                  <Tooltip content="Settings & Key Vault">
+                    <button
+                      onClick={() => setIsSettingsOpen(true)}
+                      className="icon-btn md:hidden"
+                      aria-label="Settings"
+                    >
+                      <User size={17} />
+                    </button>
+                  </Tooltip>
                 </div>
-              </Tooltip>
-            </div>
-
-            <div className="absolute bottom-4 md:bottom-10 right-4 md:right-10 flex gap-2 md:gap-4 pointer-events-auto pb-safe pr-safe z-50">
-              <Tooltip content="Upload Knowledge">
-                <button onClick={() => setShowFileUpload(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <Plus size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-              
-              <Tooltip content="Conversation History">
-                <button onClick={() => setShowChat(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <MessageSquare size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Memory Bank">
-                <button onClick={() => setShowMemory(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <Brain size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Vault Organizer">
-                <button onClick={() => setShowVaultOrganizer(true)} className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all">
-                  <Folder size={18} className="text-white/60" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Companion — habits, goals, daily briefing">
-                <button
-                  onClick={() => setShowCompanionPanel(true)}
-                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
-                >
-                  <Heart size={18} className="text-pink-400/80" />
-                </button>
-              </Tooltip>
-
-              <Tooltip content="Skills Vault — teach, browse & manage Echo skills">
-                <button
-                  onClick={() => setShowSkillsVault(true)}
-                  className="p-2 md:p-3 rounded-2xl glass-panel hover:bg-white/10 transition-all relative"
-                >
-                  <Sparkles size={18} className="text-[#00ff41]/70" />
-                </button>
-              </Tooltip>
-            </div>
-            </>
+              </>
             )}
           </main>
         </div>

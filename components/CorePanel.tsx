@@ -367,7 +367,7 @@ function CamerasTab() {
     );
 }
 
-function CameraCard({ entityId }: { entityId: string }) {
+function CameraCard({ entityId }: { entityId: string; key?: any }) {
     const [src, setSrc] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

@@ -16,6 +16,8 @@ export interface GhostConfig {
   conversationMemory: boolean;
 }
 
+export type InterviewConfig = GhostConfig;
+
 const GhostMode: React.FC<GhostModeProps> = ({ onActivate, isActive }) => {
   const [config, setConfig] = useState<GhostConfig>({
     style: 'professional',

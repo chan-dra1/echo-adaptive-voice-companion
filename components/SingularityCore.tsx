@@ -252,7 +252,7 @@ export default function SingularityCore({
       <div className="absolute inset-0 overflow-hidden pointer-events-none select-none font-mono text-[8px] leading-[1.3]">
         {COLS.map((col, i) => (
           <div key={i} className="absolute top-0 whitespace-pre sc-stream-col"
-            style={{ left: col.left, opacity: col.opacity, color: c,
+            style={{ left: col.left, opacity: col.op, color: c,
               animationDuration: `${col.dur}s`, animationDelay: `${col.delay}s` }}>
             {col.chars + '\n' + col.chars}
           </div>

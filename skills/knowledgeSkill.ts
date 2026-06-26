@@ -1,5 +1,6 @@
 import { Skill } from "../services/agentSkillService";
 import { knowledgeService } from "../services/knowledgeService";
+import { Type } from "@google/genai";
 
 const knowledgeSkill: Skill = {
     name: 'knowledge_base',
@@ -9,10 +10,10 @@ const knowledgeSkill: Skill = {
             name: 'search_knowledge_base',
             description: 'Search the knowledge base for information relevant to a query.',
             parameters: {
-                type: 'object',
+                type: Type.OBJECT,
                 properties: {
-                    query: { type: 'string', description: 'The search query or question.' },
-                    limit: { type: 'number', description: 'Maximum number of results to return (default: 3).' }
+                    query: { type: Type.STRING, description: 'The search query or question.' },
+                    limit: { type: Type.NUMBER, description: 'Maximum number of results to return (default: 3).' }
                 },
                 required: ['query']
             }

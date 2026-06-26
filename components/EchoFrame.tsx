@@ -177,7 +177,7 @@ export default function EchoFrame({ status, mobile = false }: Props) {
 }
 
 // ── Corner bracket SVG ───────────────────────────────────────────────────────
-function CornerBracket({ corner, color, statusColor, pulse }: { corner: 'tl'|'tr'|'bl'|'br'; color: string; statusColor: string; pulse: boolean }) {
+function CornerBracket({ corner, color, statusColor, pulse }: { corner: 'tl'|'tr'|'bl'|'br'; color: string; statusColor: string; pulse: boolean; key?: any }) {
     const SIZE = 50;
     const TH   = 1.5;
 
