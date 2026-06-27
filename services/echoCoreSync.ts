@@ -11,11 +11,14 @@
  * this stays silent and the app works exactly as before.
  *
  * Window events:
- *   'echocore:status'  detail { connected }
- *   'echocore:change'  detail { collection, op, item }
- *   'echocore:snapshot' detail { snapshot }
- *   'echocore:speak'   detail { text }   (terminal said something → voice it)
- *   'echocore:notify'  detail { title, text }  (a reminder/briefing fired)
+ *   'echocore:status'           detail { connected }
+ *   'echocore:change'           detail { collection, op, item }
+ *   'echocore:snapshot'         detail { snapshot }
+ *   'echocore:speak'            detail { text }   (terminal said something → voice it)
+ *   'echocore:notify'           detail { title, text }  (a reminder/briefing fired)
+ *   'echocore:mission_start'    detail { missionId, name, totalSteps, startedAt }
+ *   'echocore:mission_step'     detail { missionId, step, tool, ok, result, durationMs }
+ *   'echocore:mission_complete' detail { missionId, name, completedAt, succeeded, total, log }
  */
 
 const CORE_URL = 'ws://127.0.0.1:8770';
@@ -93,6 +96,15 @@ export function connectCore(): void {
                 break;
             case 'notify':
                 emit('echocore:notify', { title: msg.title, text: msg.text });
+                break;
+            case 'mission_start':
+                emit('echocore:mission_start', msg);
+                break;
+            case 'mission_step':
+                emit('echocore:mission_step', msg);
+                break;
+            case 'mission_complete':
+                emit('echocore:mission_complete', msg);
                 break;
         }
     };
@@ -212,5 +224,89 @@ export function coreWriteFile(filePath: string, content: string) {
 export function coreListDir(dirPath: string) {
     return coreRequest<{ path?: string; items?: Array<{ name: string; type: 'file' | 'dir' }>; error?: string }>(
         'list_dir', { path: dirPath }, 'list_dir_result'
+    );
+}
+
+/** List all missions from ~/.echo-core/missions.json via Core. */
+export function coreListMissions() {
+    return coreRequest<{ missions?: any[]; error?: string }>(
+        'list_missions', {}, 'list_missions_result'
+    );
+}
+
+/** Trigger a mission by id right now (ignores cron schedule). */
+export function coreTriggerMission(missionId: string) {
+    return coreRequest<{ result?: any; error?: string }>(
+        'run_mission_now', { missionId }, 'run_mission_result', 120_000
+    );
+}
+
+/** Get the last 100 mission results from ~/.echo-core/mission-results.json. */
+export function coreListMissionResults() {
+    return coreRequest<{ results?: any[]; error?: string }>(
+        'list_mission_results', {}, 'list_mission_results_result'
+    );
+}
+
+/** Create or update a mission in ~/.echo-core/missions.json. */
+export function coreSaveMission(mission: any) {
+    return coreRequest<{ mission?: any; error?: string }>(
+        'save_mission', { mission }, 'save_mission_result'
+    );
+}
+
+/** Delete a mission by id. */
+export function coreDeleteMission(missionId: string) {
+    return coreRequest<{ missions?: any[]; error?: string }>(
+        'delete_mission', { missionId }, 'delete_mission_result'
+    );
+}
+
+/** Enable/disable a mission. Omit `enabled` to flip it. */
+export function coreToggleMission(missionId: string, enabled?: boolean) {
+    return coreRequest<{ mission?: any; error?: string }>(
+        'toggle_mission', { missionId, enabled }, 'toggle_mission_result'
+    );
+}
+
+// ── Social Autopilot ──────────────────────────────────────────────────────────
+
+export interface SocialPostResult {
+    ok: boolean;
+    succeeded?: number;
+    failed?: number;
+    results?: Array<{ platform: string; ok: boolean; url?: string; id?: string; error?: string }>;
+    error?: string;
+}
+
+/**
+ * Post to one or more social platforms via Echo Core (server-side, no CORS).
+ * `platforms` is an array (e.g. ['twitter','bluesky']) or 'all'.
+ * `creds` optionally overrides ~/.echo-core/social.json with per-platform creds.
+ */
+export function coreSocialPost(
+    platforms: string[] | 'all',
+    content: { text: string; link?: string; image_url?: string },
+    creds?: Record<string, any>
+) {
+    return coreRequest<SocialPostResult>(
+        'social_post',
+        { platforms, text: content.text, link: content.link, image_url: content.image_url, creds },
+        'social_post_result',
+        60_000
+    );
+}
+
+/** Persist social credentials to ~/.echo-core/social.json (per platform). */
+export function coreSaveSocialCreds(creds: Record<string, any>) {
+    return coreRequest<{ connected?: string[]; error?: string }>(
+        'save_social_creds', { creds }, 'save_social_creds_result'
+    );
+}
+
+/** List which social platforms have credentials configured in Core. */
+export function coreListSocialAccounts() {
+    return coreRequest<{ connected?: string[]; error?: string }>(
+        'list_social_accounts', {}, 'list_social_accounts_result'
     );
 }

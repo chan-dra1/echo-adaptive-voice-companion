@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { createLLM } from './llm.mjs';
 import { startSyncHub } from './sync.mjs';
+import { startMissionRunner } from './missionRunner.mjs';
 import { voice } from './voice.mjs';
 import { createScheduler, parseWhen, describeWhen, splitReminder } from './scheduler.mjs';
 import { createMemory, extractRemember } from './memory.mjs';
@@ -92,12 +93,26 @@ async function main() {
         process.stdout.write(`\n${tag} ${C.dim}(web voice)${C.rst}: ${text}\n${C.grn}echo>${C.rst} `);
     };
 
-    const hub = startSyncHub(store, {
+    // Use a named opts object so we can inject missionRunner after hub starts
+    // (missionRunner needs hub to broadcast, hub needs missionRunner for WS handlers).
+    const syncOpts = {
         onAsk: ask,
         onVoiceTurn,
         onExecLog: (cmd) => process.stdout.write(`\n${C.yel}⚡ exec${C.rst}: ${C.dim}${cmd}${C.rst}\n${C.grn}echo>${C.rst} `),
         onWriteLog: (fp) => process.stdout.write(`\n${C.cyn}📝 wrote${C.rst}: ${C.dim}${fp}${C.rst}\n${C.grn}echo>${C.rst} `),
-    });
+        onSocialLog: (out) => {
+            const ok = (out.results || []).filter(r => r.ok).map(r => r.platform).join(', ');
+            const bad = (out.results || []).filter(r => !r.ok).map(r => r.platform).join(', ');
+            process.stdout.write(`\n${C.cyn}📣 social${C.rst}: ${ok ? `${C.grn}posted → ${ok}${C.rst}` : ''}${bad ? ` ${C.yel}failed → ${bad}${C.rst}` : ''}\n${C.grn}echo>${C.rst} `);
+        },
+    };
+    const hub = startSyncHub(store, syncOpts);
+
+    // Autonomous mission runner — reads ~/.echo-core/missions.json, fires cron jobs.
+    // Injected into syncOpts after creation so sync.mjs WS handlers find it via opts.missionRunner.
+    const missionRunner = startMissionRunner(llm, hub, C);
+    syncOpts.missionRunner = missionRunner;
+
     const web = serveDist();
 
     /* ── briefing + scheduler ── */

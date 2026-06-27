@@ -129,9 +129,11 @@ export class GeminiLiveService {
   private cameraInterval: number | null = null;
   private videoCanvas: HTMLCanvasElement | null = null;
   private videoElement: HTMLVideoElement | null = null;
+  private cameraFacingMode: 'user' | 'environment' = 'user';
 
   public getCameraStream() { return this.cameraStream; }
   public getScreenStream() { return this.screenStream; }
+  public getCameraFacingMode() { return this.cameraFacingMode; }
 
   constructor(apiKey: string, callbacks: LiveServiceCallbacks) {
     this.ai = new GoogleGenAI({ apiKey });
@@ -460,15 +462,16 @@ ${learningContext}
     }
   }
 
-  public async startCamera() {
+  public async startCamera(facingMode: 'user' | 'environment' = 'user') {
     if (this.cameraStream) return;
+    this.cameraFacingMode = facingMode;
 
     try {
       this.cameraStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640, max: 640 },
           height: { ideal: 480, max: 480 },
-          facingMode: 'user'
+          facingMode,
         },
         audio: false
       });
@@ -526,6 +529,14 @@ ${learningContext}
     }
   }
 
+  public async switchCamera(): Promise<'user' | 'environment'> {
+    const newFacing: 'user' | 'environment' = this.cameraFacingMode === 'user' ? 'environment' : 'user';
+    // Stop current stream (but keep videoElement/canvas for the restart)
+    if (this.cameraInterval) { clearInterval(this.cameraInterval); this.cameraInterval = null; }
+    if (this.cameraStream) { this.cameraStream.getTracks().forEach(t => t.stop()); this.cameraStream = null; }
+    await this.startCamera(newFacing);
+    return newFacing;
+  }
 
   private captureAndSendFrame() {
     if (!this.videoElement || !this.videoCanvas) return;

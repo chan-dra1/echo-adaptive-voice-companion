@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -52,6 +52,9 @@ import { ambientModeService, getAmbientConfig } from './services/ambientModeServ
 import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
 import SkillsVaultPanel from './components/SkillsVaultPanel';
+import SocialComposer from './components/SocialComposer';
+import AutomationHub from './components/AutomationHub';
+import MissionDashboard from './components/MissionDashboard';
 
 export default function App() {
   // Check if ANY provider key is available
@@ -148,6 +151,9 @@ export default function App() {
   // Companion system
   const [showCompanionPanel, setShowCompanionPanel] = useState(false);
   const [showSkillsVault, setShowSkillsVault] = useState(false);
+  const [showSocial, setShowSocial] = useState(false);
+  const [showAutomation, setShowAutomation] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !getCompanionState().onboardingComplete);
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -160,6 +166,13 @@ export default function App() {
   const [isMobileCoarse, setIsMobileCoarse] = useState<boolean>(() => {
     try { return window.matchMedia?.('(pointer:coarse)').matches ?? false; } catch { return false; }
   });
+
+  // Camera facing mode (front / back)
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+  // Floating draggable camera overlay position (fixed px from top-left)
+  const [camPos, setCamPos] = useState({ x: 16, y: 100 });
+  const camDragging = useRef(false);
+  const camDragOffset = useRef({ x: 0, y: 0 });
 
   const serviceRef = useRef<GeminiLiveService | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -331,6 +344,20 @@ export default function App() {
     if (mql?.addEventListener) mql.addEventListener('change', onMqlChange);
     else if (mql?.addListener) mql.addListener(onMqlChange); // older Safari
 
+    // Camera overlay drag — global move/up so fast swipes don't lose tracking
+    const onCamMove = (e: MouseEvent | TouchEvent) => {
+      if (!camDragging.current) return;
+      const pt = 'touches' in e ? (e as TouchEvent).touches[0] : e as MouseEvent;
+      const nx = Math.max(0, Math.min(window.innerWidth - 120, pt.clientX - camDragOffset.current.x));
+      const ny = Math.max(0, Math.min(window.innerHeight - 120, pt.clientY - camDragOffset.current.y));
+      setCamPos({ x: nx, y: ny });
+    };
+    const onCamUp = () => { camDragging.current = false; };
+    window.addEventListener('mousemove', onCamMove);
+    window.addEventListener('touchmove', onCamMove, { passive: true });
+    window.addEventListener('mouseup', onCamUp);
+    window.addEventListener('touchend', onCamUp);
+
     return () => {
       proactiveAI.setActive(false);
       window.removeEventListener('echo-reminder', handleReminder);
@@ -345,6 +372,10 @@ export default function App() {
       window.removeEventListener('lifecycle:hard-cap', onHardCap);
       if (mql?.removeEventListener) mql.removeEventListener('change', onMqlChange);
       else if (mql?.removeListener) mql.removeListener(onMqlChange);
+      window.removeEventListener('mousemove', onCamMove);
+      window.removeEventListener('touchmove', onCamMove);
+      window.removeEventListener('mouseup', onCamUp);
+      window.removeEventListener('touchend', onCamUp);
       // Companion
       window.removeEventListener('echo-deadline-nudge', handleDeadlineNudge);
       window.removeEventListener('ambient:quiet', handleAmbientQuiet);
@@ -735,7 +766,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col relative z-20 w-full h-full">
           {/* Backdrop Overlay for Sidebars */}
-          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault) && (
+          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault || showSocial || showAutomation || showMissions) && (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-md z-30 transition-opacity duration-300"
               onClick={() => {
@@ -748,6 +779,9 @@ export default function App() {
                 setShowVaultOrganizer(false);
                 setShowCompanionPanel(false);
                 setShowSkillsVault(false);
+                setShowSocial(false);
+                setShowAutomation(false);
+                setShowMissions(false);
               }}
               aria-hidden="true"
             />
@@ -813,6 +847,21 @@ export default function App() {
           {/* Skills Vault Panel */}
           <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSkillsVault ? 'translate-x-0' : 'translate-x-full'}`}>
             <SkillsVaultPanel onClose={() => setShowSkillsVault(false)} />
+          </div>
+
+          {/* Social Autopilot Panel */}
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSocial ? 'translate-x-0' : 'translate-x-full'}`}>
+            <SocialComposer onClose={() => setShowSocial(false)} />
+          </div>
+
+          {/* Automation Hub Panel */}
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showAutomation ? 'translate-x-0' : 'translate-x-full'}`}>
+            <AutomationHub onClose={() => setShowAutomation(false)} />
+          </div>
+
+          {/* Mission Dashboard Panel */}
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showMissions ? 'translate-x-0' : 'translate-x-full'}`}>
+            <MissionDashboard onClose={() => setShowMissions(false)} />
           </div>
 
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVoiceVault ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -893,6 +942,36 @@ export default function App() {
                 aria-label="Skills vault"
               >
                 <Sparkles size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Social Autopilot">
+              <button
+                onClick={() => setShowSocial(true)}
+                className={`sidebar-btn ${showSocial ? 'active' : ''}`}
+                aria-label="Social autopilot"
+              >
+                <Megaphone size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Automation Hub">
+              <button
+                onClick={() => setShowAutomation(true)}
+                className={`sidebar-btn ${showAutomation ? 'active' : ''}`}
+                aria-label="Automation hub"
+              >
+                <Zap size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Autonomous Missions">
+              <button
+                onClick={() => setShowMissions(true)}
+                className={`sidebar-btn ${showMissions ? 'active' : ''}`}
+                aria-label="Autonomous missions"
+              >
+                <Rocket size={18} />
               </button>
             </Tooltip>
 
@@ -1075,20 +1154,196 @@ export default function App() {
                 );
               })()}
 
-              {isCameraActive && (
-                <div
-                  className="absolute inset-0 z-20 rounded-full overflow-hidden"
-                  style={{ border: '2px solid var(--accent-green)', boxShadow: 'var(--glow-green-sm)' }}
-                >
-                  <AvatarDisplay
-                    state="idle"
-                    volume={0}
-                    cameraStream={serviceRef.current?.getCameraStream()}
-                    avatarUrl={avatarUrl}
-                  />
-                </div>
-              )}
+              {/* camera overlay moved to floating draggable below */}
             </div>
+
+            {/* ── FLOATING DRAGGABLE CAMERA OVERLAY ───────────────────────────── */}
+            {isCameraActive && (
+              <div
+                style={{
+                  position: 'fixed',
+                  left: camPos.x,
+                  top: camPos.y,
+                  width: 120,
+                  height: 120,
+                  zIndex: 60,
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  border: '2px solid var(--accent-green)',
+                  boxShadow: 'var(--glow-green-sm)',
+                  cursor: 'grab',
+                  touchAction: 'none',
+                  userSelect: 'none',
+                }}
+                onMouseDown={(e) => {
+                  camDragging.current = true;
+                  camDragOffset.current = { x: e.clientX - camPos.x, y: e.clientY - camPos.y };
+                  e.preventDefault();
+                }}
+                onTouchStart={(e) => {
+                  camDragging.current = true;
+                  camDragOffset.current = { x: e.touches[0].clientX - camPos.x, y: e.touches[0].clientY - camPos.y };
+                }}
+              >
+                <AvatarDisplay
+                  state="idle"
+                  volume={0}
+                  cameraStream={serviceRef.current?.getCameraStream()}
+                  avatarUrl={avatarUrl}
+                />
+                {/* Flip camera button — bottom-right of the circle */}
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!serviceRef.current) return;
+                    try {
+                      const next = await serviceRef.current.switchCamera();
+                      setCameraFacing(next);
+                    } catch { error('Could not switch camera'); }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    bottom: 4,
+                    right: 4,
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.6)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: 'white',
+                  }}
+                  aria-label="Flip camera"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              </div>
+            )}
+
+            {/* ── MOBILE BOTTOM SHEET (all nav options) ─────────────────────────── */}
+            {showMobileMenu && (
+              <div
+                className="fixed inset-0 z-50 flex items-end md:hidden"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                <div
+                  className="w-full rounded-t-2xl p-4"
+                  style={{
+                    background: 'rgba(8,12,22,0.97)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderBottom: 'none',
+                    paddingBottom: 'max(env(safe-area-inset-bottom,16px),16px)',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Handle */}
+                  <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 14 }}>
+                    Navigation
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
+                    {([
+                      { icon: MessageSquare, label: 'Chat',      action: () => { setShowChat(true);          setShowMobileMenu(false); } },
+                      { icon: Brain,        label: 'Memory',     action: () => { setShowMemory(true);         setShowMobileMenu(false); } },
+                      { icon: Folder,       label: 'Vault',      action: () => { setShowVaultOrganizer(true); setShowMobileMenu(false); } },
+                      { icon: Sparkles,     label: 'Skills',     action: () => { setShowSkillsVault(true);    setShowMobileMenu(false); } },
+                      { icon: Megaphone,    label: 'Social',     action: () => { setShowSocial(true);         setShowMobileMenu(false); } },
+                      { icon: Zap,          label: 'Automations',action: () => { setShowAutomation(true);     setShowMobileMenu(false); } },
+                      { icon: Rocket,       label: 'Missions',   action: () => { setShowMissions(true);       setShowMobileMenu(false); } },
+                      { icon: Heart,        label: 'Companion',  action: () => { setShowCompanionPanel(true); setShowMobileMenu(false); } },
+                      { icon: Ghost,        label: 'Ghost',      action: () => { setShowGhostMode(true);      setShowMobileMenu(false); } },
+                      { icon: User,         label: 'Settings',   action: () => { setIsSettingsOpen(true);     setShowMobileMenu(false); } },
+                      { icon: Monitor,      label: 'Screen',     action: () => {
+                        setShowMobileMenu(false);
+                        error('Screen sharing is not supported in mobile browsers. Use Echo on desktop to share your screen.');
+                      }},
+                      { icon: Plus,         label: 'Upload',     action: () => { setShowFileUpload(true);     setShowMobileMenu(false); } },
+                    ] as { icon: React.ElementType; label: string; action: () => void }[]).map(({ icon: Icon, label, action }) => (
+                      <button
+                        key={label}
+                        onClick={action}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                          padding: '12px 4px',
+                          borderRadius: 12,
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          color: 'var(--text-secondary)',
+                          fontSize: 10,
+                          fontFamily: 'var(--font-ui)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Icon size={20} />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 14 }}>
+                    Controls
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+                    {([
+                      { icon: Headphones, label: isHandsFree ? 'H-Free ON' : 'H-Free',   active: isHandsFree,    action: toggleHandsFree },
+                      { icon: Ear,        label: `${interruptMode}`,                       active: interruptMode !== 'default', action: toggleInterruptMode },
+                      { icon: isMicMuted ? MicOff : Mic, label: isMicMuted ? 'Unmute' : 'Mute mic', active: isMicMuted, action: toggleMute },
+                      { icon: isAudioMuted ? VolumeX : Volume2, label: isAudioMuted ? 'Audio off' : 'Audio on', active: isAudioMuted, action: toggleAudioMute },
+                    ] as { icon: React.ElementType; label: string; active?: boolean; action: () => void }[]).map(({ icon: Icon, label, active, action }) => (
+                      <button
+                        key={label}
+                        onClick={() => { action(); setShowMobileMenu(false); }}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                          padding: '12px 4px',
+                          borderRadius: 12,
+                          background: active ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${active ? 'rgba(0,255,136,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                          color: active ? 'var(--accent-green)' : 'var(--text-secondary)',
+                          fontSize: 10,
+                          fontFamily: 'var(--font-ui)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Icon size={20} />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── MOBILE HAMBURGER ─── top-right corner, mobile only ─────────── */}
+            {!hideBottomChrome && (
+              <button
+                className="md:hidden"
+                onClick={() => setShowMobileMenu(true)}
+                style={{
+                  position: 'fixed',
+                  top: 'max(env(safe-area-inset-top,14px),14px)',
+                  right: 16,
+                  zIndex: 25,
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: 'rgba(8,12,22,0.8)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                }}
+                aria-label="Open menu"
+              >
+                <ChevronUp size={18} />
+              </button>
+            )}
 
             {/* TEXT CHAT BAR + BOTTOM DOCK — hidden while modals open */}
             {!hideBottomChrome && (
@@ -1126,11 +1381,11 @@ export default function App() {
                     animation: 'float 8s ease-in-out infinite',
                   }}
                 >
-                  {/* Hands-free */}
+                  {/* Hands-free — desktop only in dock; mobile uses bottom sheet */}
                   <Tooltip content={isHandsFree ? 'Hands-Free ON' : 'Hands-Free OFF'}>
                     <button
                       onClick={toggleHandsFree}
-                      className={`icon-btn ${isHandsFree ? 'active-green' : ''}`}
+                      className={`icon-btn hidden md:flex ${isHandsFree ? 'active-green' : ''}`}
                       aria-label="Toggle Hands-Free"
                       aria-pressed={isHandsFree}
                     >
@@ -1138,11 +1393,11 @@ export default function App() {
                     </button>
                   </Tooltip>
 
-                  {/* Interrupt mode */}
+                  {/* Interrupt mode — desktop only in dock */}
                   <Tooltip content={`Interrupt: ${interruptMode}`}>
                     <button
                       onClick={toggleInterruptMode}
-                      className={`icon-btn ${
+                      className={`icon-btn hidden md:flex ${
                         interruptMode === 'polite' ? 'active-cyan'
                         : interruptMode === 'eager' ? 'active-amber'
                         : ''
@@ -1153,18 +1408,9 @@ export default function App() {
                     </button>
                   </Tooltip>
 
-                  <div className="dock-divider" />
+                  <div className="dock-divider hidden md:block" />
 
-                  {/* Ghost mode toggle */}
-                  <Tooltip content="Ghost Mode">
-                    <button
-                      onClick={() => setShowGhostMode(true)}
-                      className={`icon-btn md:hidden ${isStealthMode ? 'active-cyan' : ''}`}
-                      aria-label="Ghost mode"
-                    >
-                      <Ghost size={17} />
-                    </button>
-                  </Tooltip>
+                  {/* Ghost mode toggle — hidden on mobile (use bottom sheet) */}
 
                   {/* Camera */}
                   <Tooltip content={isCameraActive ? 'Stop Camera' : 'Camera Vision'}>
@@ -1263,47 +1509,38 @@ export default function App() {
 
                   <div className="dock-divider" />
 
-                  {/* Screen share */}
-                  <Tooltip content={isScreenSharing ? 'Stop Screen Share' : 'Screen Share'}>
+                  {/* Screen share — desktop only; mobile shows proper error from bottom sheet */}
+                  <Tooltip content={isScreenSharing ? 'Stop Screen Share' : 'Screen Share (desktop only)'}>
                     <button
                       onClick={async () => {
+                        if (isMobileCoarse) {
+                          error('Screen sharing is not supported in mobile browsers. Use Echo on desktop.');
+                          return;
+                        }
                         if (!serviceRef.current) return;
                         if (isScreenSharing) {
                           serviceRef.current.stopScreenShare();
                           setIsScreenSharing(false);
                         } else {
                           try { await serviceRef.current.startScreenShare(); setIsScreenSharing(true); }
-                          catch { error('Could not share screen'); }
+                          catch { error('Could not share screen. Make sure Echo is connected first.'); }
                         }
                       }}
-                      className={`icon-btn ${isScreenSharing ? 'active-pink' : ''}`}
+                      className={`icon-btn hidden md:flex ${isScreenSharing ? 'active-pink' : ''}`}
                       aria-label="Screen share"
                     >
                       {isScreenSharing ? <MonitorOff size={17} /> : <Monitor size={17} />}
                     </button>
                   </Tooltip>
 
-                  {/* File upload */}
+                  {/* File upload — desktop only; mobile uses bottom sheet */}
                   <Tooltip content="Upload Knowledge">
                     <button
                       onClick={() => setShowFileUpload(true)}
-                      className="icon-btn"
+                      className="icon-btn hidden md:flex"
                       aria-label="Upload file"
                     >
                       <Plus size={17} />
-                    </button>
-                  </Tooltip>
-
-                  <div className="dock-divider" />
-
-                  {/* Settings — mobile only (sidebar handles desktop) */}
-                  <Tooltip content="Settings & Key Vault">
-                    <button
-                      onClick={() => setIsSettingsOpen(true)}
-                      className="icon-btn md:hidden"
-                      aria-label="Settings"
-                    >
-                      <User size={17} />
                     </button>
                   </Tooltip>
                 </div>

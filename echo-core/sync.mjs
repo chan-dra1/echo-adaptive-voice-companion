@@ -27,6 +27,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { postToSocial, saveSocialCreds, connectedPlatforms } from './socialPoster.mjs';
 
 const execP = promisify(_exec);
 const HOME = os.homedir();
@@ -191,6 +192,118 @@ export function startSyncHub(store, opts = {}) {
                             send(ws, { type: 'list_dir_result', id, ok: true, path: dp, items });
                         } catch (e) {
                             send(ws, { type: 'list_dir_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'list_missions': {
+                        const id = msg.id;
+                        try {
+                            const missions = opts.missionRunner ? await opts.missionRunner.list() : [];
+                            send(ws, { type: 'list_missions_result', id, ok: true, missions });
+                        } catch (e) {
+                            send(ws, { type: 'list_missions_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'run_mission_now': {
+                        const id = msg.id;
+                        if (!opts.missionRunner) {
+                            send(ws, { type: 'run_mission_result', id, ok: false, error: 'Mission runner not initialized.' });
+                            break;
+                        }
+                        try {
+                            const result = await opts.missionRunner.runById(String(msg.missionId || ''));
+                            send(ws, { type: 'run_mission_result', id, ok: true, result });
+                        } catch (e) {
+                            send(ws, { type: 'run_mission_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'list_mission_results': {
+                        const id = msg.id;
+                        try {
+                            const results = opts.missionRunner ? await opts.missionRunner.results() : [];
+                            send(ws, { type: 'list_mission_results_result', id, ok: true, results });
+                        } catch (e) {
+                            send(ws, { type: 'list_mission_results_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'save_mission': {
+                        const id = msg.id;
+                        if (!opts.missionRunner) { send(ws, { type: 'save_mission_result', id, ok: false, error: 'Mission runner not initialized.' }); break; }
+                        try {
+                            const mission = await opts.missionRunner.save(msg.mission || {});
+                            send(ws, { type: 'save_mission_result', id, ok: true, mission });
+                        } catch (e) {
+                            send(ws, { type: 'save_mission_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'delete_mission': {
+                        const id = msg.id;
+                        if (!opts.missionRunner) { send(ws, { type: 'delete_mission_result', id, ok: false, error: 'Mission runner not initialized.' }); break; }
+                        try {
+                            const missions = await opts.missionRunner.remove(String(msg.missionId || ''));
+                            send(ws, { type: 'delete_mission_result', id, ok: true, missions });
+                        } catch (e) {
+                            send(ws, { type: 'delete_mission_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'toggle_mission': {
+                        const id = msg.id;
+                        if (!opts.missionRunner) { send(ws, { type: 'toggle_mission_result', id, ok: false, error: 'Mission runner not initialized.' }); break; }
+                        try {
+                            const mission = await opts.missionRunner.toggle(String(msg.missionId || ''), msg.enabled);
+                            send(ws, { type: 'toggle_mission_result', id, ok: true, mission });
+                        } catch (e) {
+                            send(ws, { type: 'toggle_mission_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'social_post': {
+                        const id = msg.id;
+                        try {
+                            const out = await postToSocial(
+                                msg.platforms || 'all',
+                                { text: msg.text, link: msg.link, imageUrl: msg.image_url },
+                                msg.creds || {}
+                            );
+                            if (opts.onSocialLog) opts.onSocialLog(out);
+                            send(ws, { type: 'social_post_result', id, ok: true, ...out });
+                        } catch (e) {
+                            send(ws, { type: 'social_post_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'save_social_creds': {
+                        const id = msg.id;
+                        try {
+                            await saveSocialCreds(msg.creds || {});
+                            const connected = await connectedPlatforms();
+                            send(ws, { type: 'save_social_creds_result', id, ok: true, connected });
+                        } catch (e) {
+                            send(ws, { type: 'save_social_creds_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
+                    case 'list_social_accounts': {
+                        const id = msg.id;
+                        try {
+                            const connected = await connectedPlatforms();
+                            send(ws, { type: 'list_social_accounts_result', id, ok: true, connected });
+                        } catch (e) {
+                            send(ws, { type: 'list_social_accounts_result', id, ok: false, error: e.message });
                         }
                         break;
                     }

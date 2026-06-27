@@ -31,6 +31,17 @@ import searchSkill from '../skills/searchSkill';
 import fileSystemSkill from '../skills/fileSystemSkill';
 import missionPlannerSkill from '../skills/missionPlannerSkill';
 import discordSkill from '../skills/discordSkill';
+import emailSkill from '../skills/emailSkill';
+import twitterSkill from '../skills/twitterSkill';
+import socialSkill from '../skills/socialSkill';
+import outreachSkill from '../skills/outreachSkill';
+import contentSkill from '../skills/contentSkill';
+import automationSkill from '../skills/automationSkill';
+import meetingSkill from '../skills/meetingSkill';
+import inboxSkill from '../skills/inboxSkill';
+import careerSkill from '../skills/careerSkill';
+import seoSkill from '../skills/seoSkill';
+import tier3Skills from '../skills/tier3Skills';
 import { dynamicSkillService, DynamicSkill } from './dynamicSkillService';
 import { reminderService } from './reminderService';
 import { taskMissionService } from './taskMissionService';
@@ -184,6 +195,20 @@ export async function bootstrapAgent(): Promise<void> {
         agentSkillService.registerSkill(fileSystemSkill);
         agentSkillService.registerSkill(missionPlannerSkill);
         agentSkillService.registerSkill(discordSkill);
+        agentSkillService.registerSkill(emailSkill);
+        agentSkillService.registerSkill(twitterSkill);
+        agentSkillService.registerSkill(socialSkill);
+        agentSkillService.registerSkill(outreachSkill);
+        agentSkillService.registerSkill(contentSkill);
+        agentSkillService.registerSkill(automationSkill);
+        agentSkillService.registerSkill(meetingSkill);
+        agentSkillService.registerSkill(inboxSkill);
+        agentSkillService.registerSkill(careerSkill);
+        agentSkillService.registerSkill(seoSkill);
+        // Tier 3 skills (built by the parallel agent) self-register via this array.
+        for (const s of tier3Skills) {
+            try { agentSkillService.registerSkill(s); } catch (e) { console.warn('[agentBootstrap] tier3 skill failed:', e); }
+        }
         agentSkillService.registerSkill(proposeNewSkillImplementation);
     } catch (e) {
         console.warn('[agentBootstrap] Some static skills failed to register:', e);
