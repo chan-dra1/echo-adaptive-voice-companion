@@ -169,10 +169,14 @@ export default function App() {
 
   // Camera facing mode (front / back)
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
-  // Floating draggable camera overlay position (fixed px from top-left)
+  // Floating draggable camera overlay
   const [camPos, setCamPos] = useState({ x: 16, y: 100 });
+  const [camSize, setCamSize] = useState(120);          // px — pinch to resize
   const camDragging = useRef(false);
   const camDragOffset = useRef({ x: 0, y: 0 });
+  const camPinchDist = useRef<number | null>(null);     // initial finger distance
+  const camSizeAtPinch = useRef(120);                   // size when pinch started
+  const camVideoRef = useRef<HTMLVideoElement>(null);   // direct video feed
 
   const serviceRef = useRef<GeminiLiveService | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +189,26 @@ export default function App() {
       }
     });
   }, [status]);
+
+  // Wire actual camera stream into the floating <video> element
+  useEffect(() => {
+    if (!camVideoRef.current) return;
+    if (isCameraActive) {
+      // Poll briefly — stream may not be ready at the exact moment state flips
+      const attach = () => {
+        const s = serviceRef.current?.getCameraStream();
+        if (s && camVideoRef.current) {
+          camVideoRef.current.srcObject = s;
+          camVideoRef.current.play().catch(() => {});
+        }
+      };
+      attach();
+      const t = setTimeout(attach, 300);
+      return () => clearTimeout(t);
+    } else {
+      camVideoRef.current.srcObject = null;
+    }
+  }, [isCameraActive, cameraFacing]);
 
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [currentConvoId, setCurrentConvoId] = useState<string | null>(() => {
@@ -344,15 +368,40 @@ export default function App() {
     if (mql?.addEventListener) mql.addEventListener('change', onMqlChange);
     else if (mql?.addListener) mql.addListener(onMqlChange); // older Safari
 
-    // Camera overlay drag — global move/up so fast swipes don't lose tracking
+    // Camera overlay — drag (1 finger) + pinch-to-resize (2 fingers)
     const onCamMove = (e: MouseEvent | TouchEvent) => {
-      if (!camDragging.current) return;
-      const pt = 'touches' in e ? (e as TouchEvent).touches[0] : e as MouseEvent;
-      const nx = Math.max(0, Math.min(window.innerWidth - 120, pt.clientX - camDragOffset.current.x));
-      const ny = Math.max(0, Math.min(window.innerHeight - 120, pt.clientY - camDragOffset.current.y));
-      setCamPos({ x: nx, y: ny });
+      if ('touches' in e) {
+        const te = e as TouchEvent;
+        if (te.touches.length === 2 && camPinchDist.current !== null) {
+          // Pinch resize
+          const d = Math.hypot(
+            te.touches[0].clientX - te.touches[1].clientX,
+            te.touches[0].clientY - te.touches[1].clientY,
+          );
+          const scale = d / camPinchDist.current;
+          const next = Math.min(300, Math.max(80, Math.round(camSizeAtPinch.current * scale)));
+          setCamSize(next);
+          return;
+        }
+        if (te.touches.length === 1 && camDragging.current) {
+          const pt = te.touches[0];
+          const nx = Math.max(0, Math.min(window.innerWidth - camSizeAtPinch.current, pt.clientX - camDragOffset.current.x));
+          const ny = Math.max(0, Math.min(window.innerHeight - camSizeAtPinch.current, pt.clientY - camDragOffset.current.y));
+          setCamPos({ x: nx, y: ny });
+        }
+      } else if (camDragging.current) {
+        const me = e as MouseEvent;
+        const nx = Math.max(0, Math.min(window.innerWidth - 120, me.clientX - camDragOffset.current.x));
+        const ny = Math.max(0, Math.min(window.innerHeight - 120, me.clientY - camDragOffset.current.y));
+        setCamPos({ x: nx, y: ny });
+      }
     };
-    const onCamUp = () => { camDragging.current = false; };
+    const onCamUp = (e: TouchEvent | MouseEvent) => {
+      camDragging.current = false;
+      if ('changedTouches' in e && (e as TouchEvent).touches.length < 2) {
+        camPinchDist.current = null;
+      }
+    };
     window.addEventListener('mousemove', onCamMove);
     window.addEventListener('touchmove', onCamMove, { passive: true });
     window.addEventListener('mouseup', onCamUp);
@@ -1164,34 +1213,60 @@ export default function App() {
                   position: 'fixed',
                   left: camPos.x,
                   top: camPos.y,
-                  width: 120,
-                  height: 120,
+                  width: camSize,
+                  height: camSize,
                   zIndex: 60,
                   borderRadius: '50%',
                   overflow: 'hidden',
                   border: '2px solid var(--accent-green)',
-                  boxShadow: 'var(--glow-green-sm)',
+                  boxShadow: '0 0 16px rgba(0,255,136,0.4)',
                   cursor: 'grab',
                   touchAction: 'none',
                   userSelect: 'none',
+                  background: '#000',
+                  transition: 'width 0.05s, height 0.05s',
                 }}
                 onMouseDown={(e) => {
                   camDragging.current = true;
                   camDragOffset.current = { x: e.clientX - camPos.x, y: e.clientY - camPos.y };
+                  camSizeAtPinch.current = camSize;
                   e.preventDefault();
                 }}
                 onTouchStart={(e) => {
-                  camDragging.current = true;
-                  camDragOffset.current = { x: e.touches[0].clientX - camPos.x, y: e.touches[0].clientY - camPos.y };
+                  camSizeAtPinch.current = camSize;
+                  if (e.touches.length === 2) {
+                    // Start pinch
+                    camPinchDist.current = Math.hypot(
+                      e.touches[0].clientX - e.touches[1].clientX,
+                      e.touches[0].clientY - e.touches[1].clientY,
+                    );
+                    camDragging.current = false;
+                  } else {
+                    // Start drag
+                    camDragging.current = true;
+                    camDragOffset.current = {
+                      x: e.touches[0].clientX - camPos.x,
+                      y: e.touches[0].clientY - camPos.y,
+                    };
+                  }
                 }}
               >
-                <AvatarDisplay
-                  state="idle"
-                  volume={0}
-                  cameraStream={serviceRef.current?.getCameraStream()}
-                  avatarUrl={avatarUrl}
+                {/* Live camera feed — raw <video> so we always see the actual camera */}
+                <video
+                  ref={camVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    // Mirror front camera so it feels like a selfie view
+                    transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none',
+                  }}
                 />
-                {/* Flip camera button — bottom-right of the circle */}
+
+                {/* Flip camera button — bottom-right */}
                 <button
                   onClick={async (e) => {
                     e.stopPropagation();
@@ -1203,22 +1278,23 @@ export default function App() {
                   }}
                   style={{
                     position: 'absolute',
-                    bottom: 4,
-                    right: 4,
-                    width: 28,
-                    height: 28,
+                    bottom: Math.max(4, camSize * 0.06),
+                    right: Math.max(4, camSize * 0.06),
+                    width: Math.max(24, camSize * 0.22),
+                    height: Math.max(24, camSize * 0.22),
                     borderRadius: '50%',
-                    background: 'rgba(0,0,0,0.6)',
-                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(0,0,0,0.65)',
+                    border: '1px solid rgba(255,255,255,0.25)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
                     color: 'white',
+                    flexShrink: 0,
                   }}
                   aria-label="Flip camera"
                 >
-                  <RotateCcw size={12} />
+                  <RotateCcw size={Math.max(10, camSize * 0.12)} />
                 </button>
               </div>
             )}
