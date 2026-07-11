@@ -39,13 +39,32 @@ __pycache__/
 *.py[cod]
 *$py.class
 venv/
+.venv/
 .env
 .env.local
 .python-version
 mock_server.py
+server.py
+requirements.txt
+
+# ── Capacitor / Native (removed — web-only PWA) ──────────────────
+android/
+ios/
+mobile/
+capacitor.config.ts
+capacitor.config.ts.example
 
 # ── Server Data (Cloned voices and generated audio) ──────────────
 server_data/
 temp/
 *.wav
 *.mp3
+*.mp4
+*.mov
+
+# ── Scratch / test scripts ────────────────────────────────────────
+change_restrictions.mjs
+check_tabs.mjs
+scrape_keys.mjs
+test_*.mjs
+verify_*.mjs

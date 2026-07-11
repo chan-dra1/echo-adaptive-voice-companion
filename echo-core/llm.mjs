@@ -19,7 +19,7 @@ const PROVIDERS = {
     openrouter: { env: 'OPENROUTER_API_KEY',  needsKey: true,  model: 'meta-llama/llama-3.1-8b-instruct:free' },
     openai:     { env: 'OPENAI_API_KEY',      needsKey: true,  model: 'gpt-4o-mini' },
     mistral:    { env: 'MISTRAL_API_KEY',     needsKey: true,  model: 'mistral-small-latest' },
-    anthropic:  { env: 'ANTHROPIC_API_KEY',   needsKey: true,  model: 'claude-3-5-sonnet-20241022' },
+    anthropic:  { env: 'ANTHROPIC_API_KEY',   needsKey: true,  model: 'claude-fable-5' },
 };
 
 // Free / local first.

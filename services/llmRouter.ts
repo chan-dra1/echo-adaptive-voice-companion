@@ -65,7 +65,7 @@ const DEFAULT_MODEL: Record<LlmProvider, string> = {
     groq: 'llama-3.1-8b-instant',
     openrouter: 'meta-llama/llama-3.1-8b-instruct:free',
     openai: 'gpt-4o-mini',
-    anthropic: 'claude-3-5-sonnet-20241022',
+    anthropic: 'claude-fable-5',
     mistral: 'mistral-small-latest',
     huggingface: 'meta-llama/Llama-3.1-8B-Instruct',
     ollama: 'llama3',
@@ -271,19 +271,22 @@ export async function testApiKey(provider: LlmProvider, apiKey: string): Promise
                 return { ok: true, message: `Valid — signed in as ${data?.name || 'unknown user'}.` };
             }
             case 'anthropic': {
-                // Goes through the local proxy (server.py) — a 1-token ping
-                // confirms both that the proxy is up and the key is accepted.
-                const res = await fetch('http://localhost:8000/llm/anthropic', {
+                const res = await fetch('https://api.anthropic.com/v1/messages', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-api-key': key },
-                    body: JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': key,
+                        'anthropic-version': '2023-06-01',
+                    },
+                    body: JSON.stringify({ model: 'claude-fable-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
                 }).catch(() => null);
-                if (!res) return { ok: false, message: 'Local proxy (localhost:8000) not running — start server.py.' };
+                if (!res) return { ok: false, message: 'Could not reach Anthropic API — check your network.' };
+                if (res.status === 401) return { ok: false, message: 'Invalid API key.' };
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
                     return { ok: false, message: err?.error?.message || err?.error || `Rejected (${res.status})` };
                 }
-                return { ok: true, message: 'Valid (verified via local proxy).' };
+                return { ok: true, message: 'Valid — Fable (claude-fable-5) key accepted.' };
             }
             default:
                 return { ok: false, message: 'Unknown provider.' };

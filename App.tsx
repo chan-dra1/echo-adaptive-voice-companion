@@ -638,9 +638,6 @@ export default function App() {
       info('Hands-Free ON — extended silence tolerance, lock-screen controls active.');
       try {
         serviceRef.current?.startHandsFreeKeepalive();
-        if (mobileAudioBridge.isNativeShell()) {
-          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(true)).catch(() => {});
-        }
       } catch { /* ignore */ }
       try {
         if ('mediaSession' in navigator) {
@@ -656,9 +653,6 @@ export default function App() {
       info('Hands-Free OFF.');
       try {
         serviceRef.current?.stopHandsFreeKeepalive();
-        if (mobileAudioBridge.isNativeShell()) {
-          import('./mobile/capacitorBridge').then((m) => m.notifyNativeBackgroundAudio(false)).catch(() => {});
-        }
       } catch { /* ignore */ }
       try {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';

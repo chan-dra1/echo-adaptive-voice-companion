@@ -82,12 +82,6 @@ export function initMobileAudioBridge(onVisible?: () => void): void {
     }
   });
 
-  // Lazy-load Capacitor bridge module if present (no hard dep)
-  if (isNativeShell()) {
-    import('../mobile/capacitorBridge')
-      .then((m) => m.registerCapacitorWakeBridge())
-      .catch(() => { /* optional */ });
-  }
 }
 
 export const mobileAudioBridge = {
