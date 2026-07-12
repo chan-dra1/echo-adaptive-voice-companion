@@ -63,6 +63,23 @@ const KNOWN_KEYS: string[] = [
     'echo_folder_items',
     'echo_style_examples',
     'echo_dynamic_skill_acl',
+    // Every key persisted via setCached() MUST be listed here — this list is
+    // the boot-time hydration set. A key missing from it still encrypts and
+    // saves, but is never read back, so its data silently resets on reload.
+    'echo_companion_state',
+    'echo_active_conversation',
+    'echo_market_alerts',
+    'echo_daily_briefing',
+    'echo_checkins',
+    'echo_goals',
+    'echo_habits',
+    'echo_ambient_config',
+    'echo_drafts',
+    'echo_deadline_plans',
+    'echo_month_plan',
+    'echo_repo_path',
+    'echo_feature_tickets',
+    'echo_campaigns',
 ];
 
 interface VaultState {

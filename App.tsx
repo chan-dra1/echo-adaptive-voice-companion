@@ -118,6 +118,13 @@ export default function App() {
         await initVault({ autoMode: true });
       }
       await bootstrapAgent().catch(err => console.error('[App] bootstrap failed:', err));
+      // Re-derive onboarding gates now that the vault cache is hydrated —
+      // the useState initializers ran before decryption, so they always saw
+      // the default onboardingComplete:false and would re-show the wizard
+      // to returning users on every reload.
+      const onboarded = getCompanionState().onboardingComplete;
+      setShowOnboarding(!onboarded);
+      setShowLanding(!onboarded && !localStorage.getItem('echo_landing_seen'));
       setVaultReady(true);
     })().catch((e) => {
       console.error('[App] vault boot failed:', e);
@@ -791,6 +798,37 @@ export default function App() {
     }
   }
 
+  // Proactive first-hello — fires once, right after onboarding completes, so the
+  // very first thing a new user sees is Echo already talking to them.
+  const fireFirstHello = useCallback(() => {
+    const name = (getCompanionState().userName || '').trim();
+    const hasBrain = hasAnyApiKey();
+    const lines = [
+      `Hey${name ? ` ${name}` : ''}! I'm Echo — set up and ready. Three things to try right now:`,
+      '',
+      '🎙️ Tap the mic button and just talk to me — ask me anything.',
+      '⌨️ Or type below: "plan my week" or "research the best laptop under $1000".',
+      '⚙️ When you\'re ready for more, open Settings and switch to Advanced mode — that unlocks autonomous missions, automations, and my full skill vault.',
+    ];
+    if (!hasBrain) {
+      lines.push('', '⚠️ One thing first: I don\'t have an AI key yet, so my brain is offline. Open Settings (bottom-left gear), paste your free Google AI key, and I come alive.');
+    }
+    const text = lines.join('\n');
+    const message: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      text,
+      timestamp: Date.now(),
+      isFinal: true,
+    };
+    setChatHistory(prev => [...prev, message]);
+    if (currentConvoId) {
+      try { addMessageToConversation(currentConvoId, 'ai', text); } catch { /* ignore */ }
+    }
+    // Slide the chat panel open just after the wizard's exit animation settles.
+    setTimeout(() => setShowChat(true), 800);
+  }, [currentConvoId]);
+
   const hideBottomChrome = isSettingsOpen || showFileUpload || (vaultReady && (showOnboarding || showLanding));
 
   return (
@@ -808,7 +846,7 @@ export default function App() {
       {/* Onboarding Wizard — shows on first launch after vault is ready */}
       {vaultReady && !showLanding && showOnboarding && (
         <OnboardingWizard
-          onComplete={() => { setShowOnboarding(false); refreshKeyState(); }}
+          onComplete={() => { setShowOnboarding(false); refreshKeyState(); fireFirstHello(); }}
           onSkip={() => { setShowOnboarding(false); refreshKeyState(); }}
         />
       )}
