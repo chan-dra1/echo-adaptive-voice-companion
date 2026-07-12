@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     X, Lock, Key, Check, AlertTriangle, Github, Globe, Cpu, User, FileText,
-    Zap, Sparkles, MessageSquare,
+    Zap, Sparkles, MessageSquare, SlidersHorizontal,
 } from 'lucide-react';
 import Button from './Button';
 import { useToast } from '../hooks/useToast';
 import { changePassphrase, getVaultMode } from '../services/cryptoService';
 import { getCached, setCached } from '../services/cryptoService';
 import { hasKeyFor, chooseProvider, LlmProvider, detectProviderFromKey } from '../services/llmRouter';
+import { getUiMode, setUiMode, UiMode } from '../services/uiModeService';
 
 interface SettingsVaultProps {
     isOpen: boolean;
@@ -46,6 +47,9 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
     const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
     const [defaultBrain, setDefaultBrain] = useState<LlmProvider>('gemini');
 
+    // Interface mode (applies immediately, independent of the Save button)
+    const [uiMode, setUiModeState] = useState<UiMode>('simple');
+
     // New toggles
     const [yoloMode, setYoloMode] = useState(false);
     const [translationMode, setTranslationMode] = useState(false);
@@ -66,6 +70,7 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
         setSerpApiKey(localStorage.getItem('VITE_SERP_API_KEY') || '');
         setAvatarUrl(localStorage.getItem('echo_avatar_url') || '/ai-avatar.png');
         setBaseResume(localStorage.getItem('echo_base_resume') || '');
+        setUiModeState(getUiMode());
         const savedBrain = (localStorage.getItem('echo_default_brain') as LlmProvider) || 'gemini';
         setDefaultBrain(hasKeyFor(savedBrain) ? savedBrain : chooseProvider());
         setYoloMode(localStorage.getItem('echo_yolo_mode') === 'true');
@@ -144,6 +149,11 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
         }
     };
 
+    const handleUiModeChange = (mode: UiMode) => {
+        setUiModeState(mode);
+        setUiMode(mode); // persists + notifies App immediately — no Save needed
+    };
+
     const handleClear = (key: string, providerId?: LlmProvider) => {
         localStorage.removeItem(key);
         if (providerId) {
@@ -195,6 +205,43 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                         <p className="text-xs text-[#00ff41]/60 leading-relaxed">
                             All keys, memory and reminders are encrypted with AES-GCM 256 in your browser.
                             Set a passphrase below for stronger security than the default random-key "Quick Mode".
+                        </p>
+                    </div>
+
+                    {/* Interface mode */}
+                    <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                            <SlidersHorizontal size={16} />
+                            <span>Interface</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Interface mode">
+                            {([
+                                { mode: 'simple' as UiMode, title: 'Simple', desc: 'the essentials: voice, chat, memory' },
+                                { mode: 'advanced' as UiMode, title: 'Advanced', desc: 'missions, automations, skill vault, developer tools' },
+                            ]).map(opt => (
+                                <button
+                                    key={opt.mode}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={uiMode === opt.mode}
+                                    onClick={() => handleUiModeChange(opt.mode)}
+                                    className={`text-left p-3 rounded-lg border transition-all ${
+                                        uiMode === opt.mode
+                                            ? 'bg-[#00ff41]/10 border-[#00ff41]/50 text-[#00ff41]'
+                                            : 'bg-black/50 border-white/10 text-gray-400 hover:border-[#00ff41]/30'
+                                    }`}
+                                >
+                                    <span className="block text-xs font-bold font-mono uppercase tracking-wider">
+                                        {opt.title}{uiMode === opt.mode ? ' ✓' : ''}
+                                    </span>
+                                    <span className={`block text-[10px] mt-1 leading-snug ${uiMode === opt.mode ? 'text-[#00ff41]/60' : 'text-gray-500'}`}>
+                                        {opt.desc}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-[#00ff41]/40">
+                            Applies instantly — no save needed. You can switch back any time.
                         </p>
                     </div>
 

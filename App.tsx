@@ -51,6 +51,8 @@ import { checkDeadlinesOnBoot } from './services/deadlineGuardianService';
 import { ambientModeService, getAmbientConfig } from './services/ambientModeService';
 import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
+import LandingPage from './components/LandingPage';
+import { getUiMode, subscribeUiMode, UiMode } from './services/uiModeService';
 import SkillsVaultPanel from './components/SkillsVaultPanel';
 import SocialComposer from './components/SocialComposer';
 import AutomationHub from './components/AutomationHub';
@@ -155,6 +157,14 @@ export default function App() {
   const [showAutomation, setShowAutomation] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !getCompanionState().onboardingComplete);
+  // Landing page — fresh visitors only (never onboarded, never dismissed landing)
+  const [showLanding, setShowLanding] = useState(
+    () => !getCompanionState().onboardingComplete && !localStorage.getItem('echo_landing_seen'),
+  );
+  // Simple/Advanced UI mode — simple hides power-user panels for launch users
+  const [uiMode, setUiModeState] = useState<UiMode>(() => getUiMode());
+  useEffect(() => subscribeUiMode(setUiModeState), []);
+  const isAdvanced = uiMode === 'advanced';
   // Conversations loading
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -781,16 +791,25 @@ export default function App() {
     }
   }
 
-  const hideBottomChrome = isSettingsOpen || showFileUpload || (vaultReady && showOnboarding);
+  const hideBottomChrome = isSettingsOpen || showFileUpload || (vaultReady && (showOnboarding || showLanding));
 
   return (
 
     <div className={`relative w-screen h-screen overflow-hidden flex flex-col selection:bg-[#00ff88]/20${isMobileCoarse ? ' mobile-lite' : ''}`} style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}>
+      {/* Landing page — very first thing a new visitor sees */}
+      {vaultReady && showLanding && (
+        <LandingPage
+          onGetStarted={() => {
+            try { localStorage.setItem('echo_landing_seen', '1'); } catch { /* ignore */ }
+            setShowLanding(false);
+          }}
+        />
+      )}
       {/* Onboarding Wizard — shows on first launch after vault is ready */}
-      {vaultReady && showOnboarding && (
+      {vaultReady && !showLanding && showOnboarding && (
         <OnboardingWizard
-          onComplete={() => setShowOnboarding(false)}
-          onSkip={() => setShowOnboarding(false)}
+          onComplete={() => { setShowOnboarding(false); refreshKeyState(); }}
+          onSkip={() => { setShowOnboarding(false); refreshKeyState(); }}
         />
       )}
       <SkillApprovalModal />
@@ -878,34 +897,40 @@ export default function App() {
              <MemoryPanel memories={memories} onUpdate={handleManualMemoryUpdate} onClose={() => setShowMemory(false)} />
           </div>
 
-          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[420px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVaultOrganizer ? 'translate-x-0' : 'translate-x-full'}`}>
-            <VaultOrganizerPanel onClose={() => setShowVaultOrganizer(false)} />
-          </div>
+          {isAdvanced && (
+            <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[420px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVaultOrganizer ? 'translate-x-0' : 'translate-x-full'}`}>
+              <VaultOrganizerPanel onClose={() => setShowVaultOrganizer(false)} />
+            </div>
+          )}
 
           {/* Companion Panel */}
           <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showCompanionPanel ? 'translate-x-0' : 'translate-x-full'}`}>
             <CompanionPanel onClose={() => setShowCompanionPanel(false)} />
           </div>
 
-          {/* Skills Vault Panel */}
-          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSkillsVault ? 'translate-x-0' : 'translate-x-full'}`}>
-            <SkillsVaultPanel onClose={() => setShowSkillsVault(false)} />
-          </div>
+          {isAdvanced && (
+            <>
+              {/* Skills Vault Panel */}
+              <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSkillsVault ? 'translate-x-0' : 'translate-x-full'}`}>
+                <SkillsVaultPanel onClose={() => setShowSkillsVault(false)} />
+              </div>
 
-          {/* Social Autopilot Panel */}
-          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSocial ? 'translate-x-0' : 'translate-x-full'}`}>
-            <SocialComposer onClose={() => setShowSocial(false)} />
-          </div>
+              {/* Social Autopilot Panel */}
+              <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showSocial ? 'translate-x-0' : 'translate-x-full'}`}>
+                <SocialComposer onClose={() => setShowSocial(false)} />
+              </div>
 
-          {/* Automation Hub Panel */}
-          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showAutomation ? 'translate-x-0' : 'translate-x-full'}`}>
-            <AutomationHub onClose={() => setShowAutomation(false)} />
-          </div>
+              {/* Automation Hub Panel */}
+              <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showAutomation ? 'translate-x-0' : 'translate-x-full'}`}>
+                <AutomationHub onClose={() => setShowAutomation(false)} />
+              </div>
 
-          {/* Mission Dashboard Panel */}
-          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showMissions ? 'translate-x-0' : 'translate-x-full'}`}>
-            <MissionDashboard onClose={() => setShowMissions(false)} />
-          </div>
+              {/* Mission Dashboard Panel */}
+              <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[480px] p-3 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showMissions ? 'translate-x-0' : 'translate-x-full'}`}>
+                <MissionDashboard onClose={() => setShowMissions(false)} />
+              </div>
+            </>
+          )}
 
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showVoiceVault ? 'translate-x-0' : '-translate-x-full'}`}>
             <VoiceVault
@@ -968,55 +993,59 @@ export default function App() {
               </button>
             </Tooltip>
 
-            <Tooltip content="Vault Organizer">
-              <button
-                onClick={() => setShowVaultOrganizer(true)}
-                className={`sidebar-btn ${showVaultOrganizer ? 'active-cyan' : ''}`}
-                aria-label="Vault organizer"
-              >
-                <Folder size={18} />
-              </button>
-            </Tooltip>
+            {isAdvanced && (
+              <>
+                <Tooltip content="Vault Organizer">
+                  <button
+                    onClick={() => setShowVaultOrganizer(true)}
+                    className={`sidebar-btn ${showVaultOrganizer ? 'active-cyan' : ''}`}
+                    aria-label="Vault organizer"
+                  >
+                    <Folder size={18} />
+                  </button>
+                </Tooltip>
 
-            <Tooltip content="Skills Vault">
-              <button
-                onClick={() => setShowSkillsVault(true)}
-                className={`sidebar-btn ${showSkillsVault ? 'active' : ''}`}
-                aria-label="Skills vault"
-              >
-                <Sparkles size={18} />
-              </button>
-            </Tooltip>
+                <Tooltip content="Skills Vault">
+                  <button
+                    onClick={() => setShowSkillsVault(true)}
+                    className={`sidebar-btn ${showSkillsVault ? 'active' : ''}`}
+                    aria-label="Skills vault"
+                  >
+                    <Sparkles size={18} />
+                  </button>
+                </Tooltip>
 
-            <Tooltip content="Social Autopilot">
-              <button
-                onClick={() => setShowSocial(true)}
-                className={`sidebar-btn ${showSocial ? 'active' : ''}`}
-                aria-label="Social autopilot"
-              >
-                <Megaphone size={18} />
-              </button>
-            </Tooltip>
+                <Tooltip content="Social Autopilot">
+                  <button
+                    onClick={() => setShowSocial(true)}
+                    className={`sidebar-btn ${showSocial ? 'active' : ''}`}
+                    aria-label="Social autopilot"
+                  >
+                    <Megaphone size={18} />
+                  </button>
+                </Tooltip>
 
-            <Tooltip content="Automation Hub">
-              <button
-                onClick={() => setShowAutomation(true)}
-                className={`sidebar-btn ${showAutomation ? 'active' : ''}`}
-                aria-label="Automation hub"
-              >
-                <Zap size={18} />
-              </button>
-            </Tooltip>
+                <Tooltip content="Automation Hub">
+                  <button
+                    onClick={() => setShowAutomation(true)}
+                    className={`sidebar-btn ${showAutomation ? 'active' : ''}`}
+                    aria-label="Automation hub"
+                  >
+                    <Zap size={18} />
+                  </button>
+                </Tooltip>
 
-            <Tooltip content="Autonomous Missions">
-              <button
-                onClick={() => setShowMissions(true)}
-                className={`sidebar-btn ${showMissions ? 'active' : ''}`}
-                aria-label="Autonomous missions"
-              >
-                <Rocket size={18} />
-              </button>
-            </Tooltip>
+                <Tooltip content="Autonomous Missions">
+                  <button
+                    onClick={() => setShowMissions(true)}
+                    className={`sidebar-btn ${showMissions ? 'active' : ''}`}
+                    aria-label="Autonomous missions"
+                  >
+                    <Rocket size={18} />
+                  </button>
+                </Tooltip>
+              </>
+            )}
 
             <Tooltip content="Companion">
               <button
@@ -1028,15 +1057,17 @@ export default function App() {
               </button>
             </Tooltip>
 
-            <Tooltip content="Ghost Mode">
-              <button
-                onClick={() => setShowGhostMode(true)}
-                className={`sidebar-btn ${isStealthMode ? 'active-cyan' : ''}`}
-                aria-label="Ghost mode"
-              >
-                <Ghost size={18} />
-              </button>
-            </Tooltip>
+            {isAdvanced && (
+              <Tooltip content="Ghost Mode">
+                <button
+                  onClick={() => setShowGhostMode(true)}
+                  className={`sidebar-btn ${isStealthMode ? 'active-cyan' : ''}`}
+                  aria-label="Ghost mode"
+                >
+                  <Ghost size={18} />
+                </button>
+              </Tooltip>
+            )}
 
             {/* Spacer */}
             <div style={{ flex: 1 }} />
@@ -1319,20 +1350,22 @@ export default function App() {
                     {([
                       { icon: MessageSquare, label: 'Chat',      action: () => { setShowChat(true);          setShowMobileMenu(false); } },
                       { icon: Brain,        label: 'Memory',     action: () => { setShowMemory(true);         setShowMobileMenu(false); } },
-                      { icon: Folder,       label: 'Vault',      action: () => { setShowVaultOrganizer(true); setShowMobileMenu(false); } },
-                      { icon: Sparkles,     label: 'Skills',     action: () => { setShowSkillsVault(true);    setShowMobileMenu(false); } },
-                      { icon: Megaphone,    label: 'Social',     action: () => { setShowSocial(true);         setShowMobileMenu(false); } },
-                      { icon: Zap,          label: 'Automations',action: () => { setShowAutomation(true);     setShowMobileMenu(false); } },
-                      { icon: Rocket,       label: 'Missions',   action: () => { setShowMissions(true);       setShowMobileMenu(false); } },
+                      { icon: Folder,       label: 'Vault',      advanced: true, action: () => { setShowVaultOrganizer(true); setShowMobileMenu(false); } },
+                      { icon: Sparkles,     label: 'Skills',     advanced: true, action: () => { setShowSkillsVault(true);    setShowMobileMenu(false); } },
+                      { icon: Megaphone,    label: 'Social',     advanced: true, action: () => { setShowSocial(true);         setShowMobileMenu(false); } },
+                      { icon: Zap,          label: 'Automations',advanced: true, action: () => { setShowAutomation(true);     setShowMobileMenu(false); } },
+                      { icon: Rocket,       label: 'Missions',   advanced: true, action: () => { setShowMissions(true);       setShowMobileMenu(false); } },
                       { icon: Heart,        label: 'Companion',  action: () => { setShowCompanionPanel(true); setShowMobileMenu(false); } },
-                      { icon: Ghost,        label: 'Ghost',      action: () => { setShowGhostMode(true);      setShowMobileMenu(false); } },
+                      { icon: Ghost,        label: 'Ghost',      advanced: true, action: () => { setShowGhostMode(true);      setShowMobileMenu(false); } },
                       { icon: User,         label: 'Settings',   action: () => { setIsSettingsOpen(true);     setShowMobileMenu(false); } },
                       { icon: Monitor,      label: 'Screen',     action: () => {
                         setShowMobileMenu(false);
                         error('Screen sharing is not supported in mobile browsers. Use Echo on desktop to share your screen.');
                       }},
                       { icon: Plus,         label: 'Upload',     action: () => { setShowFileUpload(true);     setShowMobileMenu(false); } },
-                    ] as { icon: React.ElementType; label: string; action: () => void }[]).map(({ icon: Icon, label, action }) => (
+                    ] as { icon: React.ElementType; label: string; advanced?: boolean; action: () => void }[])
+                      .filter(item => isAdvanced || !item.advanced)
+                      .map(({ icon: Icon, label, action }) => (
                       <button
                         key={label}
                         onClick={action}

@@ -2,11 +2,12 @@
  * OnboardingWizard.tsx — Matrix terminal system-initialization sequence.
  *
  * Black screen, green phosphor text that types line-by-line.
- * 6 steps collected, all saved as local_only encrypted memory.
+ * 7 steps collected (profile + free AI key hookup), all saved locally.
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { saveOnboardingMemory, saveCompanionState, COMPANION_MODES, CompanionMode } from '../services/companionPersonaService';
 import { addHabit, addGoal, HABIT_TEMPLATES } from '../services/lifeCoachService';
+import { testApiKey, detectProviderFromKey, LlmProvider } from '../services/llmRouter';
 
 interface Props {
     onComplete: () => void;
@@ -14,7 +15,18 @@ interface Props {
 }
 
 // ── STEPS ────────────────────────────────────────────────────────────────────
-type StepType = 'text' | 'choice' | 'multiChoice';
+type StepType = 'text' | 'choice' | 'multiChoice' | 'apiKey';
+
+/** Where each provider's key lives in localStorage (mirrors llmRouter). */
+const PROVIDER_STORAGE_KEYS: Partial<Record<LlmProvider, string>> = {
+    gemini: 'echo_api_key',
+    groq: 'echo_groq_key',
+    openrouter: 'echo_openrouter_key',
+    openai: 'echo_openai_key',
+    anthropic: 'echo_anthropic_key',
+    mistral: 'echo_mistral_key',
+    huggingface: 'echo_hf_key',
+};
 
 interface Step {
     id: string;
@@ -42,6 +54,7 @@ const STEPS: Step[] = [
             'Welcome, new companion.',
             'I need to learn who you are.',
             'All data stays on this device — encrypted.',
+            'Plain words: private. Nothing gets uploaded. No account needed.',
         ],
         question: 'What should I call you?',
         placeholder: 'Your name…',
@@ -50,7 +63,7 @@ const STEPS: Step[] = [
     },
     {
         id: 'style',
-        boot: ['SCANNING PERSONALITY MATRIX…', 'Select how you prefer to work:'],
+        boot: ['SCANNING PERSONALITY MATRIX…', 'No wrong answers — pick whatever feels most like you:'],
         question: 'What is your work style?',
         type: 'choice',
         key: 'workStyle',
@@ -58,15 +71,15 @@ const STEPS: Step[] = [
     },
     {
         id: 'goal',
-        boot: ['LOADING GOAL TRACKING MODULE…', 'Let\'s anchor your primary mission.'],
+        boot: ['LOADING GOAL TRACKING MODULE…', 'Let\'s anchor your primary mission — big or small, your call.'],
         question: 'What is your biggest goal right now?',
-        placeholder: 'e.g. Launch my startup by December…',
+        placeholder: 'e.g. Get fit, launch my shop, learn Spanish…',
         type: 'text',
         key: 'primaryGoal',
     },
     {
         id: 'habits',
-        boot: ['HABIT ENGINE READY…', 'Select habits to track daily:'],
+        boot: ['HABIT ENGINE READY…', 'Tap any you\'d like me to help you keep up (or none):'],
         question: 'Pick daily habits to build:',
         type: 'multiChoice',
         key: 'habits',
@@ -76,22 +89,42 @@ const STEPS: Step[] = [
         id: 'schedule',
         boot: ['CHRONOS MODULE ACTIVE…', 'Understanding your daily rhythm.'],
         question: 'When do you usually wake up?',
-        placeholder: '07:00',
+        placeholder: 'e.g. 7:00 am',
         type: 'text',
         key: 'wakeTime',
         subQuestion: 'Bedtime?',
         subKey: 'bedTime',
-        subPlaceholder: '23:00',
+        subPlaceholder: 'e.g. 11:00 pm',
     },
     {
         id: 'persona',
-        boot: ['COMPANION PERSONA SELECTION…', 'Choose how I speak to you:'],
+        boot: ['COMPANION PERSONA SELECTION…', 'Choose how I speak to you (you can change this anytime):'],
         question: 'What role should I play?',
         type: 'choice',
         key: 'companionMode',
         choices: COMPANION_MODES.map(m => `${m.emoji}  ${m.label}  —  ${m.description}`),
         choiceValues: COMPANION_MODES.map(m => m.id),
     },
+    {
+        id: 'brain',
+        boot: [
+            'FINAL STEP — CONNECT AI BRAIN…',
+            'Echo thinks using Google\'s free AI.',
+            'You just need one free key — it takes about 60 seconds.',
+            'No credit card. The key is saved on this device only.',
+        ],
+        question: 'Connect your AI brain:',
+        type: 'apiKey',
+        key: 'apiKey',
+    },
+];
+
+/** Plain-English instructions shown on the CONNECT AI BRAIN step. */
+const KEY_INSTRUCTIONS = [
+    '1. Tap the button below — it opens Google\'s key page in a new tab.',
+    '2. Sign in with your Google account.',
+    '3. Click "Create API key".',
+    '4. Copy the key, come back here, and paste it below.',
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -105,8 +138,15 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
     const [subValue, setSubValue]     = useState('');
     const [history, setHistory]       = useState<string[]>([]);
     const [finished, setFinished]     = useState(false);
+    // ── AI-key step state ──
+    const [keyStatus, setKeyStatus]   = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
+    const [keyMessage, setKeyMessage] = useState('');
+    const [keyProvider, setKeyProvider] = useState<LlmProvider | null>(null);
+    const [keySaved, setKeySaved]     = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef  = useRef<HTMLInputElement>(null);
+    const debounceRef    = useRef<number | null>(null);
+    const validateSeqRef = useRef(0);
 
     const step = STEPS[stepIdx];
 
@@ -117,6 +157,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         setValue('');
         setSubValue('');
         setMultiSel([]);
+        setKeyStatus('idle');
+        setKeyMessage('');
         let line = 0;
         const iv = setInterval(() => {
             line++;
@@ -134,7 +176,76 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         if (showInput && inputRef.current) inputRef.current.focus();
     }, [bootLine, showInput, history]);
 
+    // Clear any pending key-validation debounce on unmount
+    useEffect(() => () => {
+        if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    }, []);
+
+    // ── AI-key validation ────────────────────────────────────────────────────
+    const validateKey = async (trimmed: string) => {
+        const detected = detectProviderFromKey(trimmed);
+        const looksLikeGemini = trimmed.startsWith('AIza') && trimmed.length > 30;
+        const provider: LlmProvider | null = detected ?? (looksLikeGemini ? 'gemini' : null);
+
+        if (!provider) {
+            setKeyStatus('invalid');
+            setKeyMessage('That doesn\'t look like a key yet. Google keys start with "AIza…" — make sure you copied the whole thing.');
+            return;
+        }
+        if (provider === 'gemini' && trimmed.length <= 30) {
+            setKeyStatus('invalid');
+            setKeyMessage('That key looks too short — copy the whole thing and paste again.');
+            return;
+        }
+
+        const seq = ++validateSeqRef.current;
+        setKeyStatus('validating');
+        setKeyMessage('');
+        try {
+            const res = await testApiKey(provider, trimmed);
+            if (seq !== validateSeqRef.current) return; // a newer paste superseded this check
+            if (res.ok) {
+                localStorage.setItem(PROVIDER_STORAGE_KEYS[provider] ?? 'echo_api_key', trimmed);
+                setKeyProvider(provider);
+                setKeyMessage(res.message);
+                setKeyStatus('valid');
+                setKeySaved(true);
+            } else {
+                setKeyStatus('invalid');
+                setKeyMessage(res.message);
+            }
+        } catch {
+            if (seq !== validateSeqRef.current) return;
+            setKeyStatus('invalid');
+            setKeyMessage('Couldn\'t reach the internet to check the key. Try again in a moment.');
+        }
+    };
+
+    const handleKeyChange = (raw: string) => {
+        setValue(raw);
+        setKeyStatus('idle');
+        setKeyMessage('');
+        if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+        const trimmed = raw.trim();
+        if (!trimmed) return;
+        debounceRef.current = window.setTimeout(() => { void validateKey(trimmed); }, 450);
+    };
+
+    const skipKeyStep = () => {
+        setHistory(h => [
+            ...h,
+            '',
+            ...step.boot.slice(0, bootLine),
+            `?: ${step.question}`,
+            '> (skipped — you can add a key later in Settings)',
+        ]);
+        commitAndFinish({ ...answers });
+    };
+
     const advance = () => {
+        // Never confirm this step with an unvalidated key — validate or skip.
+        if (step.type === 'apiKey' && keyStatus !== 'valid') return;
+
         const newAns = { ...answers };
 
         if (step.type === 'multiChoice') {
@@ -144,6 +255,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
             // value holds the label string; find its index
             const idx = (step.choices ?? []).indexOf(value);
             newAns[step.key] = idx >= 0 ? (step.choiceValues[idx] ?? value) : value;
+        } else if (step.type === 'apiKey') {
+            newAns[step.key] = 'connected'; // never store the raw key in answers
         } else {
             newAns[step.key] = value.trim();
         }
@@ -153,7 +266,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
 
         const echoLine = step.type === 'multiChoice'
             ? `> ${multiSel.map(i => HABIT_TEMPLATES[i]?.name).join(', ') || '(skipped)'}`
-            : `> ${value.trim() || '(skipped)'}`;
+            : step.type === 'apiKey'
+                ? '> ✓ AI BRAIN ONLINE'
+                : `> ${value.trim() || '(skipped)'}`;
 
         setHistory(h => [
             ...h,
@@ -371,9 +486,99 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                             </div>
                         )}
 
+                        {/* AI-key step */}
+                        {step.type === 'apiKey' && (
+                            <div style={{ marginLeft: 16, marginBottom: 12 }}>
+                                {KEY_INSTRUCTIONS.map((line, i) => (
+                                    <div key={i} style={{ color: greenMid, fontSize: 12, lineHeight: '1.9' }}>
+                                        {line}
+                                    </div>
+                                ))}
+
+                                <a
+                                    href="https://aistudio.google.com/apikey"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        display: 'inline-block',
+                                        margin: '16px 0',
+                                        padding: '10px 26px',
+                                        border: `1px solid ${greenBright}`,
+                                        color: greenBright,
+                                        fontSize: 13,
+                                        letterSpacing: '0.2em',
+                                        background: 'rgba(0,255,65,0.08)',
+                                        boxShadow: '0 0 16px rgba(0,255,65,0.3)',
+                                        textShadow: `0 0 8px ${greenBright}`,
+                                        textDecoration: 'none',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    [ GET MY FREE KEY → ]
+                                </a>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ color: greenBright }}>$</span>
+                                    <input
+                                        ref={inputRef}
+                                        type={keyStatus === 'valid' ? 'password' : 'text'}
+                                        value={value}
+                                        onChange={e => handleKeyChange(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter' && keyStatus === 'valid') advance(); }}
+                                        placeholder="Paste your key here…"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        className="flex-1 bg-transparent outline-none"
+                                        style={{
+                                            color: greenBright, fontSize: 13,
+                                            caretColor: greenBright,
+                                            border: 'none',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Live validation status */}
+                                {keyStatus === 'validating' && (
+                                    <div style={{ color: greenMid, fontSize: 12, marginTop: 10 }}>
+                                        VALIDATING KEY…
+                                    </div>
+                                )}
+                                {keyStatus === 'valid' && (
+                                    <div style={{ color: greenBright, fontSize: 12, marginTop: 10, textShadow: `0 0 8px ${greenBright}` }}>
+                                        ✓ AI BRAIN ONLINE{keyProvider && keyProvider !== 'gemini' ? ` (${keyProvider.toUpperCase()} KEY)` : ''} — {keyMessage}
+                                    </div>
+                                )}
+                                {keyStatus === 'invalid' && (
+                                    <div style={{ color: '#ff5555', fontSize: 12, marginTop: 10 }}>
+                                        ✗ {keyMessage}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={skipKeyStep}
+                                    style={{
+                                        display: 'block',
+                                        marginTop: 18,
+                                        padding: 0,
+                                        background: 'none',
+                                        border: 'none',
+                                        color: greenDim,
+                                        fontSize: 11,
+                                        letterSpacing: '0.15em',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
+                                    [ SKIP — I'LL DO THIS LATER ]
+                                </button>
+                            </div>
+                        )}
+
                         {/* Confirm button */}
                         <button
                             onClick={advance}
+                            disabled={step.type === 'apiKey' && keyStatus !== 'valid'}
                             style={{
                                 marginTop: 20,
                                 padding: '6px 18px',
@@ -383,7 +588,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                                 letterSpacing: '0.2em',
                                 background: 'rgba(0,255,65,0.04)',
                                 boxShadow: '0 0 10px rgba(0,255,65,0.12)',
-                                cursor: 'pointer',
+                                cursor: step.type === 'apiKey' && keyStatus !== 'valid' ? 'not-allowed' : 'pointer',
+                                opacity: step.type === 'apiKey' && keyStatus !== 'valid' ? 0.35 : 1,
                                 transition: 'all 0.2s',
                             }}
                         >
@@ -398,16 +604,29 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                         {['──────────────────────────────────────────',
                           'INITIALIZATION COMPLETE.',
                           'Memory encrypted and stored locally.',
+                          ...(keySaved ? ['AI BRAIN: CONNECTED'] : []),
                           'Echo is online. Your companion is ready.',
                         ].map((line, i) => (
                             <div key={i} style={{
-                                color: line === 'INITIALIZATION COMPLETE.' ? greenBright : greenMid,
+                                color: line === 'INITIALIZATION COMPLETE.' || line === 'AI BRAIN: CONNECTED' ? greenBright : greenMid,
                                 fontSize: i === 0 ? 11 : 13,
                                 lineHeight: '1.9',
-                                textShadow: line === 'INITIALIZATION COMPLETE.' ? `0 0 12px ${greenBright}` : 'none',
+                                textShadow: line === 'INITIALIZATION COMPLETE.' || line === 'AI BRAIN: CONNECTED' ? `0 0 12px ${greenBright}` : 'none',
                                 letterSpacing: line.includes('─') ? 0 : '0.05em',
                             }}>{line}</div>
                         ))}
+                        {!keySaved && (
+                            <div style={{
+                                color: '#ffb000',
+                                fontSize: 12,
+                                lineHeight: '1.9',
+                                marginTop: 8,
+                                letterSpacing: '0.05em',
+                                textShadow: '0 0 8px rgba(255,176,0,0.5)',
+                            }}>
+                                NOTE: no AI key connected — Echo can't think yet. Add one anytime in Settings.
+                            </div>
+                        )}
                         <div style={{
                             marginTop: 24, textAlign: 'center',
                             color: greenBright, fontSize: 22,
