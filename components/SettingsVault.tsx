@@ -3,12 +3,13 @@ import {
     X, Lock, Key, Check, AlertTriangle, Github, Globe, Cpu, User, FileText,
     Zap, Sparkles, MessageSquare, SlidersHorizontal,
 } from 'lucide-react';
-import Button from './Button';
 import { useToast } from '../hooks/useToast';
 import { changePassphrase, getVaultMode } from '../services/cryptoService';
 import { getCached, setCached } from '../services/cryptoService';
 import { hasKeyFor, chooseProvider, LlmProvider, detectProviderFromKey } from '../services/llmRouter';
 import { getUiMode, setUiMode, UiMode } from '../services/uiModeService';
+import { echoCloudAuthService } from '../services/echoCloudAuthService';
+import { Cloud } from 'lucide-react';
 
 interface SettingsVaultProps {
     isOpen: boolean;
@@ -34,6 +35,20 @@ const PROVIDERS: ProviderRow[] = [
     { id: 'anthropic', label: 'Anthropic (via localhost proxy)', storageKey: 'echo_anthropic_key', placeholder: 'sk-ant-...' },
 ];
 
+/* ── Terminal styling primitives (styling only) ─────────────────── */
+
+const SECTION_CLS = 'space-y-2 p-3 bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] rounded-lg';
+const INPUT_CLS = 'sv-input w-full rounded-lg text-xs px-3 py-2';
+
+function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+            <span className="text-[var(--accent-green)]">{icon}</span>
+            <span><span className="text-[var(--accent-green)] opacity-70">&gt; </span>{children}</span>
+        </span>
+    );
+}
+
 export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaultProps) {
     const { success, error } = useToast();
 
@@ -49,6 +64,13 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
 
     // Interface mode (applies immediately, independent of the Save button)
     const [uiMode, setUiModeState] = useState<UiMode>('simple');
+
+    // Echo Cloud (Stage 1) — sign-in state applies immediately, no Save needed.
+    const [cloudEmail, setCloudEmail] = useState('');
+    const [cloudSending, setCloudSending] = useState(false);
+    const [cloudMessage, setCloudMessage] = useState<{ ok: boolean; text: string } | null>(null);
+    const [cloudSignedIn, setCloudSignedIn] = useState(false);
+    const [cloudUserEmail, setCloudUserEmail] = useState<string | null>(null);
 
     // New toggles
     const [yoloMode, setYoloMode] = useState(false);
@@ -95,6 +117,29 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
+
+    useEffect(() => {
+        const sync = () => {
+            setCloudSignedIn(echoCloudAuthService.isSignedIn());
+            setCloudUserEmail(echoCloudAuthService.getCurrentEmail());
+        };
+        sync();
+        return echoCloudAuthService.onChange(sync);
+    }, []);
+
+    const handleCloudSignIn = async () => {
+        setCloudSending(true);
+        setCloudMessage(null);
+        const result = await echoCloudAuthService.sendMagicLink(cloudEmail);
+        setCloudMessage({ ok: result.ok, text: result.message });
+        setCloudSending(false);
+    };
+
+    const handleCloudSignOut = async () => {
+        await echoCloudAuthService.signOut();
+        setCloudMessage(null);
+        setCloudEmail('');
+    };
 
     const handleSave = async () => {
         try {
@@ -170,49 +215,62 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <style>{`
+                .sv-input {
+                    font-family: var(--font-term);
+                    background: rgba(0, 255, 65, 0.03);
+                    border: 1px solid var(--border-dim);
+                    color: var(--text-primary);
+                    caret-color: var(--accent-green);
+                    outline: none;
+                    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+                }
+                .sv-input::placeholder { color: var(--text-tertiary); }
+                .sv-input:focus {
+                    border-color: var(--accent-green);
+                    box-shadow: var(--glow-green-sm);
+                }
+                .sv-check { accent-color: var(--accent-green); }
+            `}</style>
             <div className="fixed inset-0 bg-black/80 backdrop-blur-xl transition-opacity" onClick={onClose} />
 
-            <div className="relative w-full max-w-md bg-black border border-[#00ff41]/20 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,1)] p-6 overflow-hidden max-h-[90dvh] overflow-y-auto scrollbar-hide font-mono text-[#00ff41]">
-                <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#00ff41]/10 blur-[80px] rounded-full" />
-
-                {/* Header */}
-                <div className="relative flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3 text-[#00ff41]">
-                        <div className="p-2 bg-[#00ff41]/10 rounded-lg border border-[#00ff41]/20">
-                            <Lock size={24} />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold font-mono tracking-wider uppercase">Vault_Secure</h2>
-                            <p className="text-xs text-[#00ff41]/60 font-mono">
-                                MODE: {vaultMode === 'passphrase' ? 'PASSPHRASE' : vaultMode === 'auto' ? 'QUICK (RANDOM KEY)' : 'LOCKED'}
-                            </p>
-                        </div>
+            <div className="relative w-full max-w-md term-window animate-phosphor-in max-h-[90dvh] flex flex-col">
+                {/* Titlebar */}
+                <div className="term-titlebar justify-between shrink-0 relative z-10">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <span className="term-dots" />
+                        <span className="truncate">ECHO://SETTINGS — VAULT_SECURE</span>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-3 hover:bg-[#00ff41]/10 rounded-full text-[#00ff41]/60 hover:text-[#00ff41] transition-colors bg-black/40 border border-[#00ff41]/20"
+                        className="p-1.5 rounded border border-[var(--border-dim)] bg-[rgba(0,255,65,0.04)] text-[var(--text-tertiary)] hover:text-[var(--accent-green)] hover:border-[var(--border-green)] transition-colors"
                     >
-                        <X size={24} />
+                        <X size={16} />
                     </button>
                 </div>
 
-                <div className="relative space-y-6">
-                    <div className="bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-[#00ff41] mb-2 font-mono text-sm">
-                            <AlertTriangle size={14} />
-                            <span>LOCAL ONLY</span>
+                <div className="relative z-10 overflow-y-auto scrollbar-hide p-5 space-y-5 font-mono">
+                    {/* Vault mode status line */}
+                    <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-[var(--text-tertiary)]">
+                        <span className="text-[var(--accent-green)]">[OK]</span>{' '}
+                        MODE: {vaultMode === 'passphrase' ? 'PASSPHRASE' : vaultMode === 'auto' ? 'QUICK (RANDOM KEY)' : 'LOCKED'}
+                    </p>
+
+                    <div className={SECTION_CLS}>
+                        <div className="flex items-center gap-2 mb-1 font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--accent-green)] text-glow-green">
+                            <AlertTriangle size={14} className="text-[var(--accent-green)]" />
+                            <span>&gt; LOCAL ONLY</span>
                         </div>
-                        <p className="text-xs text-[#00ff41]/60 leading-relaxed">
+                        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                             All keys, memory and reminders are encrypted with AES-GCM 256 in your browser.
                             Set a passphrase below for stronger security than the default random-key "Quick Mode".
                         </p>
                     </div>
 
                     {/* Interface mode */}
-                    <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <SlidersHorizontal size={16} />
-                            <span>Interface</span>
+                    <div className={SECTION_CLS}>
+                        <label>
+                            <SectionTitle icon={<SlidersHorizontal size={14} />}>Interface</SectionTitle>
                         </label>
                         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Interface mode">
                             {([
@@ -225,38 +283,88 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                                     role="radio"
                                     aria-checked={uiMode === opt.mode}
                                     onClick={() => handleUiModeChange(opt.mode)}
-                                    className={`text-left p-3 rounded-lg border transition-all ${
+                                    className={`text-left p-3 rounded-lg border transition-all font-mono ${
                                         uiMode === opt.mode
-                                            ? 'bg-[#00ff41]/10 border-[#00ff41]/50 text-[#00ff41]'
-                                            : 'bg-black/50 border-white/10 text-gray-400 hover:border-[#00ff41]/30'
+                                            ? 'bg-[rgba(0,255,65,0.14)] border-[var(--accent-green)] text-[var(--accent-green)] shadow-[var(--glow-green-sm)]'
+                                            : 'bg-transparent border-[var(--border-dim)] text-[var(--text-tertiary)] hover:border-[var(--border-green)] hover:text-[var(--text-secondary)]'
                                     }`}
                                 >
-                                    <span className="block text-xs font-bold font-mono uppercase tracking-wider">
-                                        {opt.title}{uiMode === opt.mode ? ' ✓' : ''}
+                                    <span className={`block text-xs font-bold uppercase tracking-wider ${uiMode === opt.mode ? 'text-glow-green' : ''}`}>
+                                        {uiMode === opt.mode ? '✓ ' : ''}{opt.title}
                                     </span>
-                                    <span className={`block text-[10px] mt-1 leading-snug ${uiMode === opt.mode ? 'text-[#00ff41]/60' : 'text-gray-500'}`}>
+                                    <span className={`block text-[10px] mt-1 leading-snug ${uiMode === opt.mode ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'}`}>
                                         {opt.desc}
                                     </span>
                                 </button>
                             ))}
                         </div>
-                        <p className="text-[10px] text-[#00ff41]/40">
+                        <p className="text-[10px] text-[var(--text-tertiary)]">
                             Applies instantly — no save needed. You can switch back any time.
                         </p>
                     </div>
 
+                    {/* Echo Cloud (Stage 1) */}
+                    {echoCloudAuthService.isConfigured() && (
+                        <div className={SECTION_CLS}>
+                            <SectionTitle icon={<Cloud size={14} />}>Echo Cloud (beta)</SectionTitle>
+                            {cloudSignedIn ? (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-[var(--text-secondary)]">
+                                        Signed in as <span className="text-[var(--accent-green)]">{cloudUserEmail}</span>. No key needed — a limited number of free Cloud messages/day, no setup.
+                                    </p>
+                                    <button
+                                        onClick={handleCloudSignOut}
+                                        className="btn-term ghost text-[11px] px-3 py-1.5"
+                                    >
+                                        Sign out
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-[10px] text-[var(--text-tertiary)]">
+                                        No API key required — sign in with your email for a small number of free messages/day on us.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            value={cloudEmail}
+                                            onChange={(e) => setCloudEmail(e.target.value)}
+                                            placeholder="you@example.com"
+                                            className={INPUT_CLS + ' flex-1'}
+                                            disabled={cloudSending}
+                                        />
+                                        <button
+                                            onClick={handleCloudSignIn}
+                                            disabled={cloudSending || !cloudEmail.trim()}
+                                            className="btn-term text-[11px] px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            {cloudSending ? 'Sending…' : 'Send link'}
+                                        </button>
+                                    </div>
+                                    {cloudMessage && (
+                                        <p className={`text-[10px] ${cloudMessage.ok ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
+                                            {cloudMessage.ok ? '[OK] ' : '[ERR] '}{cloudMessage.text}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Default brain */}
                     <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Cpu size={16} />
-                            <span>Default "Text Brain" provider</span>
+                        <label>
+                            <SectionTitle icon={<Cpu size={14} />}>Default "Text Brain" provider</SectionTitle>
                         </label>
                         <select
                             value={defaultBrain}
                             onChange={(e) => setDefaultBrain(e.target.value as LlmProvider)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all font-mono cursor-pointer"
+                            className="sv-input w-full rounded-lg px-4 py-3 pr-10 text-sm cursor-pointer"
                             style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' } as React.CSSProperties}
                         >
+                            {cloudSignedIn && (
+                                <option value="echoCloud">Echo Cloud (beta, no key needed)  ✓</option>
+                            )}
                             {PROVIDERS.map(p => (
                                 <option key={p.id} value={p.id}>
                                     {p.label}{p.free ? ' (free tier available)' : ''}
@@ -264,23 +372,22 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                                 </option>
                             ))}
                         </select>
-                        <p className="text-[10px] text-[#00ff41]/40">
+                        <p className="text-[10px] text-[var(--text-tertiary)]">
                             Live voice always uses Gemini (only provider with Live audio). This setting drives text chat + tool/skill reasoning.
                         </p>
                     </div>
 
                     {/* Provider keys */}
                     <div className="space-y-3">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Key size={16} />
-                            <span>Provider API Keys</span>
+                        <label>
+                            <SectionTitle icon={<Key size={14} />}>Provider API Keys</SectionTitle>
                         </label>
                         {PROVIDERS.map(p => (
                             <div key={p.id} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                    <span className="text-[#00ff41]/80">{p.label}</span>
+                                    <span className="text-[var(--text-secondary)]">{p.label}</span>
                                     {p.free && (
-                                        <span className="text-[9px] uppercase tracking-widest text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                                        <span className="text-[9px] uppercase tracking-widest text-[var(--accent-green)] border border-[var(--border-green)] px-1.5 py-0.5 rounded">
                                             free tier
                                         </span>
                                     )}
@@ -291,12 +398,12 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                                         value={providerKeys[p.id] || ''}
                                         onChange={(e) => setProviderKeys(prev => ({ ...prev, [p.id]: e.target.value }))}
                                         placeholder={p.placeholder}
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg pl-3 pr-8 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 transition-all font-mono"
+                                        className="sv-input w-full rounded-lg pl-3 pr-8 py-2 text-xs"
                                     />
                                     {providerKeys[p.id] && (
                                         <button
                                             onClick={() => handleClear(p.storageKey, p.id)}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--accent-red)]"
                                             type="button"
                                         >
                                             <X size={12} />
@@ -309,25 +416,25 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                                     const detected = detectProviderFromKey(keyVal);
                                     if (detected && detected !== p.id) {
                                         return (
-                                            <div className="text-[10px] text-rose-400 mt-0.5 flex items-center gap-1 font-mono">
+                                            <div className="text-[10px] text-[var(--accent-red)] mt-0.5 flex items-center gap-1 font-mono">
                                                 <AlertTriangle size={10} />
-                                                <span>Format matches {PROVIDERS.find(pr => pr.id === detected)?.label || detected} key!</span>
+                                                <span>[ERR] Format matches {PROVIDERS.find(pr => pr.id === detected)?.label || detected} key!</span>
                                             </div>
                                         );
                                     }
                                     if (p.id === 'gemini' && !keyVal.startsWith('AIzaSy') && !keyVal.startsWith('AQ.')) {
                                         return (
-                                            <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-1 font-mono">
+                                            <div className="text-[10px] text-[var(--accent-amber)] mt-0.5 flex items-center gap-1 font-mono">
                                                 <AlertTriangle size={10} />
-                                                <span>Should start with AIzaSy or AQ.</span>
+                                                <span>[WARN] Should start with AIzaSy or AQ.</span>
                                             </div>
                                         );
                                     }
                                     if (p.id === 'openai' && !keyVal.startsWith('sk-')) {
                                         return (
-                                            <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-1 font-mono">
+                                            <div className="text-[10px] text-[var(--accent-amber)] mt-0.5 flex items-center gap-1 font-mono">
                                                 <AlertTriangle size={10} />
-                                                <span>Should start with sk-</span>
+                                                <span>[WARN] Should start with sk-</span>
                                             </div>
                                         );
                                     }
@@ -337,66 +444,69 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                         ))}
                     </div>
 
-                    {/* YOLO toggle */}
-                    <div className="space-y-2 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                        <label className="flex items-center justify-between text-sm font-medium text-amber-300">
+                    {/* YOLO toggle — warning amber */}
+                    <div className="space-y-2 p-3 bg-[rgba(255,179,0,0.05)] border border-[rgba(255,179,0,0.25)] rounded-lg">
+                        <label className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--accent-amber)]">
                             <span className="flex items-center gap-2">
-                                <Zap size={16} /> Auto-approve new skills (YOLO)
+                                <Zap size={14} /> <span>&gt; Auto-approve new skills (YOLO)</span>
                             </span>
                             <input
                                 type="checkbox"
                                 checked={yoloMode}
                                 onChange={e => setYoloMode(e.target.checked)}
                                 className="w-5 h-5 rounded"
+                                style={{ accentColor: 'var(--accent-amber)' }}
                             />
                         </label>
-                        <p className="text-[10px] text-amber-400/60">
+                        <p className="text-[10px] text-[rgba(255,179,0,0.6)]">
                             When Echo proposes a brand-new skill at runtime, install it without asking.
                             Convenient for personal use, but skips the safety review.
                         </p>
                     </div>
 
                     {/* Mode toggles */}
-                    <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
+                    <div className={SECTION_CLS}>
                         <label className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-2 text-gray-300">
-                                <Globe size={14} /> Translation mode
+                            <span className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                <Globe size={14} className="text-[var(--accent-green)]" /> Translation mode
                             </span>
                             <input
                                 type="checkbox"
                                 checked={translationMode}
                                 onChange={e => setTranslationMode(e.target.checked)}
-                                className="w-4 h-4"
+                                className="sv-check w-4 h-4"
                             />
                         </label>
                         <label className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-2 text-gray-300">
-                                <Sparkles size={14} /> Stealth (Ghost-listen system audio)
+                            <span className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                <Sparkles size={14} className="text-[var(--accent-green)]" /> Stealth (Ghost-listen system audio)
                             </span>
                             <input
                                 type="checkbox"
                                 checked={stealthMode}
                                 onChange={e => setStealthMode(e.target.checked)}
-                                className="w-4 h-4"
+                                className="sv-check w-4 h-4"
                             />
                         </label>
                         <label className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-2 text-gray-300">
-                                <User size={14} /> Apply Ghost persona on connect
+                            <span className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                <User size={14} className="text-[var(--accent-green)]" /> Apply Ghost persona on connect
                             </span>
                             <input
                                 type="checkbox"
                                 checked={ghostActive}
                                 onChange={e => setGhostActive(e.target.checked)}
-                                className="w-4 h-4"
+                                className="sv-check w-4 h-4"
                             />
                         </label>
                     </div>
 
                     {/* Mobile voice */}
-                    <div className="space-y-2 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
-                        <p className="text-[10px] uppercase tracking-widest text-cyan-400/80">Mobile voice</p>
-                        <label className="block text-xs text-gray-300">
+                    <div className={SECTION_CLS}>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--accent-cyan)]">
+                            <span className="opacity-70">&gt; </span>Mobile voice
+                        </p>
+                        <label className="block text-xs text-[var(--text-secondary)]">
                             Interrupt style
                             <select
                                 value={(() => {
@@ -409,34 +519,34 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                                     const v = e.target.value as 'polite' | 'balanced' | 'eager';
                                     localStorage.setItem('echo_interrupt_mode', v);
                                 }}
-                                className="mt-1 w-full bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                                className="sv-input mt-1 w-full rounded-lg px-2 py-2 text-xs"
                             >
                                 <option value="polite">Polite — rarely talks over you</option>
                                 <option value="balanced">Balanced</option>
                                 <option value="eager">Eager — quick barge-in</option>
                             </select>
                         </label>
-                        <label className="block text-xs text-gray-300 mt-2">
+                        <label className="block text-xs text-[var(--text-secondary)] mt-2">
                             Live voice model
                             <select
                                 defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.5-flash-native-audio-preview-12-2025'}
                                 onChange={(e) => localStorage.setItem('echo_live_model', e.target.value)}
-                                className="mt-1 w-full bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-xs text-white font-mono"
+                                className="sv-input mt-1 w-full rounded-lg px-2 py-2 text-xs"
                             >
                                 <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio-preview-12-2025 (default)</option>
                             </select>
                         </label>
-                        <p className="text-[10px] text-cyan-400/50">
+                        <p className="text-[10px] text-[var(--text-tertiary)]">
                             Hands-free + native app (Capacitor) required for mic while screen locked. See mobile/README.md.
                         </p>
                     </div>
 
                     {/* Style examples */}
-                    <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
-                        <label className="flex items-center gap-2 text-sm font-medium text-[#00ff41]">
-                            <MessageSquare size={14} /> Your voice — style examples
+                    <div className={SECTION_CLS}>
+                        <label>
+                            <SectionTitle icon={<MessageSquare size={14} />}>Your voice — style examples</SectionTitle>
                         </label>
-                        <p className="text-[10px] text-gray-500">
+                        <p className="text-[10px] text-[var(--text-tertiary)]">
                             Paste 2–3 short messages in your own voice (separate them with a blank line and <code>---</code>).
                             Echo will mirror this tone in replies.
                         </p>
@@ -444,16 +554,16 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                             value={styleExamples}
                             onChange={e => setStyleExamples(e.target.value)}
                             placeholder={"Example 1...\n\n---\n\nExample 2..."}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs h-28 resize-y font-mono"
+                            className="sv-input w-full rounded-lg p-2 text-xs h-28 resize-y"
                         />
                     </div>
 
                     {/* Passphrase change */}
-                    <div className="space-y-2 p-3 bg-white/5 border border-white/10 rounded-xl">
-                        <label className="flex items-center gap-2 text-sm font-medium text-[#00ff41]">
-                            <Lock size={14} /> Change vault passphrase
+                    <div className={SECTION_CLS}>
+                        <label>
+                            <SectionTitle icon={<Lock size={14} />}>Change vault passphrase</SectionTitle>
                         </label>
-                        <p className="text-[10px] text-gray-500">
+                        <p className="text-[10px] text-[var(--text-tertiary)]">
                             Leave "old passphrase" empty if you've been using Quick Mode.
                         </p>
                         <input
@@ -461,83 +571,83 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                             placeholder="Old passphrase (optional)"
                             value={oldPassphrase}
                             onChange={e => setOldPassphrase(e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs"
+                            className={INPUT_CLS}
                         />
                         <input
                             type="password"
                             placeholder="New passphrase"
                             value={newPassphrase}
                             onChange={e => setNewPassphrase(e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs"
+                            className={INPUT_CLS}
                         />
                         <input
                             type="password"
                             placeholder="Confirm new passphrase"
                             value={confirmPassphrase}
                             onChange={e => setConfirmPassphrase(e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs"
+                            className={INPUT_CLS}
                         />
                     </div>
 
                     {/* Existing — GitHub + Serp */}
                     <div className="space-y-3">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Github size={16} /> GitHub Personal Access Token
+                        <label>
+                            <SectionTitle icon={<Github size={14} />}>GitHub Personal Access Token</SectionTitle>
                         </label>
                         <input
                             type="password"
                             value={githubToken}
                             onChange={(e) => setGithubToken(e.target.value)}
                             placeholder="ghp_xxxxxxxxxxxx"
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs"
+                            className={INPUT_CLS}
                         />
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Globe size={16} /> SerpAPI Key (Web Search)
+                        <label>
+                            <SectionTitle icon={<Globe size={14} />}>SerpAPI Key (Web Search)</SectionTitle>
                         </label>
                         <input
                             type="password"
                             value={serpApiKey}
                             onChange={(e) => setSerpApiKey(e.target.value)}
                             placeholder="serpapi key..."
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs"
+                            className={INPUT_CLS}
                         />
                     </div>
 
                     {/* Avatar */}
-                    <div className="space-y-2 p-4 bg-white/5 border border-white/10 rounded-xl">
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <User size={16} /> AI Avatar URL
+                    <div className={SECTION_CLS}>
+                        <label>
+                            <SectionTitle icon={<User size={14} />}>AI Avatar URL</SectionTitle>
                         </label>
                         <input
                             type="text"
                             value={avatarUrl}
                             onChange={(e) => setAvatarUrl(e.target.value)}
                             placeholder="https://example.com/avatar.png"
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs"
+                            className={INPUT_CLS}
                         />
                     </div>
 
                     {/* Base Resume */}
-                    <div className="space-y-2 p-4 bg-white/5 border border-white/10 rounded-xl">
-                        <label className="flex items-center gap-2 text-sm font-medium text-[#00ff41]">
-                            <FileText size={16} /> Career Node (Base Resume)
+                    <div className={SECTION_CLS}>
+                        <label>
+                            <SectionTitle icon={<FileText size={14} />}>Career Node (Base Resume)</SectionTitle>
                         </label>
-                        <p className="text-[10px] text-gray-500">
+                        <p className="text-[10px] text-[var(--text-tertiary)]">
                             Plain-text or markdown. Echo's <code>tailor_resume</code> tool will read this.
                         </p>
                         <textarea
                             value={baseResume}
                             onChange={(e) => setBaseResume(e.target.value)}
                             placeholder="## Work Experience\n\n- Software Engineer at..."
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-sm h-48 resize-y"
+                            className="sv-input w-full rounded-lg p-3 text-sm h-48 resize-y"
                         />
                     </div>
 
-                    <div className="pt-4 flex gap-3">
-                        <Button onClick={handleSave} variant="primary" className="w-full justify-center group">
-                            <Check className="mr-2 group-hover:scale-110 transition-transform" size={18} />
-                            Save & Apply
-                        </Button>
+                    <div className="pt-2 flex gap-3">
+                        <button onClick={handleSave} type="button" className="btn-term solid w-full group">
+                            <Check className="group-hover:scale-110 transition-transform" size={16} />
+                            Save &amp; Apply
+                        </button>
                     </div>
                 </div>
             </div>

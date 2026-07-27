@@ -366,9 +366,16 @@ export default function App() {
       wakeLockService.release();
     };
     const onSilence = () => {
-      info('No voice detected — pausing Echo. Tap mic to resume.');
-      serviceRef.current?.disconnect();
-      wakeLockService.release();
+      // Soft pause, not a teardown: mute the mic (stops sending audio —
+      // near-zero cost while idle) but keep the Live session/context alive,
+      // so resuming is instant and doesn't lose the conversation. This is
+      // what the toast has always claimed to do; it previously called
+      // disconnect() instead, which killed the whole session on every
+      // natural pause in conversation (the actual cause of sessions
+      // "stopping" after ~90s–2min of the user just listening or thinking).
+      info('No voice detected — pausing mic. Tap mic to resume.');
+      setIsMicMuted(true);
+      serviceRef.current?.setMuted(true);
     };
     const onHardCap = () => {
       warning('Session hit the safety cap. Disconnecting.');
@@ -739,11 +746,11 @@ export default function App() {
   const getThemeGradient = () => {
     switch (status) {
       case ConnectionStatus.CONNECTED:
-        return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/40 via-echo-dark to-echo-dark';
+        return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[rgba(0,255,65,0.10)] via-echo-dark to-echo-dark';
       case ConnectionStatus.CONNECTING:
-        return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-yellow-900/20 via-echo-dark to-echo-dark';
+        return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[rgba(255,179,0,0.08)] via-echo-dark to-echo-dark';
       case ConnectionStatus.ERROR:
-        return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-900/40 via-echo-dark to-echo-dark';
+        return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[rgba(255,59,92,0.12)] via-echo-dark to-echo-dark';
       default:
         return 'bg-echo-dark';
     }
@@ -833,7 +840,7 @@ export default function App() {
 
   return (
 
-    <div className={`relative w-screen h-screen overflow-hidden flex flex-col selection:bg-[#00ff88]/20${isMobileCoarse ? ' mobile-lite' : ''}`} style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}>
+    <div className={`relative w-screen h-screen overflow-hidden flex flex-col selection:bg-[#00ff41]/20${isMobileCoarse ? ' mobile-lite' : ''}`} style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}>
       {/* Landing page — very first thing a new visitor sees */}
       {vaultReady && showLanding && (
         <LandingPage
@@ -979,7 +986,7 @@ export default function App() {
           </div>
 
           <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showGhostMode ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="h-full w-full bg-echo-dark/95 backdrop-blur-xl border-l border-white/5 shadow-2xl">
+            <div className="h-full w-full bg-echo-dark/95 backdrop-blur-xl border-l border-[var(--border-dim)] shadow-2xl">
                <GhostMode 
                  isActive={localStorage.getItem('echo_ghost_active') === 'true'} 
                  onActivate={(config) => {
@@ -993,7 +1000,7 @@ export default function App() {
                />
                <button 
                  onClick={() => setShowGhostMode(false)}
-                 className="absolute top-4 right-4 text-gray-500 hover:text-white"
+                 className="absolute top-4 right-4 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                >
                  <X size={24} />
                </button>
@@ -1139,8 +1146,8 @@ export default function App() {
                 width: 600, height: 600,
                 borderRadius: '50%',
                 background: status === ConnectionStatus.CONNECTED
-                  ? 'radial-gradient(circle, rgba(0,255,136,0.055) 0%, transparent 70%)'
-                  : 'radial-gradient(circle, rgba(30,140,255,0.04) 0%, transparent 70%)',
+                  ? 'radial-gradient(circle, rgba(0,255,65,0.055) 0%, transparent 70%)'
+                  : 'radial-gradient(circle, rgba(43,217,107,0.04) 0%, transparent 70%)',
                 top: '-10%', left: '50%', transform: 'translateX(-50%)',
                 filter: 'blur(60px)',
                 transition: 'background 2s ease',
@@ -1153,7 +1160,7 @@ export default function App() {
               style={{
                 width: 400, height: 400,
                 borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(0,100,255,0.04) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(87,255,176,0.035) 0%, transparent 70%)',
                 bottom: '-5%', right: '10%',
                 filter: 'blur(80px)',
                 animation: 'float-slow 16s ease-in-out infinite reverse',
@@ -1169,7 +1176,7 @@ export default function App() {
                   style={{
                     background: 'rgba(5,8,16,0.85)',
                     backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(0,255,136,0.35)',
+                    border: '1px solid rgba(0,255,65,0.35)',
                     boxShadow: 'var(--glow-green-sm)',
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
@@ -1202,7 +1209,7 @@ export default function App() {
                       ? 'var(--accent-green)'
                       : status === ConnectionStatus.CONNECTING
                         ? 'var(--accent-amber)'
-                        : 'rgba(255,255,255,0.2)',
+                        : 'var(--text-muted)',
                     boxShadow: status === ConnectionStatus.CONNECTED
                       ? '0 0 8px var(--accent-green)'
                       : 'none',
@@ -1254,10 +1261,10 @@ export default function App() {
                     <p
                       className="animate-fade-up text-center max-w-xs leading-relaxed"
                       style={{
-                        fontFamily: 'var(--font-mono)',
+                        fontFamily: 'var(--font-term)',
                         fontSize: 'clamp(9px, 1.3vw, 11px)',
-                        color: 'rgba(255,255,255,0.32)',
-                        letterSpacing: '0.02em',
+                        color: 'var(--text-tertiary)',
+                        letterSpacing: '0.08em',
                       }}
                     >
                       {preview}
@@ -1282,7 +1289,7 @@ export default function App() {
                   borderRadius: '50%',
                   overflow: 'hidden',
                   border: '2px solid var(--accent-green)',
-                  boxShadow: '0 0 16px rgba(0,255,136,0.4)',
+                  boxShadow: '0 0 16px rgba(0,255,65,0.4)',
                   cursor: 'grab',
                   touchAction: 'none',
                   userSelect: 'none',
@@ -1347,12 +1354,12 @@ export default function App() {
                     height: Math.max(24, camSize * 0.22),
                     borderRadius: '50%',
                     background: 'rgba(0,0,0,0.65)',
-                    border: '1px solid rgba(255,255,255,0.25)',
+                    border: '1px solid var(--border-green)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    color: 'white',
+                    color: 'var(--text-primary)',
                     flexShrink: 0,
                   }}
                   aria-label="Flip camera"
@@ -1369,20 +1376,20 @@ export default function App() {
                 onClick={() => setShowMobileMenu(false)}
               >
                 <div
-                  className="w-full rounded-t-2xl p-4"
+                  className="w-full rounded-t-lg p-4"
                   style={{
-                    background: 'rgba(8,12,22,0.97)',
+                    background: 'var(--bg-elevated)',
                     backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255,255,255,0.08)',
+                    border: '1px solid var(--border-base)',
                     borderBottom: 'none',
                     paddingBottom: 'max(env(safe-area-inset-bottom,16px),16px)',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Handle */}
-                  <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
-                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Navigation
+                  <div style={{ width: 36, height: 4, background: 'var(--border-green)', borderRadius: 2, margin: '0 auto 16px' }} />
+                  <p className="font-hud" style={{ fontSize: 10, color: 'var(--text-tertiary)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 14 }}>
+                    // Navigation
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
                     {([
@@ -1407,16 +1414,18 @@ export default function App() {
                       <button
                         key={label}
                         onClick={action}
+                        className="font-hud"
                         style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                           padding: '12px 4px',
-                          borderRadius: 12,
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: 'var(--radius-sm, 4px)',
+                          background: 'rgba(0,255,65,0.04)',
+                          border: '1px solid var(--border-subtle)',
                           color: 'var(--text-secondary)',
-                          fontSize: 10,
-                          fontFamily: 'var(--font-ui)',
+                          fontSize: 9,
+                          textTransform: 'uppercase',
                           cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
                         }}
                       >
                         <Icon size={20} />
@@ -1424,8 +1433,8 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Controls
+                  <p className="font-hud" style={{ fontSize: 10, color: 'var(--text-tertiary)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 14 }}>
+                    // Controls
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
                     {([
@@ -1437,16 +1446,18 @@ export default function App() {
                       <button
                         key={label}
                         onClick={() => { action(); setShowMobileMenu(false); }}
+                        className="font-hud"
                         style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                           padding: '12px 4px',
-                          borderRadius: 12,
-                          background: active ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${active ? 'rgba(0,255,136,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                          borderRadius: 'var(--radius-sm, 4px)',
+                          background: active ? 'rgba(0,255,65,0.1)' : 'rgba(0,255,65,0.04)',
+                          border: `1px solid ${active ? 'var(--accent-green)' : 'var(--border-subtle)'}`,
                           color: active ? 'var(--accent-green)' : 'var(--text-secondary)',
-                          fontSize: 10,
-                          fontFamily: 'var(--font-ui)',
+                          fontSize: 9,
+                          textTransform: 'uppercase',
                           cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
                         }}
                       >
                         <Icon size={20} />
@@ -1471,9 +1482,9 @@ export default function App() {
                   width: 40,
                   height: 40,
                   borderRadius: '50%',
-                  background: 'rgba(8,12,22,0.8)',
+                  background: 'var(--bg-elevated)',
                   backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: '1px solid var(--border-dim)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1593,11 +1604,11 @@ export default function App() {
                       <>
                         <div
                           className="absolute inset-0 rounded-full pointer-events-none mic-ring-1"
-                          style={{ border: '2px solid rgba(0,255,136,0.55)' }}
+                          style={{ border: '2px solid rgba(0,255,65,0.55)' }}
                         />
                         <div
                           className="absolute inset-0 rounded-full pointer-events-none mic-ring-2"
-                          style={{ border: '2px solid rgba(0,255,136,0.35)' }}
+                          style={{ border: '2px solid rgba(0,255,65,0.35)' }}
                         />
                       </>
                     )}

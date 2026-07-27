@@ -30,6 +30,8 @@ interface PlatformDef {
     fields: { key: string; label: string; placeholder: string }[];
 }
 
+// Platform brand colors are kept as literal identity marks (data, not chrome) —
+// used only as the fill on a *selected* platform chip.
 const PLATFORMS: PlatformDef[] = [
     { id: 'bluesky', name: 'Bluesky', icon: '🦋', color: '#0085ff', limit: 300, fields: [
         { key: 'handle', label: 'Handle', placeholder: 'you.bsky.social' },
@@ -114,12 +116,12 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
         const r = await coreSocialPost([...selected], { text }, getCreds());
         setPosting(false);
         setResult(r);
-        if (r.ok && r.succeeded) { flash(`✓ Posted to ${r.succeeded} platform(s)`); setText(''); }
+        if (r.ok && r.succeeded) { flash(`[OK] Posted to ${r.succeeded} platform(s)`); setText(''); }
     };
 
     const doSchedule = async () => {
         if (!text.trim() || selected.size === 0 || !cron.trim()) return;
-        if (!isCoreConnected()) { flash('✗ Echo Core required to schedule'); return; }
+        if (!isCoreConnected()) { flash('[FAIL] Echo Core required to schedule'); return; }
         setPosting(true);
         const r = await coreSaveMission({
             name: scheduleName || `Social post → ${[...selected].join(', ')}`,
@@ -128,8 +130,8 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
             steps: [{ tool: 'post_to_social', description: 'Scheduled social post', args: { platforms: [...selected], text } }],
         });
         setPosting(false);
-        if (r.ok) { flash(`✓ Scheduled (${cron})`); setText(''); setScheduleMode(false); }
-        else flash(`✗ ${r.error || 'Failed to schedule'}`);
+        if (r.ok) { flash(`[OK] Scheduled (${cron})`); setText(''); setScheduleMode(false); }
+        else flash(`[FAIL] ${r.error || 'Failed to schedule'}`);
     };
 
     const saveConnection = async () => {
@@ -142,7 +144,7 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
         if (isCoreConnected()) await coreSaveSocialCreds({ [platform]: fields });
         setConnectPanel(null); setCredDraft({});
         await refreshConnected();
-        flash(`✓ ${platform} connected`);
+        flash(`[OK] ${platform} connected`);
     };
 
     const minLimit = selected.size
@@ -151,17 +153,27 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
     const over = text.length > minLimit;
 
     return (
-        <div className="flex flex-col h-full bg-black/20 rounded-2xl border border-white/10 overflow-hidden">
+        <div className="term-window animate-phosphor-in flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                <span className="text-lg">📣</span>
-                <h2 className="text-white font-semibold text-sm">Social Autopilot</h2>
-                <span className="text-xs text-gray-500 ml-auto">{connected.size}/{PLATFORMS.length} connected</span>
-                {onClose && <button onClick={onClose} className="text-gray-500 hover:text-white text-sm ml-1">✕</button>}
+            <div className="term-titlebar justify-between">
+                <div className="flex items-center gap-2.5">
+                    <span className="term-dots" />
+                    <span>SOCIAL.NET</span>
+                    <span className="text-[9px] tracking-[0.2em] text-[var(--text-tertiary)] normal-case">
+                        {connected.size}/{PLATFORMS.length} CONNECTED
+                    </span>
+                </div>
+                {onClose && (
+                    <button onClick={onClose} className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors">✕</button>
+                )}
             </div>
 
             {toast && (
-                <div className={`mx-4 mt-3 text-xs px-3 py-2 rounded-lg ${toast.startsWith('✓') ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`}>{toast}</div>
+                <div className={`mx-4 mt-3 text-xs font-hud uppercase tracking-[0.15em] px-3 py-2 rounded border ${
+                    toast.startsWith('[OK]')
+                        ? 'bg-[rgba(0,255,65,0.08)] border-[var(--border-green)] text-[var(--accent-green)]'
+                        : 'bg-[rgba(255,59,92,0.08)] border-[rgba(255,59,92,0.35)] text-[var(--accent-red)]'
+                }`}>{toast}</div>
             )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -175,19 +187,19 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
                                 key={p.id}
                                 onClick={() => toggle(p.id)}
                                 title={isConnected ? `Toggle ${p.name}` : `Connect ${p.name}`}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-hud uppercase tracking-[0.1em] border transition-all ${
                                     isSelected
-                                        ? 'border-transparent text-white shadow-lg'
+                                        ? 'border-transparent text-black shadow-[0_0_10px_rgba(0,255,65,0.15)]'
                                         : isConnected
-                                            ? 'border-white/15 text-gray-300 hover:border-white/30'
-                                            : 'border-dashed border-white/15 text-gray-500 hover:text-gray-300'
+                                            ? 'border-[var(--border-dim)] text-[var(--text-secondary)] hover:border-[var(--border-green)]'
+                                            : 'border-dashed border-[var(--border-dim)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                                 }`}
                                 style={isSelected ? { background: p.color } : undefined}
                             >
                                 <span>{p.icon}</span>
                                 <span>{p.name}</span>
-                                {!isConnected && <span className="text-[10px] opacity-70">+ connect</span>}
-                                {isConnected && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>}
+                                {!isConnected && <span className="text-[9px] opacity-70">+ connect</span>}
+                                {isConnected && !isSelected && <span className="status-dot green" />}
                             </button>
                         );
                     })}
@@ -197,10 +209,10 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
                 {connectPanel && (() => {
                     const p = PLATFORMS.find(x => x.id === connectPanel)!;
                     return (
-                        <div className="rounded-xl border border-white/15 bg-white/5 p-4 space-y-3">
+                        <div className="rounded-lg border border-[var(--border-green)] bg-[rgba(0,255,65,0.04)] p-4 space-y-3">
                             <div className="flex items-center justify-between">
-                                <span className="text-sm text-white font-medium">{p.icon} Connect {p.name}</span>
-                                <button onClick={() => { setConnectPanel(null); setCredDraft({}); }} className="text-gray-500 hover:text-white text-xs">✕</button>
+                                <span className="text-sm font-hud uppercase tracking-[0.1em] text-[var(--text-primary)]">{p.icon} Connect {p.name}</span>
+                                <button onClick={() => { setConnectPanel(null); setCredDraft({}); }} className="text-[var(--text-tertiary)] hover:text-[var(--accent-green)] text-xs">✕</button>
                             </div>
                             {p.fields.map(f => (
                                 <input
@@ -209,10 +221,10 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
                                     placeholder={`${f.label} — ${f.placeholder}`}
                                     value={credDraft[f.key] || ''}
                                     onChange={e => setCredDraft(d => ({ ...d, [f.key]: e.target.value }))}
-                                    className="w-full px-3 py-2 text-sm rounded-lg bg-black/30 border border-white/10 text-white placeholder-gray-600 focus:border-white/30 outline-none"
+                                    className="w-full px-3 py-2 text-sm font-hud rounded bg-black/60 border border-[var(--border-dim)] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:border-[var(--border-green)] outline-none"
                                 />
                             ))}
-                            <button onClick={saveConnection} className="w-full py-2 text-sm font-medium rounded-lg bg-green-600/30 text-green-300 border border-green-600/40 hover:bg-green-600/40">Save connection</button>
+                            <button onClick={saveConnection} className="btn-term solid w-full py-2 text-xs">Save connection</button>
                         </div>
                     );
                 })()}
@@ -224,10 +236,10 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
                         onChange={e => setText(e.target.value)}
                         placeholder="What do you want to post everywhere?"
                         rows={5}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-black/30 border border-white/10 text-white placeholder-gray-600 focus:border-white/30 outline-none resize-none"
+                        className="w-full px-4 py-3 text-sm rounded-lg bg-black/50 border border-[var(--border-dim)] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:border-[var(--border-green)] outline-none resize-none"
                     />
                     {selected.size > 0 && (
-                        <span className={`absolute bottom-3 right-3 text-xs ${over ? 'text-red-400' : 'text-gray-500'}`}>
+                        <span className={`absolute bottom-3 right-3 text-xs font-hud ${over ? 'text-[var(--accent-red)]' : 'text-[var(--text-tertiary)]'}`}>
                             {text.length}/{minLimit}
                         </span>
                     )}
@@ -235,19 +247,30 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
 
                 {/* Schedule controls */}
                 {scheduleMode && (
-                    <div className="rounded-xl border border-white/10 bg-white/3 p-3 space-y-2">
+                    <div className="rounded-lg border border-[var(--border-dim)] bg-[rgba(0,255,65,0.03)] p-3 space-y-2">
                         <input
                             value={scheduleName}
                             onChange={e => setScheduleName(e.target.value)}
                             placeholder="Schedule name (optional)"
-                            className="w-full px-3 py-2 text-sm rounded-lg bg-black/30 border border-white/10 text-white placeholder-gray-600 outline-none"
+                            className="w-full px-3 py-2 text-sm font-hud rounded bg-black/60 border border-[var(--border-dim)] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] outline-none focus:border-[var(--border-green)]"
                         />
                         <div className="flex flex-wrap gap-1.5">
                             {CRON_PRESETS.map(c => (
-                                <button key={c.value} onClick={() => setCron(c.value)} className={`text-[11px] px-2 py-1 rounded-md border ${cron === c.value ? 'border-green-500/50 bg-green-900/30 text-green-300' : 'border-white/10 text-gray-400 hover:text-white'}`}>{c.label}</button>
+                                <button
+                                    key={c.value}
+                                    onClick={() => setCron(c.value)}
+                                    className={`text-[10px] font-hud uppercase tracking-[0.1em] px-2 py-1 rounded border transition-colors ${
+                                        cron === c.value
+                                            ? 'border-[var(--border-green)] bg-[rgba(0,255,65,0.12)] text-[var(--accent-green)]'
+                                            : 'border-[var(--border-dim)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                                    }`}
+                                >{c.label}</button>
                             ))}
                         </div>
-                        <input value={cron} onChange={e => setCron(e.target.value)} className="w-full px-3 py-1.5 text-xs font-mono rounded-lg bg-black/30 border border-white/10 text-gray-300 outline-none" />
+                        <input
+                            value={cron} onChange={e => setCron(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs font-hud rounded bg-black/60 border border-[var(--border-dim)] text-[var(--text-secondary)] outline-none focus:border-[var(--border-green)]"
+                        />
                     </div>
                 )}
 
@@ -255,8 +278,8 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
                 {result?.results && (
                     <div className="space-y-1.5">
                         {result.results.map((r, i) => (
-                            <div key={i} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg ${r.ok ? 'bg-green-900/20 text-green-300' : 'bg-red-900/20 text-red-300'}`}>
-                                <span>{r.ok ? '✓' : '✗'} {r.platform}</span>
+                            <div key={i} className={`flex items-center justify-between text-xs font-hud px-3 py-2 rounded border ${r.ok ? 'bg-[rgba(0,255,65,0.06)] border-[var(--border-green)] text-[var(--accent-green)]' : 'bg-[rgba(255,59,92,0.06)] border-[rgba(255,59,92,0.3)] text-[var(--accent-red)]'}`}>
+                                <span>{r.ok ? '[OK]' : '[FAIL]'} {r.platform}</span>
                                 {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="underline opacity-80 hover:opacity-100">view</a> : <span className="opacity-70">{r.error}</span>}
                             </div>
                         ))}
@@ -265,25 +288,25 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
             </div>
 
             {/* Action bar */}
-            <div className="px-4 py-3 border-t border-white/10 flex items-center gap-2">
+            <div className="px-4 py-3 border-t border-[rgba(0,255,65,0.14)] flex items-center gap-2">
                 <button
                     onClick={() => setScheduleMode(s => !s)}
-                    className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${scheduleMode ? 'border-purple-500/50 bg-purple-900/30 text-purple-300' : 'border-white/10 text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-2 text-[11px] font-hud uppercase tracking-[0.15em] rounded border transition-colors ${scheduleMode ? 'border-[var(--border-green)] bg-[rgba(0,255,65,0.1)] text-[var(--accent-green)]' : 'border-[var(--border-dim)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 >
-                    🕐 Schedule
+                    ⏱ Schedule
                 </button>
                 <button
                     onClick={scheduleMode ? doSchedule : doPost}
                     disabled={posting || over || !text.trim() || selected.size === 0}
-                    className="flex-1 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-term solid flex-1 py-2 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     {posting ? '…' : scheduleMode ? `Schedule to ${selected.size} platform${selected.size === 1 ? '' : 's'}` : `Post now to ${selected.size} platform${selected.size === 1 ? '' : 's'}`}
                 </button>
             </div>
 
             {!isCoreConnected() && (
-                <div className="px-4 py-2 text-[11px] text-yellow-400/80 bg-yellow-900/10 border-t border-yellow-900/20">
-                    ⚡ Echo Core offline — only Bluesky, Mastodon & Discord can post. Start Core for all platforms + scheduling.
+                <div className="px-4 py-2 text-[10px] font-hud uppercase tracking-[0.1em] text-[var(--accent-amber)] bg-[rgba(255,179,0,0.06)] border-t border-[rgba(255,179,0,0.2)]">
+                    ⚡ Echo Core offline — only Bluesky, Mastodon &amp; Discord can post. Start Core for all platforms + scheduling.
                 </div>
             )}
         </div>

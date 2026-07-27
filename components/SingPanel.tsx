@@ -31,12 +31,12 @@ function Sel<T extends string>({
     const isObjArr = typeof options[0] === 'object';
     return (
         <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-white/30 uppercase tracking-widest sc-hud-font">{label}</span>
+            <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-widest font-hud">{label}</span>
             <div className="relative">
                 <select
                     value={value}
                     onChange={e => onChange(e.target.value as T)}
-                    className="appearance-none w-full bg-white/5 border border-white/10 text-white/80 text-xs rounded-lg px-2 py-1.5 pr-6 sc-hud-font focus:outline-none focus:border-[#00ff41]/40"
+                    className="appearance-none w-full bg-[rgba(0,255,65,0.05)] border border-[var(--border-dim)] text-[var(--text-primary)] text-xs rounded-lg px-2 py-1.5 pr-6 font-hud focus:outline-none focus:border-[rgba(0,255,65,0.40)]"
                 >
                     {isObjArr
                         ? (options as { id: string; label: string }[]).map(o => (
@@ -47,7 +47,7 @@ function Sel<T extends string>({
                         ))
                     }
                 </select>
-                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none" />
             </div>
         </div>
     );
@@ -58,17 +58,17 @@ function LyricsDisplay({ lyrics, playing }: { lyrics: string; playing: boolean }
     if (!lyrics) return null;
     const sections = lyrics.split(/(?=\[)/g).filter(Boolean);
     return (
-        <div className="mt-3 space-y-3 overflow-y-auto max-h-64 pr-1 scrollbar-thin scrollbar-thumb-white/10">
+        <div className="mt-3 space-y-3 overflow-y-auto max-h-64 pr-1 scrollbar-thin scrollbar-thumb-[rgba(0,255,65,0.12)]">
             {sections.map((sec, i) => {
                 const [header, ...lines] = sec.split('\n');
                 return (
                     <div key={i}>
-                        <div className="text-[9px] text-[#00ff41]/50 sc-hud-font tracking-widest mb-1">
+                        <div className="text-[9px] text-[rgba(0,255,65,0.50)] font-hud tracking-widest mb-1">
                             {header.replace(/[\[\]]/g, '').toUpperCase()}
                         </div>
-                        <div className={`space-y-0.5 border-l border-white/10 pl-2 transition-colors ${playing ? 'border-[#00ff41]/30' : ''}`}>
+                        <div className={`space-y-0.5 border-l border-[var(--border-dim)] pl-2 transition-colors ${playing ? 'border-[rgba(0,255,65,0.30)]' : ''}`}>
                             {lines.filter(l => l.trim()).map((line, j) => (
-                                <p key={j} className="text-white/70 text-[11px] sc-hud-font leading-relaxed">{line.trim()}</p>
+                                <p key={j} className="text-[var(--text-secondary)] text-[11px] font-hud leading-relaxed">{line.trim()}</p>
                             ))}
                         </div>
                     </div>
@@ -170,14 +170,17 @@ export default function SingPanel({ onClose }: Props) {
     const isPlaying = phase === 'playing';
 
     return (
-        <div className="h-full flex flex-col bg-[#080808] border-l border-white/8 text-white">
+        <div className="term-window h-full flex flex-col w-full max-w-full font-mono animate-phosphor-in" role="region" aria-label="Sing panel">
             {/* Header */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/8 shrink-0">
-                <Music size={14} className="text-[#00ff41]" />
-                <span className="sc-hud-font text-sm text-white/80 tracking-wider">ECHO // SING</span>
+            <div className="term-titlebar justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                    <span className="term-dots" />
+                    <Music size={14} className="text-[var(--accent-green)]" />
+                    <span className="font-hud text-sm text-[var(--accent-green2)] tracking-wider">SING.SYS</span>
+                </div>
                 <button
                     onClick={onClose}
-                    className="ml-auto p-1 rounded-lg hover:bg-white/8 text-white/40 hover:text-white/70 transition-colors"
+                    className="p-1 rounded-lg hover:bg-[rgba(0,255,65,0.08)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
                 >
                     <X size={14} />
                 </button>
@@ -186,14 +189,14 @@ export default function SingPanel({ onClose }: Props) {
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                 {/* Topic input */}
                 <div>
-                    <label className="text-[9px] text-white/30 uppercase tracking-widest sc-hud-font">Topic / Theme</label>
+                    <label className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-widest font-hud">Topic / Theme</label>
                     <input
                         type="text"
                         value={topic}
                         onChange={e => setTopic(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSing()}
                         placeholder="e.g. the cosmos, rainy nights, hope…"
-                        className="mt-1 w-full bg-white/5 border border-white/10 text-white/80 text-xs rounded-lg px-3 py-2 sc-hud-font placeholder-white/20 focus:outline-none focus:border-[#00ff41]/40 transition-colors"
+                        className="mt-1 w-full bg-[rgba(0,255,65,0.05)] border border-[var(--border-dim)] text-[var(--text-primary)] text-xs rounded-lg px-3 py-2 font-hud placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[rgba(0,255,65,0.40)] transition-colors"
                         disabled={isLoading || isPlaying}
                     />
                 </div>
@@ -202,13 +205,13 @@ export default function SingPanel({ onClose }: Props) {
                 <div className="grid grid-cols-2 gap-2">
                     <Sel label="Key" value={config.key} options={MUSICAL_KEYS} onChange={v => cfg('key', v)} />
                     <div className="flex flex-col gap-0.5">
-                        <span className="text-[9px] text-white/30 uppercase tracking-widest sc-hud-font">Mode</span>
+                        <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-widest font-hud">Mode</span>
                         <div className="flex gap-1 mt-0.5">
                             {(['major','minor'] as const).map(m => (
                                 <button
                                     key={m}
                                     onClick={() => cfg('mode', m)}
-                                    className={`flex-1 text-[10px] py-1.5 rounded-lg border transition-all sc-hud-font ${config.mode === m ? 'border-[#00ff41]/50 bg-[#00ff41]/10 text-[#00ff41]' : 'border-white/10 text-white/40 hover:border-white/20'}`}
+                                    className={`flex-1 text-[10px] py-1.5 rounded-lg border transition-all font-hud uppercase tracking-widest ${config.mode === m ? 'border-[rgba(0,255,65,0.50)] bg-[rgba(0,255,65,0.10)] text-[var(--accent-green)] text-glow-green' : 'border-[var(--border-dim)] text-[var(--text-tertiary)] hover:border-[var(--border-base)]'}`}
                                 >
                                     {m}
                                 </button>
@@ -222,17 +225,17 @@ export default function SingPanel({ onClose }: Props) {
                 {/* BPM slider */}
                 <div>
                     <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] text-white/30 uppercase tracking-widest sc-hud-font">Tempo</span>
-                        <span className="text-[10px] text-[#00ff41]/70 sc-hud-font">{config.bpm} BPM</span>
+                        <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-widest font-hud">Tempo</span>
+                        <span className="text-[10px] text-[rgba(0,255,65,0.70)] font-hud">{config.bpm} BPM</span>
                     </div>
                     <input
                         type="range"
                         min={60} max={180} step={5}
                         value={config.bpm}
                         onChange={e => cfg('bpm', Number(e.target.value))}
-                        className="w-full h-1 accent-[#00ff41] cursor-pointer"
+                        className="w-full h-1 accent-[var(--accent-green)] cursor-pointer"
                     />
-                    <div className="flex justify-between text-[8px] text-white/20 sc-hud-font mt-0.5">
+                    <div className="flex justify-between text-[8px] text-[var(--text-tertiary)] font-hud mt-0.5">
                         <span>60</span><span>180</span>
                     </div>
                 </div>
@@ -241,20 +244,20 @@ export default function SingPanel({ onClose }: Props) {
                 <label className="flex items-center gap-2 cursor-pointer">
                     <div
                         onClick={() => cfg('withAccompaniment', !config.withAccompaniment)}
-                        className={`w-8 h-4 rounded-full transition-colors relative ${config.withAccompaniment ? 'bg-[#00ff41]/40' : 'bg-white/10'}`}
+                        className={`w-8 h-4 rounded-full transition-colors relative ${config.withAccompaniment ? 'bg-[rgba(0,255,65,0.40)]' : 'bg-[rgba(0,255,65,0.10)]'}`}
                     >
-                        <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${config.withAccompaniment ? 'left-4 bg-[#00ff41]' : 'left-0.5 bg-white/40'}`} />
+                        <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${config.withAccompaniment ? 'left-4 bg-[var(--accent-green)]' : 'left-0.5 bg-[rgba(0,255,65,0.40)]'}`} />
                     </div>
-                    <span className="text-[11px] text-white/50 sc-hud-font">Instrumental accompaniment</span>
+                    <span className="text-[11px] text-[var(--text-secondary)] font-hud">Instrumental accompaniment</span>
                 </label>
 
-                <div className="h-px bg-white/6" />
+                <div className="h-px bg-[rgba(0,255,65,0.06)]" />
 
                 {/* Action button */}
                 {isPlaying ? (
                     <button
                         onClick={stop}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 text-sm sc-hud-font hover:bg-rose-500/25 transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(255,59,92,0.12)] border border-[rgba(255,59,92,0.35)] text-[var(--accent-red)] text-sm font-hud uppercase tracking-widest hover:bg-[rgba(255,59,92,0.2)] transition-all"
                     >
                         <Square size={14} /> Stop
                     </button>
@@ -262,7 +265,7 @@ export default function SingPanel({ onClose }: Props) {
                     <button
                         onClick={handleSing}
                         disabled={!topic.trim() || isLoading}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-[#00ff41] text-sm sc-hud-font hover:bg-[#00ff41]/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(0,255,65,0.10)] border border-[rgba(0,255,65,0.30)] text-[var(--accent-green)] text-glow-green text-sm font-hud uppercase tracking-widest hover:bg-[rgba(0,255,65,0.20)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                         {isLoading
                             ? <><Loader2 size={14} className="animate-spin" /> {statusMsg || 'Working…'}</>
@@ -273,19 +276,19 @@ export default function SingPanel({ onClose }: Props) {
 
                 {/* Status */}
                 {isPlaying && statusMsg && (
-                    <p className="text-[10px] text-[#00ff41]/50 sc-hud-font text-center animate-pulse">{statusMsg}</p>
+                    <p className="text-[10px] text-[rgba(0,255,65,0.50)] font-hud text-center animate-pulse">{statusMsg}</p>
                 )}
 
                 {/* Error */}
                 {phase === 'error' && (
-                    <div className="text-[10px] text-rose-400/80 sc-hud-font bg-rose-500/8 border border-rose-500/20 rounded-lg px-3 py-2">
+                    <div className="text-[10px] text-[rgba(255,59,92,0.85)] font-hud bg-[rgba(255,59,92,0.08)] border border-[rgba(255,59,92,0.25)] rounded-lg px-3 py-2">
                         {errMsg}
                     </div>
                 )}
 
                 {/* HF key hint */}
                 {!localStorage.getItem('echo_hf_key') && (
-                    <p className="text-[9px] text-white/20 sc-hud-font text-center leading-relaxed">
+                    <p className="text-[9px] text-[var(--text-tertiary)] font-hud text-center leading-relaxed">
                         Add a HuggingFace API key in Settings for Bark vocal synthesis.
                         <br />Works without it — chord accompaniment plays instead.
                     </p>

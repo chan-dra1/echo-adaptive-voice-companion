@@ -1,5 +1,7 @@
 import React from 'react';
 import { Mic, Layers, Rocket, ShieldCheck, ArrowRight } from 'lucide-react';
+import MatrixRain from './MatrixRain';
+import DecodeText from './fx/DecodeText';
 
 // LandingPage — full-screen pre-onboarding landing page.
 // First thing a stranger sees. Sells Echo in 5 seconds, funnels to onGetStarted().
@@ -9,26 +11,30 @@ interface LandingPageProps {
     onGetStarted: () => void;
 }
 
-const ACCENT = '#00ff88';
+const ACCENT = '#00ff41';
 
-const FEATURES: { icon: React.ReactNode; title: string; body: string }[] = [
+const FEATURES: { icon: React.ReactNode; tag: string; title: string; body: string }[] = [
     {
         icon: <Mic size={22} strokeWidth={1.75} />,
+        tag: 'VOICE.SYS',
         title: 'Voice-first companion',
         body: 'Talk naturally, in real time. Echo listens, answers out loud, and remembers you between conversations.',
     },
     {
         icon: <Layers size={22} strokeWidth={1.75} />,
+        tag: 'SKILLS×40',
         title: '40+ built-in skills',
         body: 'Email, social posts, research, content, lead finding, image generation and more — ready out of the box.',
     },
     {
         icon: <Rocket size={22} strokeWidth={1.75} />,
+        tag: 'MISSIONS.D',
         title: 'Autonomous missions',
         body: 'Hand Echo a goal and a schedule. Missions run on their own and report back when the work is done.',
     },
     {
         icon: <ShieldCheck size={22} strokeWidth={1.75} />,
+        tag: 'PRIVACY.LOCK',
         title: 'Private by design',
         body: 'No account, no server. Your keys and memory are stored locally on your device, encrypted.',
     },
@@ -69,8 +75,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     to   { opacity: 1; transform: translateY(0); }
                 }
                 @keyframes lp-glow-pulse {
-                    0%, 100% { box-shadow: 0 0 24px rgba(0, 255, 136, 0.28), 0 0 64px rgba(0, 255, 136, 0.10); }
-                    50%      { box-shadow: 0 0 36px rgba(0, 255, 136, 0.45), 0 0 96px rgba(0, 255, 136, 0.18); }
+                    0%, 100% { box-shadow: 0 0 24px rgba(0, 255, 65, 0.28), 0 0 64px rgba(0, 255, 65, 0.10); }
+                    50%      { box-shadow: 0 0 36px rgba(0, 255, 65, 0.45), 0 0 96px rgba(0, 255, 65, 0.18); }
                 }
                 @keyframes lp-orb-breathe {
                     0%, 100% { transform: scale(1);    opacity: 0.85; }
@@ -86,75 +92,84 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 }
                 .lp-cta {
                     animation: lp-glow-pulse 3.2s ease-in-out infinite;
-                    transition: transform 0.18s ease, filter 0.18s ease;
+                    transition: filter 0.18s ease, box-shadow 0.18s ease;
                 }
-                .lp-cta:hover  { transform: translateY(-2px); filter: brightness(1.08); }
-                .lp-cta:active { transform: translateY(0);    filter: brightness(0.95); }
+                .lp-cta:hover  { filter: brightness(1.1); }
+                .lp-cta:active { filter: brightness(0.95); }
                 .lp-card {
-                    transition: border-color 0.25s ease, transform 0.25s ease, background 0.25s ease;
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
                 }
                 .lp-card:hover {
-                    border-color: var(--border-green) !important;
-                    transform: translateY(-3px);
-                    background: var(--bg-elevated) !important;
+                    border-color: rgba(0, 255, 65, 0.55) !important;
+                    box-shadow:
+                        0 0 0 1px rgba(0, 255, 65, 0.08),
+                        0 16px 48px rgba(0, 0, 0, 0.75),
+                        0 0 24px rgba(0, 255, 65, 0.18),
+                        inset 0 0 60px rgba(0, 255, 65, 0.05) !important;
                 }
                 @media (prefers-reduced-motion: reduce) {
                     .lp-reveal { animation: none; opacity: 1; }
                     .lp-cta, .lp-orb-core, .lp-orb-ring { animation: none !important; }
+                    .lp-rain-scrim ~ * .animate-phosphor-in,
+                    .animate-phosphor-in { animation: none !important; }
                 }
             `}</style>
 
-            {/* ---- Ambient background: radial glow + faint grid ---- */}
+            {/* ---- Digital rain backdrop + readability scrim ---- */}
             <div className="pointer-events-none fixed inset-0" aria-hidden="true">
+                <MatrixRain />
+                <div
+                    className="lp-rain-scrim absolute inset-0"
+                    style={{
+                        background:
+                            'radial-gradient(ellipse 58% 62% at 50% 34%, rgba(1, 5, 2, 0.94), rgba(1, 5, 2, 0.62) 62%, rgba(1, 5, 2, 0.18) 100%),' +
+                            'linear-gradient(to bottom, rgba(1, 5, 2, 0.35), rgba(1, 5, 2, 0.15) 40%, rgba(1, 5, 2, 0.55) 100%)',
+                    }}
+                />
                 <div
                     className="absolute inset-0"
                     style={{
                         background:
-                            'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 255, 136, 0.09), transparent 60%),' +
-                            'radial-gradient(ellipse 60% 40% at 85% 110%, rgba(0, 212, 255, 0.05), transparent 60%)',
-                    }}
-                />
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        backgroundImage:
-                            'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),' +
-                            'linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
-                        backgroundSize: '56px 56px',
-                        maskImage: 'radial-gradient(ellipse 70% 60% at 50% 0%, black, transparent 75%)',
-                        WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 50% 0%, black, transparent 75%)',
+                            'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 255, 65, 0.07), transparent 60%)',
                     }}
                 />
             </div>
 
-            <div className="relative mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 sm:px-8">
+            <div className="relative z-10 mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 sm:px-8">
                 {/* ---- Top bar ---- */}
                 <header
                     className="lp-reveal flex items-center justify-between py-6"
                     style={{ animationDelay: '0.05s' }}
                 >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                         <span
-                            className="inline-block h-2.5 w-2.5 rounded-full"
-                            style={{ background: ACCENT, boxShadow: `0 0 10px ${ACCENT}` }}
-                        />
-                        <span
-                            className="text-sm font-semibold tracking-[0.3em]"
-                            style={{ fontFamily: 'var(--font-mono)' }}
+                            className="glitch text-sm font-semibold tracking-[0.3em]"
+                            data-text="ECHO"
+                            style={{
+                                fontFamily: 'var(--font-term)',
+                                color: 'var(--text-primary)',
+                                textShadow: '0 0 12px rgba(0, 255, 65, 0.4)',
+                            }}
                         >
                             ECHO
+                        </span>
+                        <span
+                            className="hidden items-center gap-2 rounded-sm px-2.5 py-1 text-[10px] tracking-[0.22em] sm:inline-flex"
+                            style={{
+                                fontFamily: 'var(--font-term)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-dim)',
+                                background: 'rgba(0, 255, 65, 0.04)',
+                            }}
+                        >
+                            <span className="status-dot green" />
+                            SYS.ONLINE
                         </span>
                     </div>
                     <button
                         type="button"
                         onClick={onGetStarted}
-                        className="rounded-full px-4 py-1.5 text-xs font-medium"
-                        style={{
-                            border: '1px solid var(--border-green)',
-                            color: ACCENT,
-                            background: 'rgba(0, 255, 136, 0.06)',
-                            fontFamily: 'var(--font-mono)',
-                        }}
+                        className="btn-term ghost px-4 py-1.5 text-xs"
                     >
                         Get Started
                     </button>
@@ -163,24 +178,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 {/* ---- Hero ---- */}
                 <main className="flex flex-1 flex-col items-center pb-8 pt-10 text-center sm:pt-16">
                     <div
-                        className="lp-reveal mb-6 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px]"
+                        className="lp-reveal mb-6 inline-flex items-center gap-2 rounded-sm px-3.5 py-1.5 text-[11px] uppercase"
                         style={{
                             animationDelay: '0.1s',
-                            border: '1px solid var(--border-subtle)',
-                            color: 'var(--text-secondary)',
-                            background: 'var(--bg-raised)',
-                            fontFamily: 'var(--font-mono)',
-                            letterSpacing: '0.08em',
+                            border: '1px solid var(--border-dim)',
+                            color: ACCENT,
+                            background: 'rgba(0, 255, 65, 0.05)',
+                            fontFamily: 'var(--font-term)',
+                            letterSpacing: '0.22em',
+                            textShadow: '0 0 8px rgba(0, 255, 65, 0.35)',
                         }}
                     >
-                        <span
-                            className="inline-block h-1.5 w-1.5 rounded-full"
-                            style={{ background: ACCENT, boxShadow: `0 0 6px ${ACCENT}` }}
-                        />
+                        <span className="status-dot green" />
                         PRIVATE &middot; LOCAL-FIRST &middot; FREE
                     </div>
 
-                    {/* Voice orb */}
+                    {/* Voice orb — pure phosphor green */}
                     <div
                         className="lp-reveal relative mb-8 h-24 w-24 sm:h-28 sm:w-28"
                         style={{ animationDelay: '0.15s' }}
@@ -189,53 +202,68 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <div
                             className="lp-orb-ring absolute inset-0 rounded-full"
                             style={{
-                                border: '1px solid rgba(0, 255, 136, 0.25)',
-                                borderTopColor: 'rgba(0, 255, 136, 0.75)',
+                                border: '1px solid rgba(0, 255, 65, 0.25)',
+                                borderTopColor: 'rgba(0, 255, 65, 0.75)',
                                 animation: 'lp-ring-spin 6s linear infinite',
                             }}
                         />
                         <div
                             className="lp-orb-ring absolute inset-2 rounded-full"
                             style={{
-                                border: '1px solid rgba(0, 212, 255, 0.18)',
-                                borderBottomColor: 'rgba(0, 212, 255, 0.55)',
+                                border: '1px solid rgba(0, 255, 65, 0.14)',
+                                borderBottomColor: 'rgba(0, 255, 65, 0.5)',
                                 animation: 'lp-ring-spin 9s linear infinite reverse',
                             }}
                         />
                         <div
                             className="lp-orb-core absolute inset-5 rounded-full"
                             style={{
-                                background: `radial-gradient(circle at 35% 30%, rgba(180, 255, 220, 0.95), ${ACCENT} 45%, rgba(0, 90, 50, 0.9))`,
-                                boxShadow: `0 0 32px rgba(0, 255, 136, 0.5), 0 0 80px rgba(0, 255, 136, 0.18)`,
+                                background: `radial-gradient(circle at 35% 30%, rgba(190, 255, 210, 0.95), ${ACCENT} 45%, rgba(0, 70, 20, 0.9))`,
+                                boxShadow: '0 0 32px rgba(0, 255, 65, 0.5), 0 0 80px rgba(0, 255, 65, 0.18)',
                                 animation: 'lp-orb-breathe 3.6s ease-in-out infinite',
                             }}
                         />
                     </div>
 
                     <h1
-                        className="lp-reveal text-5xl font-bold tracking-[0.18em] sm:text-7xl"
+                        className="lp-reveal glitch text-5xl font-bold tracking-[0.18em] sm:text-7xl"
+                        data-text="ECHO"
                         style={{
                             animationDelay: '0.2s',
-                            background: `linear-gradient(180deg, #ffffff 20%, ${ACCENT} 120%)`,
-                            WebkitBackgroundClip: 'text',
-                            backgroundClip: 'text',
-                            color: 'transparent',
-                            textShadow: '0 0 60px rgba(0, 255, 136, 0.25)',
+                            fontFamily: 'var(--font-term)',
+                            color: 'var(--text-primary)',
+                            textShadow:
+                                '0 0 18px rgba(0, 255, 65, 0.55), 0 0 70px rgba(0, 255, 65, 0.25)',
                         }}
                     >
                         ECHO
                     </h1>
 
-                    <p
-                        className="lp-reveal mt-5 max-w-xl text-2xl font-semibold leading-snug sm:text-3xl"
-                        style={{ animationDelay: '0.28s', color: 'var(--text-primary)' }}
+                    <div
+                        className="lp-reveal mt-5 max-w-2xl text-base font-medium leading-snug sm:text-xl"
+                        style={{
+                            animationDelay: '0.28s',
+                            color: ACCENT,
+                            fontFamily: 'var(--font-term)',
+                            letterSpacing: '0.06em',
+                            textShadow: '0 0 10px rgba(0, 255, 65, 0.4)',
+                        }}
                     >
-                        Your personal AI that actually gets things done.
-                    </p>
+                        <DecodeText
+                            className="cursor-blink"
+                            text="> Your personal AI that actually gets things done."
+                            speed={22}
+                            delay={500}
+                        />
+                    </div>
 
                     <p
                         className="lp-reveal mt-4 max-w-lg text-sm leading-relaxed sm:text-base"
-                        style={{ animationDelay: '0.36s', color: 'var(--text-secondary)' }}
+                        style={{
+                            animationDelay: '0.36s',
+                            color: 'var(--text-secondary)',
+                            fontFamily: 'var(--font-ui)',
+                        }}
                     >
                         Echo talks with you by voice, learns your goals, and runs missions
                         autonomously &mdash; with 40+ built-in skills ready out of the box.
@@ -244,12 +272,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     <button
                         type="button"
                         onClick={onGetStarted}
-                        className="lp-reveal lp-cta mt-9 inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-base font-bold sm:px-10"
-                        style={{
-                            animationDelay: '0.44s',
-                            background: ACCENT,
-                            color: '#03140b',
-                        }}
+                        className="lp-reveal lp-cta btn-term solid mt-9 px-8 py-3.5 text-base sm:px-10"
+                        style={{ animationDelay: '0.44s' }}
                     >
                         Get Started &mdash; Free
                         <ArrowRight size={18} strokeWidth={2.5} />
@@ -260,7 +284,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         style={{
                             animationDelay: '0.52s',
                             color: 'var(--text-tertiary)',
-                            fontFamily: 'var(--font-mono)',
+                            fontFamily: 'var(--font-term)',
+                            letterSpacing: '0.08em',
                         }}
                     >
                         No account needed. Runs in your browser. Your data never leaves your device.
@@ -274,30 +299,35 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     aria-label="Features"
                 >
                     {FEATURES.map((f) => (
-                        <div
-                            key={f.title}
-                            className="lp-card rounded-2xl p-5"
-                            style={{
-                                background: 'var(--bg-raised)',
-                                border: '1px solid var(--border-subtle)',
-                            }}
-                        >
-                            <div
-                                className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl"
-                                style={{
-                                    color: ACCENT,
-                                    background: 'rgba(0, 255, 136, 0.08)',
-                                    border: '1px solid var(--border-green)',
-                                }}
-                            >
-                                {f.icon}
+                        <div key={f.title} className="lp-card term-window animate-phosphor-in">
+                            <div className="term-titlebar">
+                                <span className="term-dots" />
+                                {f.tag}
                             </div>
-                            <h3 className="mb-1.5 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                {f.title}
-                            </h3>
-                            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                                {f.body}
-                            </p>
+                            <div className="p-5">
+                                <div
+                                    className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded"
+                                    style={{
+                                        color: ACCENT,
+                                        background: 'rgba(0, 255, 65, 0.07)',
+                                        border: '1px solid var(--border-green)',
+                                    }}
+                                >
+                                    {f.icon}
+                                </div>
+                                <h3
+                                    className="mb-1.5 text-sm font-semibold"
+                                    style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-ui)' }}
+                                >
+                                    {f.title}
+                                </h3>
+                                <p
+                                    className="text-xs leading-relaxed"
+                                    style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}
+                                >
+                                    {f.body}
+                                </p>
+                            </div>
                         </div>
                     ))}
                 </section>
@@ -306,47 +336,65 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 <section className="lp-reveal pb-16" style={{ animationDelay: '0.7s' }} aria-label="How it works">
                     <p
                         className="mb-6 text-center text-[11px] tracking-[0.25em]"
-                        style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}
+                        style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-term)' }}
                     >
-                        HOW IT WORKS
+                        // HOW IT WORKS
                     </p>
-                    <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4">
-                        {STEPS.map((s, i) => (
-                            <React.Fragment key={s.step}>
-                                <div
-                                    className="flex flex-1 items-start gap-3.5 rounded-2xl p-4"
-                                    style={{
-                                        background: 'var(--bg-raised)',
-                                        border: '1px solid var(--border-subtle)',
-                                    }}
-                                >
-                                    <span
-                                        className="mt-0.5 inline-flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-bold"
-                                        style={{
-                                            color: ACCENT,
-                                            border: '1px solid var(--border-green)',
-                                            background: 'rgba(0, 255, 136, 0.07)',
-                                            fontFamily: 'var(--font-mono)',
-                                        }}
-                                    >
-                                        {s.step}
-                                    </span>
-                                    <div>
-                                        <h4 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                            {s.title}
-                                        </h4>
-                                        <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    <div className="term-window animate-phosphor-in">
+                        <div className="term-titlebar">
+                            <span className="term-dots" />
+                            ECHO://BOOT_SEQ
+                        </div>
+                        <div className="flex flex-col items-stretch gap-1 p-3 sm:flex-row sm:gap-0 sm:p-2">
+                            {STEPS.map((s, i) => (
+                                <React.Fragment key={s.step}>
+                                    <div className="flex-1 p-3 text-left">
+                                        <p
+                                            className="text-xs sm:text-[13px]"
+                                            style={{
+                                                fontFamily: 'var(--font-term)',
+                                                letterSpacing: '0.06em',
+                                                color: 'var(--text-primary)',
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    color: ACCENT,
+                                                    textShadow: '0 0 8px rgba(0, 255, 65, 0.5)',
+                                                }}
+                                            >
+                                                ${' '}
+                                            </span>
+                                            <span style={{ color: ACCENT }}>step {s.step}</span>
+                                            <span style={{ color: 'var(--text-tertiary)' }}> — </span>
+                                            <span style={{ textTransform: 'lowercase' }}>{s.title}</span>
+                                        </p>
+                                        <p
+                                            className="mt-1.5 pl-4 text-xs leading-relaxed"
+                                            style={{
+                                                color: 'var(--text-secondary)',
+                                                fontFamily: 'var(--font-ui)',
+                                            }}
+                                        >
                                             {s.body}
                                         </p>
                                     </div>
-                                </div>
-                                {i < STEPS.length - 1 && (
-                                    <div className="hidden items-center sm:flex" aria-hidden="true">
-                                        <ArrowRight size={16} style={{ color: 'var(--text-tertiary)' }} />
-                                    </div>
-                                )}
-                            </React.Fragment>
-                        ))}
+                                    {i < STEPS.length - 1 && (
+                                        <div
+                                            className="hidden items-center px-1 sm:flex"
+                                            aria-hidden="true"
+                                            style={{
+                                                color: 'var(--text-tertiary)',
+                                                fontFamily: 'var(--font-term)',
+                                                fontSize: '16px',
+                                            }}
+                                        >
+                                            »
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </div>
                     </div>
                 </section>
 
@@ -357,9 +405,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 >
                     <p
                         className="text-[11px]"
-                        style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}
+                        style={{
+                            color: 'var(--text-tertiary)',
+                            fontFamily: 'var(--font-term)',
+                            letterSpacing: '0.1em',
+                        }}
                     >
-                        Free forever for the core app &mdash; bring your own free Google AI key.
+                        // Free forever for the core app &mdash; bring your own free Google AI key.
                     </p>
                 </footer>
             </div>

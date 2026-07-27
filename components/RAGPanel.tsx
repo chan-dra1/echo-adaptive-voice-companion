@@ -36,7 +36,7 @@ const TYPE_COLOR: Record<ChunkSource, string> = {
     conversation: 'var(--c-green)',
     memory:       'var(--c-pink)',
     note:         'var(--c-amber)',
-    web:          '#A064FF',
+    web:          'var(--accent-purple)',
 };
 
 function fmtSize(chars: number): string {
@@ -152,20 +152,21 @@ export default function RAGPanel({ onClose }: Props) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,8,16,0.97)', backdropFilter: 'blur(20px)' }}>
+        <div className="fixed inset-0 z-50 flex flex-col animate-phosphor-in" style={{ background: 'rgba(1,7,3,0.97)', backdropFilter: 'blur(20px)' }}>
             <div className="scan-beam" style={{ top: 0 }} />
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--b-cyan)' }}>
+            <div className="term-titlebar justify-between flex-shrink-0" style={{ color: 'var(--c-cyan)', borderColor: 'var(--b-cyan)' }}>
                 <div className="flex items-center gap-3">
+                    <span className="term-dots" />
                     <Database size={18} style={{ color: 'var(--c-cyan)', filter: 'drop-shadow(0 0 6px var(--c-cyan))' }} />
                     <span className="font-hud text-sm tracking-widest text-glow-cyan" style={{ color: 'var(--c-cyan)' }}>
-                        KNOWLEDGE VAULT  //  RAG
+                        KNOWLEDGE.SYS  //  RAG
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
                     <ModelStatusBadge status={modelStatus} />
-                    <div className="font-mono-hud text-[10px] text-white/30">
+                    <div className="font-mono-hud text-[10px] text-[var(--text-tertiary)]">
                         {chunkCount} chunks · {sources.length} sources
                     </div>
                     <button onClick={onClose}><X size={16} style={{ color: 'var(--c-cyan)' }} /></button>
@@ -179,8 +180,8 @@ export default function RAGPanel({ onClose }: Props) {
                         className="flex-1 py-2 rounded-lg font-hud text-[9px] tracking-widest uppercase transition-all"
                         style={{
                             background: tab === t ? `${TAB_COLORS[t]}18` : 'transparent',
-                            border: `1px solid ${tab === t ? TAB_COLORS[t] : 'rgba(255,255,255,0.06)'}`,
-                            color: tab === t ? TAB_COLORS[t] : 'rgba(255,255,255,0.35)',
+                            border: `1px solid ${tab === t ? TAB_COLORS[t] : 'var(--border-subtle)'}`,
+                            color: tab === t ? TAB_COLORS[t] : 'var(--text-tertiary)',
                             boxShadow: tab === t ? `0 0 10px ${TAB_COLORS[t]}33` : 'none',
                             textShadow: tab === t ? `0 0 8px ${TAB_COLORS[t]}` : 'none',
                         }}>
@@ -198,8 +199,8 @@ export default function RAGPanel({ onClose }: Props) {
                         {sources.length === 0 ? (
                             <div className="text-center py-16">
                                 <Database size={40} className="mx-auto mb-4 opacity-20" style={{ color: 'var(--c-cyan)' }} />
-                                <p className="font-mono-hud text-[11px] text-white/30">KNOWLEDGE VAULT IS EMPTY</p>
-                                <p className="text-xs text-white/20 mt-1">Go to Ingest tab to add documents</p>
+                                <p className="font-mono-hud text-[11px] text-[var(--text-tertiary)]">KNOWLEDGE VAULT IS EMPTY</p>
+                                <p className="text-xs text-[var(--text-tertiary)] mt-1">Go to Ingest tab to add documents</p>
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -211,9 +212,9 @@ export default function RAGPanel({ onClose }: Props) {
                             <HUDCard variant="amber" label="VAULT STATS">
                                 <HUDRow label="TOTAL SOURCES"  value={`${sources.length}`} valueClass="text-[var(--c-cyan)]" />
                                 <HUDRow label="TOTAL CHUNKS"   value={`${chunkCount}`} valueClass="text-[var(--c-cyan)]" />
-                                <HUDRow label="DOCUMENTS"      value={`${sources.filter(s=>s.type==='document').length}`} valueClass="text-white/60" />
-                                <HUDRow label="CONVERSATIONS"  value={`${sources.filter(s=>s.type==='conversation').length}`} valueClass="text-white/60" />
-                                <HUDRow label="MEMORIES"       value={`${sources.filter(s=>s.type==='memory').length}`} valueClass="text-white/60" />
+                                <HUDRow label="DOCUMENTS"      value={`${sources.filter(s=>s.type==='document').length}`} valueClass="text-[var(--text-secondary)]" />
+                                <HUDRow label="CONVERSATIONS"  value={`${sources.filter(s=>s.type==='conversation').length}`} valueClass="text-[var(--text-secondary)]" />
+                                <HUDRow label="MEMORIES"       value={`${sources.filter(s=>s.type==='memory').length}`} valueClass="text-[var(--text-secondary)]" />
                                 <HUDDivider />
                                 <button
                                     onClick={async () => { if (confirm('Clear ALL knowledge? This cannot be undone.')) { await clearAllRag(); reload(); } }}
@@ -231,7 +232,7 @@ export default function RAGPanel({ onClose }: Props) {
                 {tab === 'search' && (
                     <>
                         <HUDCard variant="green" label="SEMANTIC SEARCH">
-                            <p className="text-xs text-white/50 mb-3 leading-relaxed">
+                            <p className="text-xs text-[var(--text-secondary)] mb-3 leading-relaxed">
                                 Test what Echo will retrieve for a question. Uses the same pipeline as live responses.
                             </p>
                             <div className="flex gap-2">
@@ -240,7 +241,7 @@ export default function RAGPanel({ onClose }: Props) {
                                     onChange={e => setSearchQ(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                                     placeholder="Ask anything…"
-                                    className="flex-1 bg-transparent text-sm text-white/80 outline-none py-2 px-3 rounded-lg border placeholder:text-white/20"
+                                    className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none py-2 px-3 rounded-lg border placeholder:text-[var(--text-tertiary)]"
                                     style={{ borderColor: 'rgba(0,255,65,0.25)' }}
                                 />
                                 <button
@@ -261,23 +262,23 @@ export default function RAGPanel({ onClose }: Props) {
 
                         {searchDone && results.length === 0 && (
                             <div className="text-center py-8">
-                                <p className="font-mono-hud text-[11px] text-white/30">NO RELEVANT CHUNKS FOUND</p>
-                                <p className="text-xs text-white/20 mt-1">Try a different query or lower the threshold</p>
+                                <p className="font-mono-hud text-[11px] text-[var(--text-tertiary)]">NO RELEVANT CHUNKS FOUND</p>
+                                <p className="text-xs text-[var(--text-tertiary)] mt-1">Try a different query or lower the threshold</p>
                             </div>
                         )}
 
                         {results.map((r, i) => (
                             <div key={r.chunk.id} className="p-4 rounded-xl space-y-2"
-                                style={{ background: 'rgba(0,15,35,0.7)', border: `1px solid ${TYPE_COLOR[r.source.type]}22` }}>
+                                style={{ background: 'rgba(0,255,65,0.04)', border: `1px solid ${TYPE_COLOR[r.source.type]}22` }}>
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
                                         <span style={{ color: TYPE_COLOR[r.source.type] }}>{TYPE_ICON[r.source.type]}</span>
-                                        <span className="font-mono-hud text-[10px] text-white/50 truncate">{r.source.title}</span>
+                                        <span className="font-mono-hud text-[10px] text-[var(--text-secondary)] truncate">{r.source.title}</span>
                                     </div>
                                     <ScoreBar score={r.score} />
                                 </div>
-                                <p className="text-xs text-white/70 leading-relaxed line-clamp-4">{r.chunk.text}</p>
-                                <p className="font-mono-hud text-[9px] text-white/25">
+                                <p className="text-xs text-[var(--text-secondary)] leading-relaxed line-clamp-4">{r.chunk.text}</p>
+                                <p className="font-mono-hud text-[9px] text-[var(--text-tertiary)]">
                                     CHUNK {r.chunk.chunkIndex} · {fmtDate(r.chunk.addedAt)}
                                 </p>
                             </div>
@@ -285,7 +286,7 @@ export default function RAGPanel({ onClose }: Props) {
 
                         {results.length > 0 && (
                             <HUDCard variant="cyan" label="WHAT ECHO WOULD SEE">
-                                <pre className="text-[10px] text-white/40 font-mono-hud whitespace-pre-wrap leading-relaxed">
+                                <pre className="text-[10px] text-[var(--text-tertiary)] font-mono-hud whitespace-pre-wrap leading-relaxed">
                                     {formatRagContext(results).slice(0, 600)}…
                                 </pre>
                             </HUDCard>
@@ -298,7 +299,7 @@ export default function RAGPanel({ onClose }: Props) {
                     <>
                         {/* File upload */}
                         <HUDCard variant="amber" label="UPLOAD FILE" scanBeam>
-                            <p className="text-xs text-white/50 mb-3 leading-relaxed">
+                            <p className="text-xs text-[var(--text-secondary)] mb-3 leading-relaxed">
                                 Drop a PDF, TXT, MD, or code file. Echo will chunk and embed it — stored locally, never sent anywhere.
                             </p>
                             <input
@@ -325,11 +326,11 @@ export default function RAGPanel({ onClose }: Props) {
                             </button>
                             {ingestProgress && (
                                 <div className="mt-3">
-                                    <div className="flex justify-between font-mono-hud text-[10px] text-white/40 mb-1">
+                                    <div className="flex justify-between font-mono-hud text-[10px] text-[var(--text-tertiary)] mb-1">
                                         <span>EMBEDDING CHUNKS</span>
                                         <span>{ingestProgress.done}/{ingestProgress.total}</span>
                                     </div>
-                                    <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                    <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }}>
                                         <div
                                             className="h-full rounded-full transition-all"
                                             style={{
@@ -346,25 +347,25 @@ export default function RAGPanel({ onClose }: Props) {
                         <HUDCard variant="cyan" label="PASTE TEXT">
                             <div className="space-y-3">
                                 <div>
-                                    <label className="font-hud text-[9px] tracking-widest text-white/40 block mb-1">TITLE</label>
+                                    <label className="font-hud text-[9px] tracking-widest text-[var(--text-tertiary)] block mb-1">TITLE</label>
                                     <input
                                         value={ingestTitle}
                                         onChange={e => setIngestTitle(e.target.value)}
                                         placeholder="e.g. Machine Learning Notes, My Resume…"
-                                        className="w-full bg-transparent text-sm text-white/80 outline-none py-1.5 border-b placeholder:text-white/20"
+                                        className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none py-1.5 border-b placeholder:text-[var(--text-tertiary)]"
                                         style={{ borderColor: 'var(--b-cyan)' }}
                                     />
                                 </div>
                                 <div>
-                                    <label className="font-hud text-[9px] tracking-widest text-white/40 block mb-1">TYPE</label>
+                                    <label className="font-hud text-[9px] tracking-widest text-[var(--text-tertiary)] block mb-1">TYPE</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {(['document','note','memory','web'] as ChunkSource[]).map(t => (
                                             <button key={t} onClick={() => setIngestType(t)}
                                                 className="px-3 py-1 rounded-full font-hud text-[8px] tracking-widest transition-all"
                                                 style={{
                                                     background: ingestType === t ? `${TYPE_COLOR[t]}18` : 'transparent',
-                                                    border: `1px solid ${ingestType === t ? TYPE_COLOR[t] : 'rgba(255,255,255,0.1)'}`,
-                                                    color: ingestType === t ? TYPE_COLOR[t] : 'rgba(255,255,255,0.3)',
+                                                    border: `1px solid ${ingestType === t ? TYPE_COLOR[t] : 'var(--border-dim)'}`,
+                                                    color: ingestType === t ? TYPE_COLOR[t] : 'var(--text-tertiary)',
                                                 }}>
                                                 {t.toUpperCase()}
                                             </button>
@@ -372,16 +373,16 @@ export default function RAGPanel({ onClose }: Props) {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="font-hud text-[9px] tracking-widest text-white/40 block mb-1">CONTENT</label>
+                                    <label className="font-hud text-[9px] tracking-widest text-[var(--text-tertiary)] block mb-1">CONTENT</label>
                                     <textarea
                                         value={ingestText_}
                                         onChange={e => setIngestText_(e.target.value)}
                                         rows={6}
                                         placeholder="Paste your text here…"
-                                        className="w-full bg-transparent text-xs text-white/70 outline-none resize-none p-2 rounded-lg border placeholder:text-white/20"
-                                        style={{ borderColor: 'rgba(0,229,255,0.15)' }}
+                                        className="w-full bg-transparent text-xs text-[var(--text-secondary)] outline-none resize-none p-2 rounded-lg border placeholder:text-[var(--text-tertiary)]"
+                                        style={{ borderColor: 'rgba(87,255,176,0.18)' }}
                                     />
-                                    <p className="font-mono-hud text-[10px] text-white/25 mt-1">
+                                    <p className="font-mono-hud text-[10px] text-[var(--text-tertiary)] mt-1">
                                         {ingestText_.length.toLocaleString()} chars · ~{Math.ceil(ingestText_.length / 600)} chunks
                                     </p>
                                 </div>
@@ -390,9 +391,9 @@ export default function RAGPanel({ onClose }: Props) {
                                     disabled={ingesting || !ingestText_.trim() || !ingestTitle.trim()}
                                     className="w-full py-3 rounded-xl font-hud text-[10px] tracking-widest flex items-center justify-center gap-2 transition-all"
                                     style={{
-                                        background: (!ingesting && ingestText_.trim() && ingestTitle.trim()) ? 'rgba(0,229,255,0.1)' : 'transparent',
-                                        border: `1px solid ${(!ingesting && ingestText_.trim() && ingestTitle.trim()) ? 'var(--c-cyan)' : 'rgba(255,255,255,0.08)'}`,
-                                        color: (!ingesting && ingestText_.trim() && ingestTitle.trim()) ? 'var(--c-cyan)' : 'rgba(255,255,255,0.2)',
+                                        background: (!ingesting && ingestText_.trim() && ingestTitle.trim()) ? 'rgba(87,255,176,0.12)' : 'transparent',
+                                        border: `1px solid ${(!ingesting && ingestText_.trim() && ingestTitle.trim()) ? 'var(--c-cyan)' : 'var(--border-subtle)'}`,
+                                        color: (!ingesting && ingestText_.trim() && ingestTitle.trim()) ? 'var(--c-cyan)' : 'var(--text-tertiary)',
                                     }}
                                 >
                                     {ingesting
@@ -410,7 +411,7 @@ export default function RAGPanel({ onClose }: Props) {
 
                         {/* How it works */}
                         <HUDCard variant="purple" label="HOW RAG WORKS">
-                            <div className="space-y-2 text-xs text-white/40 leading-relaxed">
+                            <div className="space-y-2 text-xs text-[var(--text-tertiary)] leading-relaxed">
                                 <p>1. Your text is split into ~600-char overlapping <span style={{color:'var(--c-cyan)'}}>chunks</span>.</p>
                                 <p>2. Each chunk is converted to a 384-number <span style={{color:'var(--c-cyan)'}}>embedding vector</span> by a model running entirely in your browser (WebAssembly, no server).</p>
                                 <p>3. Vectors are stored in <span style={{color:'var(--c-cyan)'}}>IndexedDB</span> on this device — never uploaded.</p>
@@ -433,14 +434,14 @@ function SourceRow({ source, onDelete }: { source: RagSource; onDelete: () => vo
     return (
         <div
             className="p-3 rounded-xl cursor-pointer transition-all"
-            style={{ background: 'rgba(0,15,35,0.6)', border: `1px solid ${col}18` }}
+            style={{ background: 'rgba(0,255,65,0.035)', border: `1px solid ${col}18` }}
             onClick={() => setExpanded(v => !v)}
         >
             <div className="flex items-center gap-3">
                 <span style={{ color: col, flexShrink: 0 }}>{TYPE_ICON[source.type]}</span>
                 <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white/80 truncate">{source.title}</p>
-                    <p className="font-mono-hud text-[10px] text-white/30 mt-0.5">
+                    <p className="text-sm text-[var(--text-primary)] truncate">{source.title}</p>
+                    <p className="font-mono-hud text-[10px] text-[var(--text-tertiary)] mt-0.5">
                         {source.chunkCount} chunks · {fmtSize(source.sizeChars)} · {fmtDate(source.addedAt)}
                     </p>
                 </div>
@@ -456,7 +457,7 @@ function SourceRow({ source, onDelete }: { source: RagSource; onDelete: () => vo
                 </button>
             </div>
             {expanded && (
-                <p className="mt-2 text-xs text-white/35 italic leading-relaxed pt-2 border-t" style={{ borderColor: `${col}15` }}>
+                <p className="mt-2 text-xs text-[var(--text-tertiary)] italic leading-relaxed pt-2 border-t" style={{ borderColor: `${col}15` }}>
                     "{source.preview}…"
                 </p>
             )}
@@ -469,7 +470,7 @@ function ScoreBar({ score }: { score: number }) {
     const color = score >= 0.75 ? 'var(--c-green)' : score >= 0.50 ? 'var(--c-cyan)' : 'var(--c-amber)';
     return (
         <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }}>
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, boxShadow: `0 0 4px ${color}` }} />
             </div>
             <span className="font-hud text-[9px]" style={{ color }}>{pct}%</span>
@@ -479,7 +480,7 @@ function ScoreBar({ score }: { score: number }) {
 
 function ModelStatusBadge({ status }: { status: string }) {
     const configs: Record<string, { label: string; color: string; dot: string }> = {
-        idle:    { label: 'MODEL IDLE',    color: 'rgba(255,255,255,0.3)', dot: 'white' },
+        idle:    { label: 'MODEL IDLE',    color: 'var(--text-tertiary)', dot: 'white' },
         loading: { label: 'LOADING MODEL', color: 'var(--c-amber)',        dot: 'amber' },
         ready:   { label: 'MODEL READY',   color: 'var(--c-green)',        dot: 'green' },
         error:   { label: 'MODEL ERROR',   color: 'var(--c-red)',          dot: 'red' },

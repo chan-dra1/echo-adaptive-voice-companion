@@ -29,14 +29,14 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const baseStyles = 'inline-flex items-center justify-center gap-2 font-medium transition-all duration-300 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-echo-dark disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseStyles = 'inline-flex items-center justify-center gap-2 font-term uppercase tracking-widest transition-all duration-300 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)] disabled:opacity-50 disabled:cursor-not-allowed';
 
     const variantStyles = {
-      primary: 'bg-echo-primary text-black hover:bg-echo-primary/80 focus-visible:ring-echo-primary shadow-lg shadow-echo-primary/20',
-      secondary: 'bg-white/5 text-[#00ff41]/80 border border-[#00ff41]/10 hover:bg-[#00ff41]/10 hover:text-[#00ff41] hover:border-[#00ff41]/30 focus-visible:ring-[#00ff41]/50',
-      danger: 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 focus-visible:ring-red-500/50',
-      ghost: 'bg-transparent text-[#00ff41]/60 hover:bg-[#00ff41]/10 hover:text-[#00ff41] focus-visible:ring-[#00ff41]/30',
-      success: 'bg-[#00ff41]/10 text-[#00ff41] border border-[#00ff41]/30 hover:bg-[#00ff41]/20 hover:border-[#00ff41]/50 focus-visible:ring-[#00ff41]/50',
+      primary: 'bg-[var(--accent-green)] text-black hover:brightness-110 focus-visible:ring-[var(--accent-green)] shadow-[0_0_16px_rgba(0,255,65,0.35)]',
+      secondary: 'bg-[rgba(0,255,65,0.05)] text-[var(--text-secondary)] border border-[var(--border-dim)] hover:bg-[rgba(0,255,65,0.1)] hover:text-[var(--accent-green)] hover:border-[var(--border-green)] focus-visible:ring-[var(--accent-green)]/50',
+      danger: 'bg-[rgba(255,59,92,0.1)] text-[var(--accent-red)] border border-[var(--accent-red)]/30 hover:bg-[rgba(255,59,92,0.2)] hover:border-[var(--accent-red)]/50 focus-visible:ring-[var(--accent-red)]/50',
+      ghost: 'bg-transparent text-[var(--text-secondary)] hover:bg-[rgba(0,255,65,0.1)] hover:text-[var(--accent-green)] focus-visible:ring-[var(--accent-green)]/30',
+      success: 'bg-[rgba(0,255,65,0.1)] text-[var(--accent-green)] border border-[var(--border-green)] hover:bg-[rgba(0,255,65,0.2)] hover:border-[var(--accent-green)]/50 focus-visible:ring-[var(--accent-green)]/50',
     };
 
     const sizeStyles = {

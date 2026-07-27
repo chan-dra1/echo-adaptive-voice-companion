@@ -116,33 +116,34 @@ export default function CompanionPanel({ onClose }: Props) {
     const moodLabel: Record<MoodLevel, string> = { 1: 'Awful', 2: 'Rough', 3: 'Okay', 4: 'Good', 5: 'Amazing' };
 
     return (
-        <div className="flex flex-col h-full bg-gray-900 text-white">
+        <div className="term-window flex flex-col h-full font-mono animate-phosphor-in">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-                <div className="flex items-center gap-2">
-                    <Heart size={18} className="text-pink-400" />
-                    <span className="font-semibold text-sm">Companion</span>
+            <div className="term-titlebar">
+                <span className="term-dots" />
+                <div className="flex items-center gap-2 flex-1" style={{ color: 'var(--accent-pink)' }}>
+                    <Heart size={16} aria-hidden="true" />
+                    <span className="font-[var(--font-term)] uppercase tracking-[0.2em] text-xs">COMPANION.LINK</span>
                     {companionState.streakDays > 0 && (
-                        <span className="flex items-center gap-1 bg-orange-500/20 text-orange-300 text-xs px-2 py-0.5 rounded-full">
+                        <span className="flex items-center gap-1 bg-[rgba(255,200,87,0.12)] border border-[var(--accent-pink)]/40 text-[var(--accent-pink)] text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
                             <Flame size={10} /> {companionState.streakDays}d
                         </span>
                     )}
                 </div>
-                <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+                <button onClick={onClose} className="text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors" aria-label="Close companion panel">
                     <X size={16} />
                 </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-gray-800 text-xs">
+            <div className="flex border-b text-xs font-mono uppercase tracking-widest" style={{ borderColor: 'var(--border-dim)' }}>
                 {(['briefing', 'habits', 'goals', 'settings'] as const).map(t => (
-                    <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 capitalize transition-colors ${tab === t ? 'text-green-400 border-b-2 border-green-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                    <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 transition-colors ${tab === t ? 'border-b-2' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] border-b-2 border-transparent'}`} style={tab === t ? { color: 'var(--accent-green)', borderColor: 'var(--accent-green)' } : undefined}>
                         {t}
                         {t === 'habits' && pendingHabits.length > 0 && (
-                            <span className="ml-1 bg-green-600 text-white text-xs rounded-full w-4 h-4 inline-flex items-center justify-center">{pendingHabits.length}</span>
+                            <span className="ml-1 bg-[var(--accent-green)] text-black text-[10px] rounded w-4 h-4 inline-flex items-center justify-center">{pendingHabits.length}</span>
                         )}
                         {t === 'goals' && goals.length > 0 && (
-                            <span className="ml-1 text-gray-600">({goals.length})</span>
+                            <span className="ml-1 text-[var(--text-tertiary)]">({goals.length})</span>
                         )}
                     </button>
                 ))}
@@ -155,21 +156,21 @@ export default function CompanionPanel({ onClose }: Props) {
                 {tab === 'briefing' && (
                     <>
                         {/* Greeting */}
-                        <div className="bg-gradient-to-br from-green-900/30 to-teal-900/30 rounded-xl p-4 border border-green-500/20">
-                            <p className="text-green-300 font-medium text-sm">{briefing.greeting}</p>
-                            {briefing.streakNote && <p className="text-orange-300 text-xs mt-1">{briefing.streakNote}</p>}
-                            <p className="text-gray-400 text-xs mt-2 italic">{briefing.motivationalQuote}</p>
+                        <div className="rounded-xl p-4 border" style={{ background: 'linear-gradient(135deg, rgba(0,255,65,0.08), rgba(43,217,107,0.06))', borderColor: 'var(--border-green)' }}>
+                            <p className="font-medium text-sm" style={{ color: 'var(--accent-green)' }}>{briefing.greeting}</p>
+                            {briefing.streakNote && <p className="text-xs mt-1" style={{ color: 'var(--accent-pink)' }}>{briefing.streakNote}</p>}
+                            <p className="text-[var(--text-tertiary)] text-xs mt-2 italic">{briefing.motivationalQuote}</p>
                         </div>
 
                         {/* Mood check-in */}
                         {!moodLogged && !latestMood && (
-                            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-                                <p className="text-gray-300 text-sm font-medium mb-3">How are you feeling right now?</p>
+                            <div className="bg-[rgba(0,255,65,0.03)] rounded-xl p-4 border border-[var(--border-dim)]">
+                                <p className="text-[var(--text-secondary)] text-sm font-medium mb-3">How are you feeling right now?</p>
                                 <div className="flex justify-between">
                                     {([1, 2, 3, 4, 5] as MoodLevel[]).map(m => (
                                         <button key={m} onClick={() => handleMood(m)} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform">
                                             <span className="text-xl">{moodEmoji[m]}</span>
-                                            <span className="text-gray-500 text-xs">{moodLabel[m]}</span>
+                                            <span className="text-[var(--text-tertiary)] text-xs">{moodLabel[m]}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -177,43 +178,43 @@ export default function CompanionPanel({ onClose }: Props) {
                         )}
 
                         {moodLogged && (
-                            <div className="bg-teal-900/20 rounded-xl p-3 border border-teal-500/20 text-teal-300 text-xs text-center">
+                            <div className="rounded-xl p-3 border text-xs text-center" style={{ background: 'rgba(87,255,176,0.08)', borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}>
                                 ✓ Mood logged — I'll keep this in mind today.
                             </div>
                         )}
 
                         {/* Today's habits snapshot */}
                         {(pendingHabits.length > 0 || completedHabits.length > 0) && (
-                            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-                                <p className="text-gray-300 text-sm font-medium mb-2">Today's habits</p>
+                            <div className="bg-[rgba(0,255,65,0.03)] rounded-xl p-4 border border-[var(--border-dim)]">
+                                <p className="text-[var(--text-secondary)] text-sm font-medium mb-2">Today's habits</p>
                                 <div className="space-y-1.5">
                                     {completedHabits.map(h => (
-                                        <div key={h.id} className="flex items-center gap-2 text-xs text-gray-500 line-through">
-                                            <CheckCircle size={12} className="text-green-500 flex-shrink-0" />
+                                        <div key={h.id} className="flex items-center gap-2 text-xs text-[var(--text-tertiary)] line-through">
+                                            <CheckCircle size={12} className="flex-shrink-0" style={{ color: 'var(--accent-green)' }} />
                                             {h.icon} {h.name}
-                                            {h.streak > 1 && <span className="text-orange-400 not-italic no-underline ml-auto">🔥 {h.streak}</span>}
+                                            {h.streak > 1 && <span className="not-italic no-underline ml-auto" style={{ color: 'var(--accent-pink)' }}>🔥 {h.streak}</span>}
                                         </div>
                                     ))}
                                     {pendingHabits.slice(0, 3).map(h => (
-                                        <div key={h.id} className="flex items-center gap-2 text-xs text-gray-300">
-                                            <Circle size={12} className="text-gray-600 flex-shrink-0" />
+                                        <div key={h.id} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                                            <Circle size={12} className="text-[var(--text-tertiary)] flex-shrink-0" />
                                             {h.icon} {h.name}
                                         </div>
                                     ))}
-                                    {pendingHabits.length > 3 && <p className="text-gray-600 text-xs">+{pendingHabits.length - 3} more — see Habits tab</p>}
+                                    {pendingHabits.length > 3 && <p className="text-[var(--text-tertiary)] text-xs">+{pendingHabits.length - 3} more — see Habits tab</p>}
                                 </div>
                             </div>
                         )}
 
                         {/* Deadlines */}
                         {deadlines.length > 0 && (
-                            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-                                <p className="text-gray-300 text-sm font-medium mb-2 flex items-center gap-1.5"><AlertTriangle size={14} className="text-yellow-400" /> Upcoming deadlines</p>
+                            <div className="bg-[rgba(0,255,65,0.03)] rounded-xl p-4 border border-[var(--border-dim)]">
+                                <p className="text-[var(--text-secondary)] text-sm font-medium mb-2 flex items-center gap-1.5"><AlertTriangle size={14} style={{ color: 'var(--accent-amber)' }} /> Upcoming deadlines</p>
                                 <div className="space-y-2">
                                     {deadlines.slice(0, 3).map(d => (
                                         <div key={d.taskId} className="flex items-center justify-between text-xs">
-                                            <span className="text-gray-300 truncate flex-1 mr-2">{d.title}</span>
-                                            <span className={`flex-shrink-0 font-medium ${d.daysLeft === 0 ? 'text-red-400' : d.daysLeft <= 2 ? 'text-orange-400' : d.daysLeft <= 5 ? 'text-yellow-400' : 'text-gray-400'}`}>
+                                            <span className="text-[var(--text-secondary)] truncate flex-1 mr-2">{d.title}</span>
+                                            <span className="flex-shrink-0 font-medium" style={{ color: d.daysLeft === 0 ? 'var(--accent-red)' : d.daysLeft <= 2 ? 'var(--accent-pink)' : d.daysLeft <= 5 ? 'var(--accent-amber)' : 'var(--text-tertiary)' }}>
                                                 {d.daysLeft === 0 ? 'TODAY' : d.daysLeft === 1 ? 'Tomorrow' : `${d.daysLeft}d left`}
                                             </span>
                                         </div>
@@ -224,7 +225,7 @@ export default function CompanionPanel({ onClose }: Props) {
 
                         {/* Mood context */}
                         {briefing.moodContext && (
-                            <p className="text-gray-500 text-xs px-1 italic">{briefing.moodContext}</p>
+                            <p className="text-[var(--text-tertiary)] text-xs px-1 italic">{briefing.moodContext}</p>
                         )}
                     </>
                 )}
@@ -233,7 +234,7 @@ export default function CompanionPanel({ onClose }: Props) {
                 {tab === 'habits' && (
                     <>
                         {habits.filter(h => h.active).length === 0 ? (
-                            <div className="text-center py-8 text-gray-500 text-sm">
+                            <div className="text-center py-8 text-[var(--text-tertiary)] text-sm">
                                 <div className="text-4xl mb-3">✅</div>
                                 No habits yet. Ask Echo to add some, or go through setup.
                             </div>
@@ -241,7 +242,7 @@ export default function CompanionPanel({ onClose }: Props) {
                             <>
                                 {pendingHabits.length > 0 && (
                                     <div>
-                                        <p className="text-gray-400 text-xs uppercase tracking-wide font-medium mb-2">Still to do today</p>
+                                        <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wide font-medium mb-2">Still to do today</p>
                                         <div className="space-y-2">
                                             {pendingHabits.map(h => (
                                                 <div key={h.id}>
@@ -253,7 +254,7 @@ export default function CompanionPanel({ onClose }: Props) {
                                 )}
                                 {completedHabits.length > 0 && (
                                     <div className="mt-4">
-                                        <p className="text-gray-400 text-xs uppercase tracking-wide font-medium mb-2">Done today 🎉</p>
+                                        <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wide font-medium mb-2">Done today 🎉</p>
                                         <div className="space-y-2">
                                             {completedHabits.map(h => (
                                                 <div key={h.id}>
@@ -272,7 +273,7 @@ export default function CompanionPanel({ onClose }: Props) {
                 {tab === 'goals' && (
                     <>
                         {goals.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500 text-sm">
+                            <div className="text-center py-8 text-[var(--text-tertiary)] text-sm">
                                 <div className="text-4xl mb-3">🎯</div>
                                 No active goals. Tell Echo your goal and it'll be tracked here.
                             </div>
@@ -293,14 +294,14 @@ export default function CompanionPanel({ onClose }: Props) {
                     <>
                         {/* Companion Mode */}
                         <div>
-                            <p className="text-gray-400 text-xs uppercase tracking-wide font-medium mb-2">Companion style</p>
+                            <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wide font-medium mb-2">Companion style</p>
                             <div className="space-y-1.5">
                                 {COMPANION_MODES.map(m => (
-                                    <button key={m.id} onClick={() => handleCompanionMode(m.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${companionState.mode === m.id ? 'border-green-500 bg-green-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                                    <button key={m.id} onClick={() => handleCompanionMode(m.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${companionState.mode === m.id ? 'bg-[rgba(0,255,65,0.08)]' : 'border-[var(--border-dim)] hover:border-[var(--border-base)]'}`} style={companionState.mode === m.id ? { borderColor: 'var(--accent-green)' } : undefined}>
                                         <span className="text-lg">{m.emoji}</span>
                                         <div className="flex-1 min-w-0">
-                                            <div className={`text-xs font-medium ${companionState.mode === m.id ? 'text-green-300' : 'text-gray-300'}`}>{m.label}</div>
-                                            <div className="text-gray-600 text-xs truncate">{m.description}</div>
+                                            <div className="text-xs font-medium" style={{ color: companionState.mode === m.id ? 'var(--accent-green)' : 'var(--text-secondary)' }}>{m.label}</div>
+                                            <div className="text-[var(--text-tertiary)] text-xs truncate">{m.description}</div>
                                         </div>
                                     </button>
                                 ))}
@@ -309,33 +310,34 @@ export default function CompanionPanel({ onClose }: Props) {
 
                         {/* Ambient Mode */}
                         <div className="mt-4">
-                            <p className="text-gray-400 text-xs uppercase tracking-wide font-medium mb-2">Ambient / Social Pause</p>
-                            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700 space-y-3">
+                            <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wide font-medium mb-2">Ambient / Social Pause</p>
+                            <div className="bg-[rgba(0,255,65,0.03)] rounded-xl p-4 border border-[var(--border-dim)] space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-gray-300 text-sm">Ambient listening mode</p>
+                                        <p className="text-[var(--text-secondary)] text-sm">Ambient listening mode</p>
                                         <p className={`text-xs mt-0.5 ${AMBIENT_STATUS_COLORS[ambientStatus]}`}>{AMBIENT_STATUS_LABELS[ambientStatus]}</p>
                                     </div>
                                     <button
                                         onClick={toggleAmbientMode}
-                                        className={`relative w-11 h-6 rounded-full transition-colors ${getAmbientConfig().enabled ? 'bg-green-600' : 'bg-gray-700'}`}
+                                        className="relative w-11 h-6 rounded-full transition-colors"
+                                        style={{ background: getAmbientConfig().enabled ? 'var(--accent-green)' : 'var(--surface-2)' }}
                                     >
-                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${getAmbientConfig().enabled ? 'left-6' : 'left-1'}`} />
+                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-black transition-transform ${getAmbientConfig().enabled ? 'left-6' : 'left-1'}`} />
                                     </button>
                                 </div>
                                 {getAmbientConfig().enabled && (
-                                    <p className="text-gray-500 text-xs">
-                                        Echo listens but stays silent. Say <span className="text-green-400 font-mono">"Echo"</span> or <span className="text-green-400 font-mono">"Hey Echo"</span> to activate. Say <span className="text-gray-400 font-mono">"Echo go quiet"</span> to pause all responses.
+                                    <p className="text-[var(--text-tertiary)] text-xs">
+                                        Echo listens but stays silent. Say <span className="font-mono" style={{ color: 'var(--accent-green)' }}>"Echo"</span> or <span className="font-mono" style={{ color: 'var(--accent-green)' }}>"Hey Echo"</span> to activate. Say <span className="text-[var(--text-secondary)] font-mono">"Echo go quiet"</span> to pause all responses.
                                     </p>
                                 )}
-                                <button onClick={() => setShowBackgroundInfo(v => !v)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-300 text-xs transition-colors">
+                                <button onClick={() => setShowBackgroundInfo(v => !v)} className="flex items-center gap-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] text-xs transition-colors">
                                     <Info size={12} /> Background / screen-off info {showBackgroundInfo ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                                 </button>
                                 {showBackgroundInfo && (
-                                    <div className="text-gray-500 text-xs space-y-1.5 border-t border-gray-700 pt-2 mt-1">
-                                        <p><span className="text-blue-400">Android:</span> {BACKGROUND_LIMITATIONS.android}</p>
-                                        <p><span className="text-gray-400">iPhone:</span> {BACKGROUND_LIMITATIONS.ios}</p>
-                                        <p><span className="text-green-400">PWA:</span> {BACKGROUND_LIMITATIONS.pwa}</p>
+                                    <div className="text-[var(--text-tertiary)] text-xs space-y-1.5 border-t pt-2 mt-1" style={{ borderColor: 'var(--border-dim)' }}>
+                                        <p><span style={{ color: 'var(--accent-cyan)' }}>Android:</span> {BACKGROUND_LIMITATIONS.android}</p>
+                                        <p><span className="text-[var(--text-secondary)]">iPhone:</span> {BACKGROUND_LIMITATIONS.ios}</p>
+                                        <p><span style={{ color: 'var(--accent-green)' }}>PWA:</span> {BACKGROUND_LIMITATIONS.pwa}</p>
                                     </div>
                                 )}
                             </div>
@@ -343,24 +345,24 @@ export default function CompanionPanel({ onClose }: Props) {
 
                         {/* User name */}
                         <div className="mt-4">
-                            <p className="text-gray-400 text-xs uppercase tracking-wide font-medium mb-2">Your profile</p>
+                            <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wide font-medium mb-2">Your profile</p>
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500 text-xs w-24">Your name</span>
+                                    <span className="text-[var(--text-tertiary)] text-xs w-24">Your name</span>
                                     <input
                                         defaultValue={companionState.userName}
                                         onBlur={e => saveCompanionState({ userName: e.target.value })}
                                         placeholder="Not set"
-                                        className="flex-1 bg-gray-800 border border-gray-700 focus:border-green-500 rounded-lg px-3 py-1.5 text-white text-xs outline-none"
+                                        className="flex-1 bg-[var(--surface-1)] border border-[var(--border-dim)] focus:border-[var(--accent-green)] rounded-lg px-3 py-1.5 text-[var(--text-primary)] text-xs outline-none"
                                     />
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500 text-xs w-24">Streak</span>
-                                    <span className="text-orange-300 text-xs">{companionState.streakDays > 0 ? `🔥 ${companionState.streakDays} days in a row` : 'No streak yet'}</span>
+                                    <span className="text-[var(--text-tertiary)] text-xs w-24">Streak</span>
+                                    <span className="text-xs" style={{ color: 'var(--accent-pink)' }}>{companionState.streakDays > 0 ? `🔥 ${companionState.streakDays} days in a row` : 'No streak yet'}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500 text-xs w-24">Sessions</span>
-                                    <span className="text-gray-400 text-xs">{companionState.totalSessions} total</span>
+                                    <span className="text-[var(--text-tertiary)] text-xs w-24">Sessions</span>
+                                    <span className="text-[var(--text-secondary)] text-xs">{companionState.totalSessions} total</span>
                                 </div>
                             </div>
                         </div>
@@ -375,14 +377,14 @@ export default function CompanionPanel({ onClose }: Props) {
 
 function HabitCard({ habit, done, completing, onComplete }: { habit: Habit; done: boolean; completing: boolean; onComplete: () => void }) {
     return (
-        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${done ? 'border-green-500/20 bg-green-500/5 opacity-60' : 'border-gray-700 bg-gray-800/40 hover:border-gray-600'}`}>
+        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${done ? 'opacity-60' : 'border-[var(--border-dim)] bg-[rgba(0,255,65,0.03)] hover:border-[var(--border-base)]'}`} style={done ? { borderColor: 'var(--border-green)', background: 'rgba(0,255,65,0.05)' } : undefined}>
             <button onClick={onComplete} disabled={done || completing} className={`flex-shrink-0 transition-transform ${completing ? 'scale-125' : 'hover:scale-110'}`}>
-                {done ? <CheckCircle size={18} className="text-green-500" /> : <Circle size={18} className="text-gray-600" />}
+                {done ? <CheckCircle size={18} style={{ color: 'var(--accent-green)' }} /> : <Circle size={18} className="text-[var(--text-tertiary)]" />}
             </button>
             <span className="text-base">{habit.icon}</span>
-            <span className={`text-sm flex-1 ${done ? 'line-through text-gray-500' : 'text-gray-200'}`}>{habit.name}</span>
+            <span className={`text-sm flex-1 ${done ? 'line-through text-[var(--text-tertiary)]' : 'text-[var(--text-secondary)]'}`}>{habit.name}</span>
             {habit.streak > 0 && (
-                <span className="flex items-center gap-0.5 text-xs text-orange-300">
+                <span className="flex items-center gap-0.5 text-xs" style={{ color: 'var(--accent-pink)' }}>
                     <Flame size={11} /> {habit.streak}
                 </span>
             )}
@@ -395,28 +397,31 @@ function GoalCard({ goal }: { goal: Goal }) {
     const completedMilestones = goal.milestones.filter(m => m.completed).length;
 
     return (
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+        <div className="bg-[rgba(0,255,65,0.03)] rounded-xl p-4 border border-[var(--border-dim)]">
             <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex-1 min-w-0">
-                    <p className="text-gray-200 text-sm font-medium truncate">{goal.title}</p>
-                    {goal.why && <p className="text-gray-500 text-xs mt-0.5 italic truncate">"{goal.why}"</p>}
+                    <p className="text-[var(--text-secondary)] text-sm font-medium truncate">{goal.title}</p>
+                    {goal.why && <p className="text-[var(--text-tertiary)] text-xs mt-0.5 italic truncate">"{goal.why}"</p>}
                 </div>
                 {daysLeft !== null && (
-                    <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full ${daysLeft <= 3 ? 'bg-red-500/20 text-red-300' : daysLeft <= 7 ? 'bg-yellow-500/20 text-yellow-300' : 'bg-gray-700 text-gray-400'}`}>
+                    <span className="text-xs flex-shrink-0 px-2 py-0.5 rounded" style={{
+                        background: daysLeft <= 3 ? 'rgba(255,59,92,0.15)' : daysLeft <= 7 ? 'rgba(255,179,0,0.15)' : 'var(--surface-2)',
+                        color: daysLeft <= 3 ? 'var(--accent-red)' : daysLeft <= 7 ? 'var(--accent-amber)' : 'var(--text-tertiary)',
+                    }}>
                         {daysLeft === 0 ? 'Today' : `${daysLeft}d`}
                     </span>
                 )}
             </div>
             {/* Progress bar */}
             <div className="space-y-1">
-                <div className="flex justify-between text-xs text-gray-500">
+                <div className="flex justify-between text-xs text-[var(--text-tertiary)]">
                     <span>{goal.milestones.length > 0 ? `${completedMilestones}/${goal.milestones.length} milestones` : 'Progress'}</span>
-                    <span className="text-green-400 font-medium">{goal.progress}%</span>
+                    <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{goal.progress}%</span>
                 </div>
-                <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
                     <div
-                        className="h-full bg-gradient-to-r from-green-500 to-teal-400 rounded-full transition-all duration-500"
-                        style={{ width: `${goal.progress}%` }}
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${goal.progress}%`, background: 'linear-gradient(90deg, var(--accent-green), var(--accent-cyan))' }}
                     />
                 </div>
             </div>

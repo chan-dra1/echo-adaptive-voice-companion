@@ -114,23 +114,34 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-black/95 border-l border-[#00ff41]/20 backdrop-blur-md w-full sm:w-80 max-w-full font-mono text-[#00ff41]" role="region" aria-label="Memory panel">
-      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-        <div className="flex flex-col">
-          <h2 className="text-lg font-mono font-semibold text-[#00ff41] flex items-center gap-2 mb-2">
-            <Database size={18} aria-hidden="true" />
-            MEMORY_CACHE
-          </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('facts')}
-              className={`text-[10px] px-2 py-1 rounded transition-colors ${activeTab === 'facts' ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'text-gray-400 hover:text-white'}`}
-            >FACTS</button>
-            <button
-              onClick={() => setActiveTab('summaries')}
-              className={`text-[10px] px-2 py-1 rounded transition-colors ${activeTab === 'summaries' ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'text-gray-400 hover:text-white'}`}
-            >LTM</button>
-          </div>
+    <div className="term-window h-full flex flex-col w-full sm:w-80 max-w-full font-mono animate-phosphor-in" role="region" aria-label="Memory panel">
+      <div className="term-titlebar">
+        <span className="term-dots" />
+        <span className="flex-1 font-[var(--font-term)] uppercase tracking-[0.2em] text-xs flex items-center gap-2" style={{ color: 'var(--accent-green)' }}>
+          <Database size={14} aria-hidden="true" />
+          MEMORY_BANK.SYS
+        </span>
+        <Tooltip content="Close panel">
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-[rgba(0,255,65,0.1)] rounded transition-colors text-[var(--text-tertiary)] hover:text-[var(--accent-green)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]"
+            aria-label="Close memory panel"
+          >
+            <X size={18} />
+          </button>
+        </Tooltip>
+      </div>
+
+      <div className="px-4 pt-3 pb-2 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-dim)' }}>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('facts')}
+            className={`text-[10px] px-2 py-1 rounded font-mono uppercase tracking-widest transition-colors ${activeTab === 'facts' ? 'bg-[rgba(0,255,65,0.15)] text-[var(--accent-green)] border border-[var(--border-green)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-transparent'}`}
+          >FACTS</button>
+          <button
+            onClick={() => setActiveTab('summaries')}
+            className={`text-[10px] px-2 py-1 rounded font-mono uppercase tracking-widest transition-colors ${activeTab === 'summaries' ? 'bg-[rgba(0,255,65,0.15)] text-[var(--accent-green)] border border-[var(--border-green)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-transparent'}`}
+          >LTM</button>
         </div>
 
         <div className="flex items-center gap-1">
@@ -138,7 +149,7 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
             <Tooltip content="Export memories">
               <button
                 onClick={handleExport}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
+                className="p-2 hover:bg-[rgba(0,255,65,0.1)] rounded transition-colors text-[var(--text-tertiary)] hover:text-[var(--accent-green)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]"
                 aria-label="Export memories"
               >
                 <Download size={16} />
@@ -155,7 +166,7 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
                     setIsAdding(true);
                   }
                 }}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
+                className="p-2 hover:bg-[rgba(0,255,65,0.1)] rounded transition-colors text-[var(--text-tertiary)] hover:text-[var(--accent-green)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]"
                 aria-label={isAdding ? "Cancel adding memory" : "Add new memory"}
                 aria-pressed={isAdding}
               >
@@ -163,15 +174,6 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
               </button>
             </Tooltip>
           )}
-          <Tooltip content="Close panel">
-            <button
-              onClick={onClose}
-              className="p-3 hover:bg-[#00ff41]/10 rounded-full transition-colors text-[#00ff41]/60 hover:text-[#00ff41] focus:outline-none focus-visible:ring-2 focus-visible:ring-white bg-black/40 border border-[#00ff41]/20"
-              aria-label="Close memory panel"
-            >
-              <X size={24} />
-            </button>
-          </Tooltip>
         </div>
       </div>
 
@@ -181,21 +183,21 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
             <Button onClick={handleSummarizeNow} size="sm" variant="secondary" icon={Sparkles} className="w-full">
               Analyze & Summarize Session
             </Button>
-            <p className="text-[10px] text-gray-500 mt-2">Compresses current chat into long-term memory.</p>
+            <p className="text-[10px] text-[var(--text-tertiary)] mt-2">Compresses current chat into long-term memory.</p>
           </div>
 
           {summaries.length === 0 ? (
-            <div className="text-center text-gray-500 text-xs mt-8">
+            <div className="text-center text-[var(--text-tertiary)] text-xs mt-8">
               <BrainCircuit size={32} className="mx-auto mb-2 opacity-20" />
               <p className="opacity-50">No long-term memories yet.</p>
             </div>
           ) : (
             summaries.map((s) => (
-              <div key={s.id} className="bg-white/5 p-3 rounded-lg border border-white/5">
+              <div key={s.id} className="bg-[rgba(0,255,65,0.04)] p-3 rounded-lg border border-[var(--border-dim)] hover:border-[var(--border-green)] transition-colors">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-mono text-echo-primary opacity-80">{new Date(s.timestamp).toLocaleDateString()}</span>
+                  <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--accent-green)', opacity: 0.8 }}>{new Date(s.timestamp).toLocaleDateString()}</span>
                 </div>
-                <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{s.summary}</p>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{s.summary}</p>
               </div>
             ))
           )}
@@ -203,16 +205,16 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
       ) : (
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
           {isAdding && (
-            <form onSubmit={editingId ? handleUpdate : handleAdd} className="bg-echo-dark p-3 rounded-lg border border-echo-primary/30 space-y-2 mb-4">
+            <form onSubmit={editingId ? handleUpdate : handleAdd} className="bg-[rgba(0,255,65,0.03)] p-3 rounded-lg border border-[var(--border-green)] space-y-2 mb-4">
               <div>
-                <label htmlFor="memory-key" className="block text-[10px] text-gray-400 mb-1 uppercase tracking-wider">
+                <label htmlFor="memory-key" className="block text-[10px] text-[var(--text-tertiary)] mb-1 uppercase tracking-wider">
                   {editingId ? 'Edit Key' : 'Key'}
                 </label>
                 <input
                   id="memory-key"
                   type="text"
                   placeholder="e.g., 'nickname', 'favorite_food'"
-                  className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus-visible:border-echo-primary focus-visible:ring-1 focus-visible:ring-echo-primary"
+                  className="w-full bg-black/20 border border-[var(--border-dim)] rounded px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus-visible:border-[var(--accent-green)] focus-visible:ring-1 focus-visible:ring-[var(--accent-green)]"
                   value={newKey}
                   onChange={e => setNewKey(e.target.value)}
                   autoFocus
@@ -221,13 +223,13 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
                 />
               </div>
               <div>
-                <label htmlFor="memory-value" className="block text-[10px] text-gray-400 mb-1 uppercase tracking-wider">
+                <label htmlFor="memory-value" className="block text-[10px] text-[var(--text-tertiary)] mb-1 uppercase tracking-wider">
                   {editingId ? 'Edit Value' : 'Value'}
                 </label>
                 <textarea
                   id="memory-value"
                   placeholder="e.g., 'Alex', 'Pizza'"
-                  className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus-visible:border-echo-primary focus-visible:ring-1 focus-visible:ring-echo-primary resize-none"
+                  className="w-full bg-black/20 border border-[var(--border-dim)] rounded px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus-visible:border-[var(--accent-green)] focus-visible:ring-1 focus-visible:ring-[var(--accent-green)] resize-none"
                   rows={3}
                   value={newValue}
                   onChange={e => setNewValue(e.target.value)}
@@ -247,7 +249,7 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
           )}
 
           {memories.length === 0 ? (
-            <div className="text-center text-gray-500 text-sm mt-10" role="status">
+            <div className="text-center text-[var(--text-tertiary)] text-sm mt-10" role="status">
               <Database size={48} className="mx-auto mb-4 opacity-20" />
               <p className="mb-2 opacity-50">No memories recorded yet.</p>
               <p className="text-xs opacity-40">"Echo" will learn about you as you speak.</p>
@@ -265,17 +267,17 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
             memories.slice().reverse().map((item) => (
               <div
                 key={item.id}
-                className="group bg-white/5 rounded-lg p-3 hover:bg-white/10 transition-all border border-transparent hover:border-white/5"
+                className="group bg-[rgba(0,255,65,0.04)] rounded-lg p-3 hover:bg-[rgba(0,255,65,0.07)] transition-all border border-[var(--border-dim)] hover:border-[var(--border-green)]"
               >
                 <div className="flex justify-between items-start mb-1">
-                  <span className="text-xs font-mono text-echo-accent uppercase tracking-wider opacity-80">
+                  <span className="text-xs font-mono uppercase tracking-wider opacity-80" style={{ color: 'var(--accent-green)' }}>
                     {item.key}
                   </span>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Tooltip content="Edit memory">
                       <button
                         onClick={() => handleEdit(item)}
-                        className="text-gray-600 hover:text-echo-primary p-1 rounded hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
+                        className="text-[var(--text-tertiary)] hover:text-[var(--accent-green)] p-1 rounded hover:bg-[rgba(0,255,65,0.06)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]"
                         aria-label={`Edit memory: ${item.key}`}
                       >
                         <Edit2 size={14} />
@@ -284,7 +286,7 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
                     <Tooltip content="Delete memory">
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="text-gray-600 hover:text-red-400 p-1 rounded hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                        className="text-[var(--text-tertiary)] hover:text-[var(--accent-red)] p-1 rounded hover:bg-[rgba(0,255,65,0.06)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-red)]"
                         aria-label={`Delete memory: ${item.key}`}
                       >
                         <Trash2 size={14} />
@@ -292,8 +294,8 @@ const MemoryPanel: React.FC<MemoryPanelProps> = ({ memories, onUpdate, onClose }
                     </Tooltip>
                   </div>
                 </div>
-                <p className="text-sm text-gray-200 leading-relaxed font-sans break-words">{item.value}</p>
-                <time className="text-[10px] text-gray-600 mt-2 block text-right font-mono" dateTime={new Date(item.timestamp).toISOString()}>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed font-sans break-words">{item.value}</p>
+                <time className="text-[10px] text-[var(--text-tertiary)] mt-2 block text-right font-mono" dateTime={new Date(item.timestamp).toISOString()}>
                   {new Date(item.timestamp).toLocaleDateString()}
                 </time>
               </div>

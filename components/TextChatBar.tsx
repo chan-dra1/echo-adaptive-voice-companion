@@ -47,12 +47,33 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
         onNewMessage('user', text);
         setIsLoading(true);
 
+        // Placeholder bubble — filled in live as tokens stream in. Tool-
+        // resolution hops (if any) happen silently before text starts
+        // arriving here; the "thinking" indicator covers that gap.
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
         try {
-            const reply = await echoChatService.sendMessage(provider, '', text);
-            const aiTurn: ChatTurn = { role: 'assistant', content: reply };
-            setMessages(prev => [...prev, aiTurn]);
+            const reply = await echoChatService.sendMessage(provider, '', text, (delta) => {
+                setMessages(prev => {
+                    const next = [...prev];
+                    const last = next[next.length - 1];
+                    if (last?.role === 'assistant') {
+                        next[next.length - 1] = { ...last, content: last.content + delta };
+                    }
+                    return next;
+                });
+            });
+            // Reconcile with the resolved reply — a tool hop can produce a
+            // final answer that differs from whatever streamed in earlier.
+            setMessages(prev => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (last?.role === 'assistant') next[next.length - 1] = { ...last, content: reply };
+                return next;
+            });
             onNewMessage('assistant', reply);
         } catch (e: any) {
+            setMessages(prev => prev.slice(0, -1)); // drop the empty placeholder bubble
             setError(e.message || 'Failed to get response');
         } finally {
             setIsLoading(false);
@@ -68,13 +89,14 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
 
     if (embedded) {
         return (
-            <div className="flex flex-col border-t border-white/10 bg-echo-surface/90 backdrop-blur-md p-4">
+            <div className="flex flex-col border-t border-[var(--border-dim)] bg-[rgba(1,7,3,0.92)] backdrop-blur-md p-4">
                 {error && (
-                    <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-2">
+                    <p className="text-[var(--accent-red)] text-xs text-center font-mono bg-[rgba(255,59,92,0.08)] border border-[rgba(255,59,92,0.25)] rounded-md px-3 py-2 mb-2">
                         ⚠ {error}
                     </p>
                 )}
-                <div className="flex items-center gap-2 bg-black/40 rounded-xl px-4 py-3 border border-white/5 focus-within:border-echo-primary/50 transition-colors">
+                <div className="flex items-center gap-2 bg-[#010502] rounded-md px-3 py-3 border border-[var(--border-dim)] focus-within:border-[var(--border-green)] focus-within:shadow-[var(--glow-green-sm)] transition-all">
+                    <span className="font-mono text-[var(--accent-green)] text-glow-green select-none text-sm" aria-hidden="true">❯</span>
                     <input
                         ref={inputRef}
                         type="text"
@@ -82,13 +104,14 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Message Echo text AI..."
-                        className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm outline-none"
+                        className="flex-1 bg-transparent font-mono text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-sm outline-none"
+                        style={{ caretColor: 'var(--accent-green)' }}
                         disabled={isLoading}
                     />
                     <button
                         onClick={handleSend}
                         disabled={!input.trim() || isLoading}
-                        className="p-2 rounded-lg bg-[#00ff88]/15 text-[#00ff88] hover:bg-[#00ff88]/25 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        className="p-2 rounded bg-[rgba(0,255,65,0.1)] text-[var(--accent-green)] border border-[rgba(0,255,65,0.3)] hover:bg-[rgba(0,255,65,0.18)] hover:shadow-[var(--glow-green-sm)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                         aria-label="Send text message"
                     >
                         {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -106,17 +129,16 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                     className="fixed bottom-[12.5rem] md:bottom-[15rem] left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4 pointer-events-auto"
                     style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                 >
-                <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                <div className="term-window animate-phosphor-in flex flex-col overflow-hidden"
                     style={{ maxHeight: '50vh' }}>
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                        <div className="flex items-center gap-2">
-                            <MessageSquareText size={16} className="text-[#00ff88]" />
-                            <span className="text-sm font-semibold text-white/80">Chat with Echo</span>
-                        </div>
+                    <div className="term-titlebar">
+                        <span className="term-dots" aria-hidden="true" />
+                        <MessageSquareText size={14} className="text-[var(--accent-green)]" aria-hidden="true" />
+                        <span className="text-glow-green">ECHO://TEXT_LINK</span>
                         <button
                             onClick={() => setIsOpen(false)}
-                            className="text-gray-500 hover:text-white transition-colors"
+                            className="ml-auto p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--accent-green)] hover:bg-[rgba(0,255,65,0.08)] transition-colors"
                             aria-label="Close chat"
                         >
                             <X size={16} />
@@ -126,35 +148,35 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-[120px]">
                         {messages.length === 0 && (
-                            <p className="text-center text-gray-600 text-sm mt-4">
-                                Start a conversation with Echo
+                            <p className="text-center text-[var(--text-tertiary)] font-mono text-sm mt-4">
+                                &gt; Start a conversation with Echo
                             </p>
                         )}
-                        {messages.map((msg, i) => (
+                        {messages.filter(msg => msg.content).map((msg, i) => (
                             <div
                                 key={i}
                                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                             >
                                 <div
-                                    className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
-                                        ? 'bg-[#00ff88]/15 text-white border border-[#00ff88]/20'
-                                        : 'bg-white/5 text-gray-200 border border-white/8'
+                                    className={`max-w-[80%] rounded-md px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap font-ui text-[var(--text-primary)] ${msg.role === 'user'
+                                        ? 'bg-[rgba(87,255,176,0.08)] border border-[rgba(87,255,176,0.3)]'
+                                        : 'bg-[rgba(0,255,65,0.06)] border border-[var(--border-dim)]'
                                         }`}
                                 >
                                     {msg.content}
                                 </div>
                             </div>
                         ))}
-                        {isLoading && (
+                        {isLoading && !messages[messages.length - 1]?.content && (
                             <div className="flex justify-start">
-                                <div className="bg-white/5 border border-white/8 rounded-2xl px-4 py-2.5 flex items-center gap-2">
-                                    <Loader2 size={14} className="animate-spin text-[#00ff88]" />
-                                    <span className="text-gray-400 text-sm">Echo is thinking…</span>
+                                <div className="bg-[rgba(0,255,65,0.06)] border border-[var(--border-dim)] rounded-md px-4 py-2.5 flex items-center gap-2">
+                                    <Loader2 size={14} className="animate-spin text-[var(--accent-green)]" />
+                                    <span className="text-[var(--text-secondary)] font-mono text-sm">Echo is thinking…</span>
                                 </div>
                             </div>
                         )}
                         {error && (
-                            <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                            <p className="text-[var(--accent-red)] text-xs text-center font-mono bg-[rgba(255,59,92,0.08)] border border-[rgba(255,59,92,0.25)] rounded-md px-3 py-2">
                                 ⚠ {error}
                             </p>
                         )}
@@ -162,10 +184,11 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                     </div>
 
                     {/* Divider */}
-                    <div className="border-t border-white/5" />
+                    <div className="border-t border-[var(--border-subtle)]" />
 
                     {/* Input row inside panel */}
-                    <div className="flex items-center gap-2 px-3 py-2.5">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-[#010502]">
+                        <span className="font-mono text-[var(--accent-green)] text-glow-green select-none text-sm" aria-hidden="true">❯</span>
                         <input
                             ref={inputRef}
                             type="text"
@@ -173,12 +196,13 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
                             placeholder="Message Echo…"
-                            className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm outline-none"
+                            className="flex-1 bg-transparent font-mono text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-sm outline-none"
+                            style={{ caretColor: 'var(--accent-green)' }}
                         />
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || isLoading}
-                            className="p-2 rounded-xl bg-[#00ff88]/15 text-[#00ff88] hover:bg-[#00ff88]/25 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            className="p-2 rounded bg-[rgba(0,255,65,0.1)] text-[var(--accent-green)] border border-[rgba(0,255,65,0.3)] hover:bg-[rgba(0,255,65,0.18)] hover:shadow-[var(--glow-green-sm)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                             aria-label="Send message"
                         >
                             <Send size={16} />
@@ -192,9 +216,9 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
             <div className="absolute bottom-[10.5rem] md:bottom-[12.75rem] left-1/2 -translate-x-1/2 z-40 pointer-events-none">
                 <button
                     onClick={() => setIsOpen(prev => !prev)}
-                    className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full border backdrop-blur-md transition-all duration-300 text-xs md:text-sm font-medium shadow-lg ${isOpen
-                        ? 'bg-[#00ff88]/20 border-[#00ff88]/40 text-[#00ff88] shadow-[0_0_20px_rgba(0,255,136,0.15)]'
-                        : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                    className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded border backdrop-blur-md transition-all duration-300 text-xs md:text-sm font-mono uppercase tracking-widest shadow-lg ${isOpen
+                        ? 'bg-[rgba(0,255,65,0.12)] border-[rgba(0,255,65,0.45)] text-[var(--accent-green)] shadow-[var(--glow-green-sm)] text-glow-green'
+                        : 'bg-[rgba(1,7,3,0.7)] border-[var(--border-dim)] text-[var(--text-secondary)] hover:text-[var(--accent-green)] hover:border-[var(--border-green)]'
                         }`}
                     aria-label={isOpen ? 'Close text chat' : 'Open text chat'}
                     aria-expanded={isOpen}

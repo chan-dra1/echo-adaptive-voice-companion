@@ -26,7 +26,7 @@ type ES = 'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING' | 'ONLINE';
 const S: Record<ES, { c: string; rgb: string; label: string; sub: string }> = {
   STANDBY:    { c: '#6C5CE7', rgb: '108,92,231',  label: 'STANDBY',    sub: 'neural link offline'     },
   ONLINE:     { c: '#00CFFF', rgb: '0,207,255',   label: 'ONLINE',     sub: 'awaiting directive'      },
-  LISTENING:  { c: '#00FF88', rgb: '0,255,136',   label: 'LISTENING',  sub: 'input stream active'     },
+  LISTENING:  { c: '#00FF41', rgb: '0,255,65',    label: 'LISTENING',  sub: 'input stream active'     },
   PROCESSING: { c: '#FFB700', rgb: '255,183,0',   label: 'PROCESSING', sub: 'reasoning · routing'     },
   SPEAKING:   { c: '#FF2D78', rgb: '255,45,120',  label: 'SPEAKING',   sub: 'voice synthesis active'  },
 };

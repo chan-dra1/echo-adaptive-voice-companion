@@ -51,7 +51,7 @@ const MatrixVisualizer: React.FC<Props> = ({ outputVolume, inputVolume, isActive
                     vy:    0.2 + Math.random() * 0.5,
                     size:  1 + Math.random() * 2,
                     alpha: 0.1 + Math.random() * 0.3,
-                    color: Math.random() > 0.5 ? '#00E5FF' : '#00FF41',
+                    color: Math.random() > 0.5 ? '#57FFB0' : '#00FF41',
                 });
             }
         };
@@ -103,10 +103,10 @@ const MatrixVisualizer: React.FC<Props> = ({ outputVolume, inputVolume, isActive
 
                     if (alpha <= 0.005) continue;
 
-                    // Color mix: cyan base, green with volume
-                    const g = Math.floor(180 + vol * 75);
-                    const b = Math.floor(255 * (1 - vol * 0.3));
-                    ctx.strokeStyle = `rgba(0,${g},${b},${alpha})`;
+                    // Color mix: phosphor green base, shifts toward mint with volume
+                    const rr = Math.floor(vol * 87);
+                    const bb = Math.floor(65 + vol * 111);
+                    ctx.strokeStyle = `rgba(${rr},255,${bb},${alpha})`;
                     ctx.lineWidth = 0.5 + vol * 0.5;
 
                     // Draw hexagon
@@ -143,10 +143,10 @@ const MatrixVisualizer: React.FC<Props> = ({ outputVolume, inputVolume, isActive
                     const alpha  = Math.max(0, 0.4 - radius / (Math.max(W, H) * 0.8)) * vol;
                     const rStart = Math.max(0, radius - 2);
                     const grad   = ctx.createRadialGradient(cx, cy, rStart, cx, cy, radius + 2);
-                    grad.addColorStop(0, `rgba(0,229,255,0)`);
-                    grad.addColorStop(0.5, `rgba(0,229,255,${alpha})`);
-                    grad.addColorStop(1, `rgba(0,229,255,0)`);
-                    ctx.strokeStyle = `rgba(0,229,255,${alpha})`;
+                    grad.addColorStop(0, `rgba(87,255,176,0)`);
+                    grad.addColorStop(0.5, `rgba(87,255,176,${alpha})`);
+                    grad.addColorStop(1, `rgba(87,255,176,0)`);
+                    ctx.strokeStyle = `rgba(87,255,176,${alpha})`;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.arc(cx, cy, radius, 0, Math.PI * 2);

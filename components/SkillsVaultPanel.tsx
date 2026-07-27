@@ -59,16 +59,16 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
         { key: 'share', label: 'Share' },
     ];
     return (
-        <div className="flex border-b border-[#00ff41]/15">
+        <div className="flex border-b border-[rgba(0,255,65,0.14)]">
             {tabs.map(t => (
                 <button
                     key={t.key}
                     onClick={() => onChange(t.key)}
                     className={[
-                        'px-5 py-3 text-xs font-mono uppercase tracking-widest transition-colors',
+                        'px-5 py-3 text-xs font-hud uppercase tracking-[0.2em] transition-colors',
                         active === t.key
-                            ? 'text-[#00ff41] border-b-2 border-[#00ff41] -mb-px'
-                            : 'text-[#00ff41]/50 hover:text-[#00ff41]/80',
+                            ? 'text-[var(--accent-green)] text-glow-green border-b-2 border-[var(--accent-green)] -mb-px'
+                            : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
                     ].join(' ')}
                 >
                     {t.label}
@@ -99,25 +99,25 @@ function SkillCard({
     onDelete,
 }: SkillCardProps) {
     return (
-        <div className="bg-[#00ff41]/5 border border-[#00ff41]/15 rounded-xl p-3 hover:border-[#00ff41]/30 transition-colors">
+        <div className="bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] rounded-lg p-3 hover:bg-[rgba(0,255,65,0.08)] hover:border-[var(--border-green)] transition-colors">
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[#00ff41] text-sm font-semibold truncate">{name}</span>
+                        <span className="text-[var(--accent-green)] text-sm font-hud uppercase tracking-[0.15em] truncate">{name}</span>
                         {version !== undefined && (
-                            <span className="text-[9px] px-1.5 py-0.5 bg-[#00ff41]/10 border border-[#00ff41]/20 rounded text-[#00ff41]/70">
+                            <span className="text-[9px] font-hud px-1.5 py-0.5 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] rounded text-[var(--text-secondary)]">
                                 v{version}
                             </span>
                         )}
                         {badge}
                     </div>
-                    <p className="text-[#00ff41]/60 text-xs mt-1 line-clamp-2">{description}</p>
+                    <p className="text-[var(--text-secondary)] text-xs mt-1 line-clamp-2">{description}</p>
                     {tags && tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                             {tags.map(tag => (
                                 <span
                                     key={tag}
-                                    className="text-[9px] px-1.5 py-0.5 bg-[#00ff41]/10 border border-[#00ff41]/20 rounded text-[#00ff41]/60"
+                                    className="text-[9px] font-hud uppercase tracking-[0.15em] px-1.5 py-0.5 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] rounded text-[var(--text-tertiary)]"
                                 >
                                     {tag}
                                 </span>
@@ -125,14 +125,14 @@ function SkillCard({
                         </div>
                     )}
                     {stats && (
-                        <div className="text-[10px] text-[#00ff41]/40 mt-1 font-mono">{stats}</div>
+                        <div className="text-[10px] text-[var(--text-tertiary)] mt-1 font-hud">{stats}</div>
                     )}
                 </div>
                 {onDelete && (
                     <button
                         onClick={onDelete}
                         title="Delete skill"
-                        className="flex-shrink-0 p-1.5 text-red-400 hover:text-red-300 transition-colors"
+                        className="flex-shrink-0 p-1.5 text-[var(--accent-red)] opacity-70 hover:opacity-100 transition-opacity"
                     >
                         <Trash2 size={14} />
                     </button>
@@ -144,7 +144,7 @@ function SkillCard({
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="flex flex-col items-center justify-center py-12 text-[#00ff41]/30 font-mono text-xs text-center">
+        <div className="flex flex-col items-center justify-center py-12 text-[var(--text-tertiary)] font-hud text-xs uppercase tracking-[0.15em] text-center">
             <div className="text-2xl mb-2">∅</div>
             <div>{message}</div>
         </div>
@@ -173,7 +173,7 @@ function InstalledTab({
     return (
         <div className="space-y-3">
             {degraded && (
-                <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 font-mono">
+                <div className="flex items-start gap-2 p-3 bg-[rgba(255,179,0,0.08)] border border-[rgba(255,179,0,0.35)] rounded-lg text-xs text-[var(--accent-amber)] font-hud">
                     <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
                     <span>
                         Skill <strong>{degraded.name}</strong> is failing often. Say &ldquo;Echo, improve the{' '}
@@ -188,8 +188,8 @@ function InstalledTab({
 
             {dynamicSkills.length > 0 && (
                 <div>
-                    <div className="text-[10px] uppercase tracking-widest text-[#00ff41]/40 mb-2 font-mono">
-                        Dynamic Skills ({dynamicSkills.length})
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-tertiary)] mb-2 font-hud">
+                        {'> '}Dynamic Skills ({dynamicSkills.length})
                     </div>
                     <div className="space-y-2">
                         {dynamicSkills.map(ds => (
@@ -209,8 +209,8 @@ function InstalledTab({
 
             {staticTools.length > 0 && (
                 <div>
-                    <div className="text-[10px] uppercase tracking-widest text-[#00ff41]/40 mb-2 font-mono mt-4">
-                        Built-in Skills ({staticTools.length})
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-tertiary)] mb-2 font-hud mt-4">
+                        {'> '}Built-in Skills ({staticTools.length})
                     </div>
                     <div className="space-y-2">
                         {staticTools.map(t => (
@@ -219,7 +219,7 @@ function InstalledTab({
                                 name={t.name ?? ''}
                                 description={t.description ?? ''}
                                 badge={
-                                    <span className="text-[9px] px-1.5 py-0.5 bg-[#00ff41]/10 border border-[#00ff41]/15 rounded text-[#00ff41]/40">
+                                    <span className="text-[9px] font-hud uppercase tracking-[0.15em] px-1.5 py-0.5 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] rounded text-[var(--text-tertiary)]">
                                         built-in
                                     </span>
                                 }
@@ -312,25 +312,25 @@ function CommunityTab({ installedDynamic }: { installedDynamic: DynamicSkill[] }
                     value={url}
                     onChange={e => setUrl(e.target.value)}
                     placeholder="https://example.com/skills.json"
-                    className="flex-1 bg-black/50 border border-[#00ff41]/20 rounded-lg px-3 py-2 text-xs font-mono text-[#00ff41] placeholder-[#00ff41]/25 focus:outline-none focus:border-[#00ff41]/50"
+                    className="flex-1 bg-black/60 border border-[var(--border-dim)] rounded px-3 py-2 text-xs font-hud text-[var(--accent-green)] placeholder-[rgba(0,255,65,0.25)] focus:outline-none focus:border-[var(--border-green)]"
                 />
                 <button
                     onClick={() => { saveUrl(); fetchSkills(); }}
-                    className="px-3 py-2 bg-[#00ff41]/15 border border-[#00ff41]/30 text-[#00ff41] rounded-lg text-xs font-mono hover:bg-[#00ff41]/25 transition-colors"
+                    className="btn-term px-3 py-2 text-xs"
                 >
                     Set
                 </button>
                 <button
                     onClick={handleRefresh}
                     title="Refresh"
-                    className="p-2 border border-[#00ff41]/20 rounded-lg text-[#00ff41]/60 hover:text-[#00ff41] hover:border-[#00ff41]/40 transition-colors"
+                    className="p-2 border border-[var(--border-dim)] rounded text-[var(--text-tertiary)] hover:text-[var(--accent-green)] hover:border-[var(--border-green)] transition-colors"
                 >
                     <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                 </button>
             </div>
 
             {error && (
-                <div className="text-xs text-red-400 font-mono px-1">{error}</div>
+                <div className="text-xs text-[var(--accent-red)] font-hud px-1">{error}</div>
             )}
 
             {!registryUrl && (
@@ -342,8 +342,8 @@ function CommunityTab({ installedDynamic }: { installedDynamic: DynamicSkill[] }
             )}
 
             {loading && (
-                <div className="text-[#00ff41]/40 text-xs font-mono text-center py-8">
-                    Loading skills…
+                <div className="text-[var(--text-tertiary)] text-xs font-hud uppercase tracking-[0.2em] text-center py-8 cursor-blink">
+                    Loading skills
                 </div>
             )}
 
@@ -355,40 +355,40 @@ function CommunityTab({ installedDynamic }: { installedDynamic: DynamicSkill[] }
                         return (
                             <div
                                 key={cs.id}
-                                className="bg-[#00ff41]/5 border border-[#00ff41]/15 rounded-xl p-3 hover:border-[#00ff41]/30 transition-colors"
+                                className="bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] rounded-lg p-3 hover:bg-[rgba(0,255,65,0.08)] hover:border-[var(--border-green)] transition-colors"
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[#00ff41] text-sm font-semibold truncate">{cs.name}</span>
-                                            <span className="text-[9px] px-1.5 py-0.5 bg-[#00ff41]/10 border border-[#00ff41]/20 rounded text-[#00ff41]/60">
+                                            <span className="text-[var(--accent-green)] text-sm font-hud uppercase tracking-[0.15em] truncate">{cs.name}</span>
+                                            <span className="text-[9px] font-hud px-1.5 py-0.5 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] rounded text-[var(--text-secondary)]">
                                                 v{cs.version}
                                             </span>
                                         </div>
-                                        <p className="text-[#00ff41]/60 text-xs mt-1 line-clamp-2">{cs.description}</p>
+                                        <p className="text-[var(--text-secondary)] text-xs mt-1 line-clamp-2">{cs.description}</p>
                                         {cs.tags && cs.tags.length > 0 && (
                                             <div className="flex flex-wrap gap-1 mt-1.5">
                                                 {cs.tags.map(tag => (
-                                                    <span key={tag} className="text-[9px] px-1.5 py-0.5 bg-[#00ff41]/10 border border-[#00ff41]/20 rounded text-[#00ff41]/60">
+                                                    <span key={tag} className="text-[9px] font-hud uppercase tracking-[0.15em] px-1.5 py-0.5 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] rounded text-[var(--text-tertiary)]">
                                                         {tag}
                                                     </span>
                                                 ))}
                                             </div>
                                         )}
-                                        <div className="text-[10px] text-[#00ff41]/35 font-mono mt-1">
+                                        <div className="text-[10px] text-[var(--text-tertiary)] font-hud mt-1">
                                             by {cs.author} · {cs.downloadCount} downloads
                                         </div>
                                     </div>
                                     <div className="flex-shrink-0">
                                         {isInstalled ? (
-                                            <span className="text-[10px] px-2 py-1 bg-[#00ff41]/10 border border-[#00ff41]/20 rounded text-[#00ff41]/60 font-mono">
-                                                Installed
+                                            <span className="text-[10px] px-2 py-1 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] rounded text-[var(--text-secondary)] font-hud uppercase tracking-[0.15em]">
+                                                [OK] Installed
                                             </span>
                                         ) : (
                                             <button
                                                 onClick={() => handleInstall(cs)}
                                                 disabled={isInstalling}
-                                                className="flex items-center gap-1 px-2 py-1 bg-[#00ff41]/15 border border-[#00ff41]/30 text-[#00ff41] rounded text-[10px] font-mono hover:bg-[#00ff41]/25 transition-colors disabled:opacity-50"
+                                                className="btn-term flex items-center gap-1 px-2 py-1 text-[10px] disabled:opacity-50"
                                             >
                                                 {isInstalling ? (
                                                     <RefreshCw size={10} className="animate-spin" />
@@ -470,8 +470,8 @@ function ShareTab({ dynamicSkills }: { dynamicSkills: DynamicSkill[] }) {
         <div className="space-y-6">
             {/* Export section */}
             <div>
-                <div className="text-[10px] uppercase tracking-widest text-[#00ff41]/50 mb-2 font-mono">
-                    Export a Skill
+                <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-tertiary)] mb-2 font-hud">
+                    {'> '}Export a Skill
                 </div>
                 {dynamicSkills.length === 0 ? (
                     <EmptyState message="No dynamic skills to export." />
@@ -482,10 +482,10 @@ function ShareTab({ dynamicSkills }: { dynamicSkills: DynamicSkill[] }) {
                                 key={ds.id}
                                 onClick={() => setSelected(selected?.id === ds.id ? null : ds)}
                                 className={[
-                                    'w-full text-left px-3 py-2 rounded-xl border font-mono text-xs transition-colors',
+                                    'w-full text-left px-3 py-2 rounded-lg border font-hud text-xs uppercase tracking-[0.15em] transition-colors',
                                     selected?.id === ds.id
-                                        ? 'bg-[#00ff41]/15 border-[#00ff41]/50 text-[#00ff41]'
-                                        : 'bg-[#00ff41]/5 border-[#00ff41]/15 text-[#00ff41]/70 hover:border-[#00ff41]/30',
+                                        ? 'bg-[rgba(0,255,65,0.12)] border-[var(--border-green)] text-[var(--accent-green)] text-glow-green'
+                                        : 'bg-[rgba(0,255,65,0.04)] border-[var(--border-dim)] text-[var(--text-secondary)] hover:border-[var(--border-green)]',
                                 ].join(' ')}
                             >
                                 {ds.name}
@@ -497,25 +497,25 @@ function ShareTab({ dynamicSkills }: { dynamicSkills: DynamicSkill[] }) {
                 {selected && (
                     <div className="mt-3">
                         <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] text-[#00ff41]/40 font-mono uppercase tracking-widest">
+                            <span className="text-[10px] text-[var(--text-tertiary)] font-hud uppercase tracking-[0.25em]">
                                 JSON for {selected.name}
                             </span>
                             <button
                                 onClick={handleCopy}
-                                className="flex items-center gap-1 px-2 py-1 bg-[#00ff41]/10 border border-[#00ff41]/20 text-[#00ff41]/70 hover:text-[#00ff41] rounded text-[10px] font-mono transition-colors"
+                                className="flex items-center gap-1 px-2 py-1 bg-[rgba(0,255,65,0.08)] border border-[var(--border-dim)] text-[var(--text-secondary)] hover:text-[var(--accent-green)] hover:border-[var(--border-green)] rounded text-[10px] font-hud uppercase tracking-[0.15em] transition-colors"
                             >
                                 {copied ? <Check size={10} /> : <Copy size={10} />}
-                                {copied ? 'Copied!' : 'Copy JSON'}
+                                {copied ? '[OK] Copied' : 'Copy JSON'}
                             </button>
                         </div>
-                        <pre className="bg-black/60 border border-[#00ff41]/15 rounded-xl p-3 text-[10px] text-[#00ff41]/60 font-mono overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap">
+                        <pre className="bg-black/70 border border-[var(--border-dim)] rounded-lg p-3 text-[10px] text-[var(--text-secondary)] font-hud overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap">
                             {exportedJson}
                         </pre>
                     </div>
                 )}
 
-                <div className="mt-3 p-3 bg-[#00ff41]/5 border border-[#00ff41]/10 rounded-xl text-[10px] text-[#00ff41]/40 font-mono space-y-1">
-                    <div className="text-[#00ff41]/60 font-semibold mb-1">Tips</div>
+                <div className="mt-3 p-3 bg-[rgba(0,255,65,0.04)] border border-[var(--border-subtle)] rounded-lg text-[10px] text-[var(--text-tertiary)] font-hud space-y-1">
+                    <div className="text-[var(--text-secondary)] uppercase tracking-[0.2em] mb-1">// Tips</div>
                     <div>Share this JSON with others so they can import it.</div>
                     <div>Or host it at a URL and add it to your Community registry.</div>
                     <div>A registry JSON file is an array of skill objects: <code>[{'{'}...{'}'}, ...]</code></div>
@@ -524,17 +524,17 @@ function ShareTab({ dynamicSkills }: { dynamicSkills: DynamicSkill[] }) {
 
             {/* Import section */}
             <div>
-                <div className="text-[10px] uppercase tracking-widest text-[#00ff41]/50 mb-2 font-mono">
-                    Import a Skill
+                <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-tertiary)] mb-2 font-hud">
+                    {'> '}Import a Skill
                 </div>
 
                 {importStatus && (
-                    <div className="flex items-center gap-2 p-2 mb-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-400 font-mono">
+                    <div className="flex items-center gap-2 p-2 mb-2 bg-[rgba(0,255,65,0.08)] border border-[var(--border-green)] rounded-lg text-xs text-[var(--accent-green)] font-hud">
                         <Check size={12} /> {importStatus}
                     </div>
                 )}
                 {importError && (
-                    <div className="flex items-center gap-2 p-2 mb-2 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400 font-mono">
+                    <div className="flex items-center gap-2 p-2 mb-2 bg-[rgba(255,59,92,0.08)] border border-[rgba(255,59,92,0.3)] rounded-lg text-xs text-[var(--accent-red)] font-hud">
                         <AlertTriangle size={12} /> {importError}
                     </div>
                 )}
@@ -545,19 +545,19 @@ function ShareTab({ dynamicSkills }: { dynamicSkills: DynamicSkill[] }) {
                         onChange={e => setImportJson(e.target.value)}
                         placeholder="Paste skill JSON here…"
                         rows={5}
-                        className="w-full bg-black/50 border border-[#00ff41]/20 rounded-xl px-3 py-2 text-[11px] font-mono text-[#00ff41] placeholder-[#00ff41]/25 focus:outline-none focus:border-[#00ff41]/50 resize-y"
+                        className="w-full bg-black/60 border border-[var(--border-dim)] rounded-lg px-3 py-2 text-[11px] font-hud text-[var(--accent-green)] placeholder-[rgba(0,255,65,0.25)] focus:outline-none focus:border-[var(--border-green)] resize-y"
                     />
                     <button
                         onClick={handleImportJson}
                         disabled={importing || !importJson.trim()}
-                        className="flex items-center gap-2 px-3 py-2 bg-[#00ff41]/15 border border-[#00ff41]/30 text-[#00ff41] rounded-lg text-xs font-mono hover:bg-[#00ff41]/25 transition-colors disabled:opacity-40"
+                        className="btn-term flex items-center gap-2 px-3 py-2 text-xs disabled:opacity-40"
                     >
                         <Upload size={12} /> Import from JSON
                     </button>
                 </div>
 
                 <div className="mt-4 space-y-2">
-                    <div className="text-[10px] text-[#00ff41]/40 font-mono uppercase tracking-widest">
+                    <div className="text-[10px] text-[var(--text-tertiary)] font-hud uppercase tracking-[0.25em]">
                         Or import from a URL
                     </div>
                     <div className="flex gap-2">
@@ -566,12 +566,12 @@ function ShareTab({ dynamicSkills }: { dynamicSkills: DynamicSkill[] }) {
                             value={importUrl}
                             onChange={e => setImportUrl(e.target.value)}
                             placeholder="https://example.com/my-skill.json"
-                            className="flex-1 bg-black/50 border border-[#00ff41]/20 rounded-lg px-3 py-2 text-xs font-mono text-[#00ff41] placeholder-[#00ff41]/25 focus:outline-none focus:border-[#00ff41]/50"
+                            className="flex-1 bg-black/60 border border-[var(--border-dim)] rounded px-3 py-2 text-xs font-hud text-[var(--accent-green)] placeholder-[rgba(0,255,65,0.25)] focus:outline-none focus:border-[var(--border-green)]"
                         />
                         <button
                             onClick={handleImportUrl}
                             disabled={importing || !importUrl.trim()}
-                            className="px-3 py-2 bg-[#00ff41]/15 border border-[#00ff41]/30 text-[#00ff41] rounded-lg text-xs font-mono hover:bg-[#00ff41]/25 transition-colors disabled:opacity-40"
+                            className="btn-term px-3 py-2 text-xs disabled:opacity-40"
                         >
                             {importing ? <RefreshCw size={12} className="animate-spin" /> : 'Import'}
                         </button>
@@ -625,21 +625,22 @@ const SkillsVaultPanel: React.FC<SkillsVaultPanelProps> = ({ onClose }) => {
             <div className="fixed inset-0 bg-black/80 backdrop-blur-xl" onClick={onClose} />
 
             {/* Panel */}
-            <div className="relative w-full max-w-2xl bg-black/95 border border-[#00ff41]/20 rounded-2xl shadow-2xl max-h-[90dvh] flex flex-col font-mono text-[#00ff41] overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                    <div>
-                        <h2 className="text-base font-semibold tracking-widest uppercase">Skills Vault</h2>
-                        <p className="text-[10px] text-[#00ff41]/50 uppercase tracking-widest mt-0.5">
-                            {dynamicSkills.length} dynamic · manage capabilities
-                        </p>
+            <div className="term-window animate-phosphor-in relative w-full max-w-2xl max-h-[90dvh] flex flex-col font-hud text-[var(--text-primary)]">
+                {/* Titlebar */}
+                <div className="term-titlebar justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <span className="term-dots" />
+                        <span>SKILLS.VAULT</span>
+                        <span className="text-[9px] tracking-[0.2em] text-[var(--text-tertiary)] normal-case">
+                            {dynamicSkills.length} DYNAMIC // MANAGE CAPABILITIES
+                        </span>
                     </div>
                     {onClose && (
                         <button
                             onClick={onClose}
-                            className="p-2 text-[#00ff41]/50 hover:text-[#00ff41] transition-colors"
+                            className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors"
                         >
-                            <X size={18} />
+                            <X size={16} />
                         </button>
                     )}
                 </div>

@@ -48,7 +48,7 @@ export default function HUDCard({
             {(label || status) && (
                 <div className="flex items-center justify-between mb-3">
                     {label && (
-                        <span className="font-hud text-[10px] uppercase tracking-widest text-[var(--c-cyan)] opacity-70">
+                        <span className="font-hud text-[10px] uppercase tracking-widest text-[var(--c-green)] opacity-70">
                             {label}
                         </span>
                     )}
@@ -56,7 +56,7 @@ export default function HUDCard({
                         <div className="flex items-center gap-1.5">
                             <span className={`status-dot ${status}`} />
                             {statusText && (
-                                <span className="font-mono-hud text-[10px] text-white/40 uppercase tracking-wider">
+                                <span className="font-mono-hud text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">
                                     {statusText}
                                 </span>
                             )}
@@ -73,11 +73,11 @@ export default function HUDCard({
 /** Thin horizontal divider with glow */
 export function HUDDivider({ variant = 'cyan' }: { variant?: Variant }) {
     const color = {
-        cyan:   'rgba(0,229,255,0.2)',
+        cyan:   'rgba(87,255,176,0.2)',
         green:  'rgba(0,255,65,0.2)',
-        pink:   'rgba(255,107,157,0.2)',
+        pink:   'rgba(255,200,87,0.2)',
         amber:  'rgba(255,179,0,0.2)',
-        purple: 'rgba(160,100,255,0.2)',
+        purple: 'rgba(43,217,107,0.2)',
     }[variant];
     return (
         <div className="my-3 h-px w-full" style={{ background: `linear-gradient(90deg,transparent,${color},transparent)` }} />
@@ -85,10 +85,10 @@ export function HUDDivider({ variant = 'cyan' }: { variant?: Variant }) {
 }
 
 /** A single data row: label + value */
-export function HUDRow({ label, value, valueClass = 'text-white' }: { label: string; value: React.ReactNode; valueClass?: string }) {
+export function HUDRow({ label, value, valueClass = 'text-[var(--text-primary)]' }: { label: string; value: React.ReactNode; valueClass?: string }) {
     return (
         <div className="flex items-center justify-between py-1">
-            <span className="font-mono-hud text-[11px] text-white/40 uppercase tracking-wider">{label}</span>
+            <span className="font-mono-hud text-[11px] text-[var(--text-tertiary)] uppercase tracking-wider">{label}</span>
             <span className={`font-mono-hud text-[11px] ${valueClass}`}>{value}</span>
         </div>
     );

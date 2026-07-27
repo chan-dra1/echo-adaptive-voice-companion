@@ -5,7 +5,7 @@
  *   • Fuzzy-search across every Echo capability
  *   • Natural-language commands: "remember I love coffee" → saves a memory
  *   • Keyboard-driven: ↑/↓ to navigate, Enter to fire, Esc to close
- *   • Visual: VIKI cyan with a slow scan beam and amber accent on selection
+ *   • Visual: phosphor green terminal with a slow scan beam and amber accent on selection
  *
  * Designed as a SINGLE entry point — every panel in the app can be opened
  * from here so the user doesn't have to remember icon meanings.
@@ -169,32 +169,27 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
             onClick={onClose}
         >
             <div
-                className="w-full max-w-2xl rounded-2xl overflow-hidden relative animate-cmd-in"
-                style={{
-                    background: 'linear-gradient(180deg, rgba(0,15,35,0.95), rgba(0,8,20,0.95))',
-                    border: '1px solid rgba(0,229,255,0.35)',
-                    boxShadow: '0 0 60px rgba(0,229,255,0.25), 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
-                }}
+                className="term-window animate-phosphor-in w-full max-w-2xl rounded-lg overflow-hidden relative"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Scan beam */}
                 <div className="scan-beam" style={{ top: 0 }} />
 
                 {/* Search bar */}
-                <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'rgba(0,229,255,0.15)' }}>
-                    <Search size={18} style={{ color: 'var(--c-cyan)', filter: 'drop-shadow(0 0 6px var(--c-cyan))' }} />
+                <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--border-dim)' }}>
+                    <span className="font-mono text-[var(--accent-green)] text-glow-green select-none text-base" aria-hidden="true">&gt;</span>
                     <input
                         ref={inputRef}
                         value={q}
                         onChange={e => setQ(e.target.value)}
                         placeholder="Search commands · or try 'remember I love coffee'…"
-                        className="flex-1 bg-transparent outline-none text-base text-white placeholder:text-white/30"
-                        style={{ caretColor: 'var(--c-cyan)' }}
+                        className="flex-1 bg-transparent outline-none text-base font-mono text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
+                        style={{ caretColor: 'var(--accent-green)' }}
                     />
                     <div className="flex items-center gap-1.5">
-                        <kbd className="font-mono-hud text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.2)', color: 'var(--c-cyan)' }}>↑↓</kbd>
-                        <kbd className="font-mono-hud text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.2)', color: 'var(--c-cyan)' }}>↵</kbd>
-                        <kbd className="font-mono-hud text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,48,64,0.08)', border: '1px solid rgba(255,48,64,0.2)', color: 'var(--c-red)' }}>esc</kbd>
+                        <kbd className="font-mono-hud text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,255,65,0.08)', border: '1px solid var(--border-dim)', color: 'var(--accent-green)' }}>↑↓</kbd>
+                        <kbd className="font-mono-hud text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,255,65,0.08)', border: '1px solid var(--border-dim)', color: 'var(--accent-green)' }}>↵</kbd>
+                        <kbd className="font-mono-hud text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,59,92,0.08)', border: '1px solid rgba(255,59,92,0.2)', color: 'var(--accent-red)' }}>esc</kbd>
                     </div>
                 </div>
 
@@ -204,8 +199,8 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
                     {/* Natural language command — always at top when matched */}
                     {nlCommand && (
                         <div className="px-3 py-1">
-                            <div className="font-hud text-[9px] tracking-widest text-white/30 px-3 py-1 flex items-center gap-1.5">
-                                <Sparkles size={9} style={{ color: 'var(--c-amber)' }} /> NATURAL COMMAND
+                            <div className="font-hud text-[9px] tracking-widest uppercase text-[var(--text-tertiary)] px-3 py-1 flex items-center gap-1.5">
+                                <Sparkles size={9} style={{ color: 'var(--accent-amber)' }} /> NATURAL COMMAND
                             </div>
                             <CommandRow
                                 active={activeIdx === 0}
@@ -214,7 +209,7 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
                                 label={`${nlCommand.type.toUpperCase()}: "${nlCommand.payload}"`}
                                 description={`Saves as ${nlCommand.type === 'remember' ? 'encrypted memory (local_only)' : nlCommand.type}`}
                                 icon={<Sparkles size={14} />}
-                                color="var(--c-amber)"
+                                color="var(--accent-amber)"
                             />
                         </div>
                     )}
@@ -222,7 +217,7 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
                     {/* Grouped commands */}
                     {grouped.map(([category, cmds]) => (
                         <div key={category} className="px-3 py-1">
-                            <div className="font-hud text-[9px] tracking-widest text-white/30 px-3 py-1 flex items-center gap-1.5">
+                            <div className="font-hud text-[9px] tracking-widest uppercase text-[var(--text-tertiary)] px-3 py-1 flex items-center gap-1.5">
                                 <Hash size={8} /> {category.toUpperCase()}
                             </div>
                             {cmds.map((c) => {
@@ -236,7 +231,7 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
                                         label={c.label}
                                         description={c.description}
                                         icon={c.icon}
-                                        color={c.color || 'var(--c-cyan)'}
+                                        color={c.color || 'var(--accent-green)'}
                                     />
                                 );
                             })}
@@ -245,17 +240,17 @@ export default function CommandPalette({ open, onClose, commands }: Props) {
 
                     {filteredCommands.length === 0 && !nlCommand && (
                         <div className="text-center py-10 px-6">
-                            <Search size={20} className="mx-auto mb-3 opacity-20" style={{ color: 'var(--c-cyan)' }} />
-                            <p className="font-mono-hud text-[11px] text-white/40">NO COMMANDS MATCH "{q}"</p>
-                            <p className="font-mono-hud text-[10px] text-white/25 mt-2">Try: <span style={{ color: 'var(--c-amber)' }}>remember I have a meeting at 3pm</span></p>
+                            <Search size={20} className="mx-auto mb-3 opacity-20" style={{ color: 'var(--accent-green)' }} />
+                            <p className="font-mono-hud text-[11px] text-[var(--text-tertiary)]">NO COMMANDS MATCH "{q}"</p>
+                            <p className="font-mono-hud text-[10px] text-[var(--text-tertiary)] mt-2">Try: <span style={{ color: 'var(--accent-amber)' }}>remember I have a meeting at 3pm</span></p>
                         </div>
                     )}
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-2 border-t flex items-center justify-between font-mono-hud text-[9px]" style={{ borderColor: 'rgba(0,229,255,0.1)', background: 'rgba(0,0,0,0.3)' }}>
-                    <span className="text-white/30">ECHO COMMAND CENTER</span>
-                    <span className="text-white/30">{filteredCommands.length + (nlCommand ? 1 : 0)} OPTIONS</span>
+                <div className="px-5 py-2 border-t flex items-center justify-between font-mono-hud text-[9px] uppercase tracking-widest" style={{ borderColor: 'var(--border-subtle)', background: 'rgba(0,0,0,0.3)' }}>
+                    <span className="text-[var(--text-tertiary)]">ECHO COMMAND CENTER</span>
+                    <span className="text-[var(--text-tertiary)]">{filteredCommands.length + (nlCommand ? 1 : 0)} OPTIONS</span>
                 </div>
             </div>
         </div>
@@ -273,26 +268,26 @@ function CommandRow({ active, onClick, onHover, label, description, icon, color 
             data-active={active}
             onClick={onClick}
             onMouseEnter={onHover}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all"
+            className="flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-all"
             style={{
                 background: active ? `${color}10` : 'transparent',
                 border: `1px solid ${active ? `${color}55` : 'transparent'}`,
                 boxShadow: active ? `0 0 12px ${color}22, inset 0 0 20px ${color}08` : 'none',
             }}
         >
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
-                background: active ? `${color}15` : 'rgba(255,255,255,0.04)',
+            <div className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0" style={{
+                background: active ? `${color}15` : 'rgba(0,255,65,0.04)',
                 border: `1px solid ${color}33`,
-                color: active ? color : 'rgba(255,255,255,0.5)',
+                color: active ? color : 'var(--text-secondary)',
             }}>
                 {icon}
             </div>
             <div className="flex-1 min-w-0">
-                <div className="text-sm truncate" style={{ color: active ? color : 'rgba(255,255,255,0.85)', textShadow: active ? `0 0 8px ${color}66` : 'none' }}>
+                <div className="text-sm font-mono truncate" style={{ color: active ? color : 'var(--text-primary)', textShadow: active ? `0 0 8px ${color}66` : 'none' }}>
                     {label}
                 </div>
                 {description && (
-                    <div className="font-mono-hud text-[10px] text-white/35 truncate mt-0.5">{description}</div>
+                    <div className="font-mono-hud text-[10px] text-[var(--text-tertiary)] truncate mt-0.5">{description}</div>
                 )}
             </div>
             {active && (

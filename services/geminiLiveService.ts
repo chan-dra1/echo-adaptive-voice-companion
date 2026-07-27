@@ -944,6 +944,14 @@ ${learningContext}
   private async handleMessage(message: LiveServerMessage) {
     const serverContent = message.serverContent;
     if (serverContent) {
+      // MOBILE-AGENT fix: any server activity (Echo talking, transcribing,
+      // finishing a turn) counts as "someone is engaged" for the silence
+      // timer. Without this, the timer only resets on USER mic input, so a
+      // long spoken answer from Echo — which produces no user audio for its
+      // whole duration — can run the silence timeout out mid-reply and tear
+      // down the session while Echo is still talking.
+      try { sessionLifecycleService.noteActivity(); } catch { /* ignore */ }
+
       if (serverContent.inputTranscription) {
         this.handleTranscript(serverContent.inputTranscription.text, 'user', false);
       }

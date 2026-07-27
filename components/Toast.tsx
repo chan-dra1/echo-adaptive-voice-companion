@@ -23,48 +23,52 @@ const Toast: React.FC<ToastProps> = ({ message, type, onClose, duration = 5000 }
   const config = {
     success: {
       icon: CheckCircle,
-      bgColor: 'bg-green-950/90',
-      borderColor: 'border-green-500/30',
-      textColor: 'text-green-200',
-      iconColor: 'text-green-400',
+      borderColor: 'var(--accent-green)',
+      textColor: 'text-[var(--text-primary)]',
+      iconColor: 'text-[var(--accent-green)]',
     },
     error: {
       icon: AlertCircle,
-      bgColor: 'bg-red-950/90',
-      borderColor: 'border-red-500/30',
-      textColor: 'text-red-200',
-      iconColor: 'text-red-400',
+      borderColor: 'var(--accent-red)',
+      textColor: 'text-[var(--text-primary)]',
+      iconColor: 'text-[var(--accent-red)]',
     },
     warning: {
       icon: AlertTriangle,
-      bgColor: 'bg-amber-950/90',
-      borderColor: 'border-amber-500/30',
-      textColor: 'text-amber-200',
-      iconColor: 'text-amber-400',
+      borderColor: 'var(--accent-amber)',
+      textColor: 'text-[var(--text-primary)]',
+      iconColor: 'text-[var(--accent-amber)]',
     },
     info: {
       icon: Info,
-      bgColor: 'bg-blue-950/90',
-      borderColor: 'border-blue-500/30',
-      textColor: 'text-blue-200',
-      iconColor: 'text-blue-400',
+      borderColor: 'var(--accent-green)',
+      textColor: 'text-[var(--text-primary)]',
+      iconColor: 'text-[var(--accent-green)]',
     },
   };
 
-  const { icon: Icon, bgColor, borderColor, textColor, iconColor } = config[type];
+  const { icon: Icon, borderColor, textColor, iconColor } = config[type];
 
   return (
     <div
-      className={`flex items-center gap-3 ${bgColor} border ${borderColor} ${textColor} px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md animate-slide-in-down`}
+      className={`flex items-center gap-3 ${textColor} px-4 py-3 shadow-2xl backdrop-blur-md animate-slide-in-down font-[var(--font-term)]`}
+      style={{
+        background: 'rgba(1,7,3,0.92)',
+        borderLeft: `2px solid ${borderColor}`,
+        border: `1px solid var(--border-dim)`,
+        borderLeftWidth: '2px',
+        borderLeftColor: borderColor,
+        borderRadius: 'var(--radius-sm, 4px)',
+      }}
       role="alert"
       aria-live="polite"
       aria-atomic="true"
     >
       <Icon size={20} className={iconColor} aria-hidden="true" />
-      <span className="text-sm font-medium flex-1">{message}</span>
+      <span className="text-sm flex-1 tracking-wide">{message}</span>
       <button
         onClick={onClose}
-        className="ml-2 hover:bg-white/10 p-1 rounded-full transition-colors"
+        className="ml-2 hover:bg-[rgba(0,255,65,0.1)] p-1 rounded transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         aria-label="Close notification"
       >
         <X size={14} />

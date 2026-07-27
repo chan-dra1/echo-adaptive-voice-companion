@@ -169,16 +169,16 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
     // Login Screen
     if (!isUnlocked) {
         return (
-            <div className="flex flex-col items-center justify-center p-8 h-full space-y-6 text-center font-mono text-[#00ff41] bg-black">
-                <div className="w-16 h-16 bg-[#00ff41]/10 rounded-full flex items-center justify-center border border-[#00ff41]/20">
-                    <Lock size={32} className="text-[#00ff41]" />
+            <div className="term-window flex flex-col items-center justify-center p-8 h-full space-y-6 text-center font-mono text-[var(--accent-green)] animate-phosphor-in">
+                <div className="w-16 h-16 bg-[rgba(0,255,65,0.1)] rounded-full flex items-center justify-center border border-[var(--border-green)]">
+                    <Lock size={32} className="text-[var(--accent-green)]" />
                 </div>
-                <h2 className="text-2xl font-bold tracking-widest uppercase">Vault_Locked</h2>
-                <p className="text-[#00ff41]/60 text-xs">ENTER_ENCRYPTION_KEY_FOR_VOICE_CACHE</p>
+                <h2 className="text-2xl font-hud font-bold tracking-widest uppercase text-glow-green">Vault_Locked</h2>
+                <p className="text-[var(--accent-green)]/60 text-xs font-mono">ENTER_ENCRYPTION_KEY_FOR_VOICE_CACHE</p>
                 <input
                     type="password"
                     placeholder="KEY_REQUIRED"
-                    className="bg-black border border-[#00ff41]/20 rounded-xl px-4 py-3 text-[#00ff41] text-center focus:outline-none focus:border-[#00ff41] font-mono"
+                    className="bg-[var(--bg-base)] border border-[var(--border-green)] rounded-lg px-4 py-3 text-[var(--accent-green)] text-center focus:outline-none focus:border-[var(--accent-green)] font-mono"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
@@ -186,13 +186,13 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                 <button
                     onClick={handleUnlock}
                     disabled={password.length < 4}
-                    className="bg-[#00ff41] text-black px-8 py-3 rounded-xl disabled:opacity-20 hover:bg-[#00ff41]/80 transition-all font-bold"
+                    className="btn-term solid disabled:opacity-20"
                 >
                     ACCESS_VAULT
                 </button>
-                <button 
+                <button
                   onClick={onClose}
-                  className="mt-4 text-[#00ff41]/40 hover:text-[#00ff41] text-xs underline uppercase"
+                  className="mt-4 text-[var(--accent-green)]/40 hover:text-[var(--accent-green)] text-xs font-mono underline uppercase"
                 >
                   Return_To_Terminal
                 </button>
@@ -201,19 +201,20 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
     }
 
     return (
-        <div className="h-full flex flex-col p-6 space-y-6 overflow-y-auto" role="region" aria-label="Voice vault">
-            <div className="flex justify-between items-center mb-4">
+        <div className="term-window h-full flex flex-col p-6 space-y-6 overflow-y-auto animate-phosphor-in" role="region" aria-label="Voice vault">
+            <div className="term-titlebar !justify-between -mx-6 -mt-6 mb-2">
                 <div className="flex items-center gap-2">
-                    <Lock size={20} className="text-[#00ff41]" aria-hidden="true" />
-                    <h2 className="text-xl font-bold tracking-widest uppercase">VOICE_CACHE</h2>
+                    <span className="term-dots" />
+                    <Lock size={14} className="text-[var(--accent-green)]" aria-hidden="true" />
+                    <span className="font-hud text-xs tracking-widest uppercase text-[var(--accent-green)]">VOICE.VAULT</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-[#00ff41]/60 bg-[#00ff41]/10 px-2 py-1 rounded border border-[#00ff41]/20" role="status">
+                    <span className="text-[10px] font-hud text-[var(--accent-green)]/60 bg-[rgba(0,255,65,0.08)] px-2 py-1 rounded border border-[var(--border-green)] uppercase tracking-widest" role="status">
                         ENCRYPTED_LOCAL
                     </span>
-                    <button 
+                    <button
                       onClick={onClose}
-                      className="p-2 hover:bg-[#00ff41]/10 rounded-full text-[#00ff41] border border-[#00ff41]/20"
+                      className="p-2 hover:bg-[rgba(0,255,65,0.1)] rounded text-[var(--accent-green)] border border-[var(--border-green)]"
                       aria-label="Close"
                     >
                       <X size={20} />
@@ -223,14 +224,14 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
 
             {/* Error Display */}
             {error && (
-                <div className="bg-red-950/50 border border-red-500/30 rounded-lg p-3 flex items-start gap-2" role="alert">
-                    <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="bg-[rgba(255,59,92,0.1)] border border-[var(--accent-red)]/30 rounded-lg p-3 flex items-start gap-2" role="alert">
+                    <AlertCircle size={16} className="text-[var(--accent-red)] flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                        <p className="text-sm text-red-200">{error}</p>
+                        <p className="text-sm text-[var(--accent-red)]">{error}</p>
                     </div>
                     <button
                         onClick={() => setError(null)}
-                        className="text-red-400 hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+                        className="text-[var(--accent-red)] hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-red)] rounded"
                         aria-label="Dismiss error"
                     >
                         <X size={14} />
@@ -239,38 +240,38 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
             )}
 
             {/* Mode Toggle */}
-            <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center justify-between mb-6">
+            <div className="bg-[rgba(0,255,65,0.04)] p-4 rounded-xl border border-[var(--border-dim)] flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-sm font-semibold text-white">Voice Cloning Mode</h3>
-                    <p className="text-xs text-gray-400">Use local Python server for TTS</p>
+                    <h3 className="text-sm font-hud font-semibold uppercase tracking-wide text-[var(--text-primary)]">Voice Cloning Mode</h3>
+                    <p className="text-xs text-[var(--text-tertiary)]">Use local Python server for TTS</p>
                 </div>
                 <button
                     onClick={() => onToggleLocalVoice(!isLocalVoiceEnabled)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${isLocalVoiceEnabled ? 'bg-echo-primary' : 'bg-gray-600'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${isLocalVoiceEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--surface-3)]'}`}
                 >
-                    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${isLocalVoiceEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                    <div className={`absolute top-1 left-1 w-4 h-4 bg-[var(--bg-base)] rounded-full transition-transform ${isLocalVoiceEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
             </div>
 
             {/* Progress */}
-            <div className="w-full bg-white/5 rounded-full h-2">
+            <div className="w-full bg-[rgba(0,255,65,0.06)] rounded-full h-2">
                 <div
-                    className="bg-echo-primary h-2 rounded-full transition-all duration-500"
+                    className="bg-[var(--accent-green)] h-2 rounded-full transition-all duration-500"
                     style={{ width: `${(recordings.length / TRAINING_SENTENCES.length) * 100}%` }}
                 />
             </div>
-            <p className="text-xs text-center text-gray-400">
+            <p className="text-xs text-center font-mono text-[var(--text-tertiary)]">
                 {recordings.length} / {TRAINING_SENTENCES.length} Samples Collected
             </p>
 
             {/* Recording Area */}
             {currentStep < TRAINING_SENTENCES.length ? (
-                <div className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-6">
+                <div className="bg-[rgba(0,255,65,0.04)] p-6 rounded-2xl border border-[var(--border-dim)] space-y-6">
                     <div>
-                        <p className="text-xs text-gray-400 text-center mb-2">
+                        <p className="text-xs font-mono uppercase tracking-widest text-[var(--text-tertiary)] text-center mb-2">
                             Sentence {currentStep + 1} of {TRAINING_SENTENCES.length}
                         </p>
-                        <p className="text-lg font-medium text-center text-white/90 leading-relaxed">
+                        <p className="text-lg font-medium text-center text-[var(--text-primary)]/90 leading-relaxed">
                             "{TRAINING_SENTENCES[currentStep]}"
                         </p>
                     </div>
@@ -280,7 +281,7 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                             <Tooltip content="Start recording">
                                 <button
                                     onClick={startRecording}
-                                    className="w-16 h-16 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/30 transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-red-500/50"
+                                    className="w-16 h-16 rounded-full bg-[rgba(255,59,92,0.15)] text-[var(--accent-red)] flex items-center justify-center hover:bg-[rgba(255,59,92,0.25)] transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-red)]/50"
                                     aria-label="Start recording"
                                 >
                                     <Mic size={32} />
@@ -292,7 +293,7 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                             <Tooltip content="Stop recording">
                                 <button
                                     onClick={stopRecording}
-                                    className="w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center animate-pulse focus:outline-none focus-visible:ring-4 focus-visible:ring-red-500"
+                                    className="w-16 h-16 rounded-full bg-[var(--accent-red)] text-[var(--bg-base)] flex items-center justify-center animate-pulse focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-red)]"
                                     aria-label="Stop recording"
                                 >
                                     <Square size={32} fill="currentColor" />
@@ -306,7 +307,7 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                                     <button
                                         onClick={playAudio}
                                         disabled={isPlaying}
-                                        className="w-16 h-16 rounded-full bg-echo-primary/20 text-echo-primary flex items-center justify-center hover:bg-echo-primary/30 disabled:opacity-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-echo-primary/50"
+                                        className="w-16 h-16 rounded-full bg-[rgba(0,255,65,0.15)] text-[var(--accent-green)] flex items-center justify-center hover:bg-[rgba(0,255,65,0.25)] disabled:opacity-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-green)]/50"
                                         aria-label="Play recording"
                                     >
                                         <Play size={32} fill="currentColor" />
@@ -316,7 +317,7 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                                 <Tooltip content="Save recording">
                                     <button
                                         onClick={saveRecording}
-                                        className="w-16 h-16 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center hover:bg-green-500/30 focus:outline-none focus-visible:ring-4 focus-visible:ring-green-500/50"
+                                        className="w-16 h-16 rounded-full bg-[rgba(0,255,65,0.15)] text-[var(--accent-green)] flex items-center justify-center hover:bg-[rgba(0,255,65,0.25)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-green)]/50"
                                         aria-label="Save recording"
                                     >
                                         <Save size={32} />
@@ -326,7 +327,7 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                                 <Tooltip content="Discard recording">
                                     <button
                                         onClick={discardRecording}
-                                        className="w-16 h-16 rounded-full bg-gray-500/20 text-gray-400 flex items-center justify-center hover:bg-gray-500/30 focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-500/50"
+                                        className="w-16 h-16 rounded-full bg-[rgba(214,255,224,0.08)] text-[var(--text-tertiary)] flex items-center justify-center hover:bg-[rgba(214,255,224,0.14)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--text-tertiary)]/50"
                                         aria-label="Discard recording"
                                     >
                                         <Trash2 size={24} />
@@ -337,26 +338,26 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                     </div>
                 </div>
             ) : (
-                <div className="p-6 bg-green-500/10 border border-green-500/30 rounded-2xl text-center" role="status">
-                    <h3 className="text-green-400 font-bold mb-2">Collection Complete!</h3>
-                    <p className="text-sm text-gray-400">You have enough samples to train your voice model.</p>
+                <div className="p-6 bg-[rgba(0,255,65,0.08)] border border-[var(--border-green)] rounded-2xl text-center" role="status">
+                    <h3 className="text-[var(--accent-green)] font-hud font-bold uppercase tracking-wide mb-2">Collection Complete!</h3>
+                    <p className="text-sm text-[var(--text-tertiary)]">You have enough samples to train your voice model.</p>
                 </div>
             )}
 
             {/* List of Recordings */}
             <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Saved Samples</h3>
+                <h3 className="text-sm font-hud font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Saved Samples</h3>
                 {recordings.length > 0 ? (
                     <ul className="space-y-2" role="list">
                         {recordings.map((rec: any, i: number) => (
-                            <li key={rec.id} className="flex justify-between items-center bg-black/20 p-3 rounded-lg border border-white/5 hover:bg-black/30 transition-colors">
-                                <span className="text-sm text-gray-300 truncate max-w-[200px]">
+                            <li key={rec.id} className="flex justify-between items-center bg-[rgba(0,255,65,0.03)] p-3 rounded-lg border border-[var(--border-dim)] hover:bg-[rgba(0,255,65,0.06)] transition-colors">
+                                <span className="text-sm text-[var(--text-secondary)] truncate max-w-[200px]">
                                     {i + 1}. {rec.transcript.substring(0, 30)}...
                                 </span>
                                 <Tooltip content="Delete recording">
                                     <button
                                         onClick={() => deleteRecording(rec.id)}
-                                        className="text-gray-500 hover:text-red-400 p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                                        className="text-[var(--text-tertiary)] hover:text-[var(--accent-red)] p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-red)]"
                                         aria-label={`Delete recording ${i + 1}`}
                                     >
                                         <Trash2 size={16} />
@@ -366,7 +367,7 @@ export const VoiceVault: React.FC<VoiceVaultProps> = ({ onClose, isLocalVoiceEna
                         ))}
                     </ul>
                 ) : (
-                    <p className="text-sm text-gray-600 italic text-center py-4" role="status">
+                    <p className="text-sm text-[var(--text-tertiary)] italic text-center py-4" role="status">
                         No recordings yet. Start recording above to create your first sample.
                     </p>
                 )}

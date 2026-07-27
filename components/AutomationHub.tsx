@@ -126,96 +126,138 @@ export default function AutomationHub({ onClose }: { onClose?: () => void } = {}
         });
         const r = await coreSaveMission({ name, description: `${builtSteps.length} steps`, cron, enabled: true, steps: builtSteps });
         setBusy(false);
-        if (r.ok) { flash(`✓ Automation "${name}" saved`); resetBuilder(); load(); }
-        else flash(`✗ ${r.error || 'Save failed'}`);
+        if (r.ok) { flash(`[OK] Automation "${name}" saved`); resetBuilder(); load(); }
+        else flash(`[FAIL] ${r.error || 'Save failed'}`);
     };
 
     const onToggle = async (m: Mission) => { await coreToggleMission(m.id, !m.enabled); load(); };
     const onDelete = async (m: Mission) => { await coreDeleteMission(m.id); load(); };
-    const onRun = async (m: Mission) => { flash(`▶ Running "${m.name}"…`); const r = await coreTriggerMission(m.id); flash(r.ok ? `✓ "${m.name}" ran` : `✗ ${r.error}`); };
+    const onRun = async (m: Mission) => { flash(`> Running "${m.name}"…`); const r = await coreTriggerMission(m.id); flash(r.ok ? `[OK] "${m.name}" ran` : `[FAIL] ${r.error}`); };
 
     if (!isCoreConnected()) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500 bg-black/20 rounded-2xl border border-white/10">
-                <div className="text-4xl mb-3">⚡</div>
-                <p className="text-sm">Echo Core not connected.</p>
-                <p className="text-xs mt-1">Automations run in Core. Start it with <code className="text-green-400">node echo-core/echo.mjs</code> and pair via ⌘K.</p>
+            <div className="term-window flex flex-col items-center justify-center h-full">
+                <div className="text-3xl mb-3 text-[var(--accent-green)] text-glow-green font-hud">⚡</div>
+                <p className="text-sm font-hud uppercase tracking-[0.2em] text-[var(--text-secondary)]">Echo Core not connected.</p>
+                <p className="text-xs mt-2 text-[var(--text-tertiary)] font-hud">
+                    Automations run in Core. Start it with{' '}
+                    <code className="text-[var(--accent-green)]">node echo-core/echo.mjs</code> and pair via ⌘K.
+                </p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-full bg-black/20 rounded-2xl border border-white/10 overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                <span className="text-lg">⚡</span>
-                <h2 className="text-white font-semibold text-sm">Automation Hub</h2>
-                <span className="text-xs text-gray-500">Zapier, but yours</span>
-                <button
-                    onClick={() => building ? resetBuilder() : setBuilding(true)}
-                    className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30"
-                >
-                    {building ? '✕ Cancel' : '+ New automation'}
-                </button>
-                {onClose && <button onClick={onClose} className="text-gray-500 hover:text-white text-sm ml-1">✕</button>}
+        <div className="term-window animate-phosphor-in flex flex-col h-full overflow-hidden">
+            <div className="term-titlebar justify-between">
+                <div className="flex items-center gap-2.5">
+                    <span className="term-dots" />
+                    <span>AUTOMATION.HUB</span>
+                    <span className="text-[9px] tracking-[0.2em] text-[var(--text-tertiary)] normal-case">
+                        {missions.length} SAVED // ZAPIER, BUT YOURS
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => building ? resetBuilder() : setBuilding(true)}
+                        className="btn-term solid px-3 py-1.5 text-[11px]"
+                    >
+                        {building ? 'Cancel' : 'New automation'}
+                    </button>
+                    {onClose && (
+                        <button onClick={onClose} className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors">✕</button>
+                    )}
+                </div>
             </div>
 
             {toast && (
-                <div className={`mx-4 mt-3 text-xs px-3 py-2 rounded-lg ${toast.startsWith('✓') || toast.startsWith('▶') ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`}>{toast}</div>
+                <div className={`mx-4 mt-3 text-xs font-hud uppercase tracking-[0.15em] px-3 py-2 rounded border ${
+                    toast.startsWith('[OK]') || toast.startsWith('>')
+                        ? 'bg-[rgba(0,255,65,0.08)] border-[var(--border-green)] text-[var(--accent-green)]'
+                        : 'bg-[rgba(255,59,92,0.08)] border-[rgba(255,59,92,0.35)] text-[var(--accent-red)]'
+                }`}>{toast}</div>
             )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {/* Builder */}
                 {building && (
-                    <div className="rounded-xl border border-green-500/20 bg-green-950/10 p-4 space-y-3">
+                    <div className="rounded-lg border border-[var(--border-green)] bg-[rgba(0,255,65,0.04)] p-4 space-y-3">
                         <input
                             value={name} onChange={e => setName(e.target.value)}
                             placeholder="Automation name (e.g. Morning AI digest)"
-                            className="w-full px-3 py-2 text-sm rounded-lg bg-black/30 border border-white/10 text-white placeholder-gray-600 outline-none focus:border-white/30"
+                            className="w-full px-3 py-2 text-sm font-hud rounded bg-black/60 border border-[var(--border-dim)] text-[var(--accent-green)] placeholder-[rgba(0,255,65,0.25)] outline-none focus:border-[var(--border-green)]"
                         />
 
                         {/* Trigger */}
                         <div>
-                            <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5">⏰ Trigger (when)</div>
+                            <div className="text-[10px] font-hud uppercase tracking-[0.25em] text-[var(--text-tertiary)] mb-1.5">// Trigger (when)</div>
                             <div className="flex flex-wrap gap-1.5">
                                 {CRON_PRESETS.map(c => (
-                                    <button key={c.label} onClick={() => setCron(c.value)} className={`text-[11px] px-2 py-1 rounded-md border ${cron === c.value ? 'border-green-500/50 bg-green-900/30 text-green-300' : 'border-white/10 text-gray-400 hover:text-white'}`}>{c.label}</button>
+                                    <button
+                                        key={c.label}
+                                        onClick={() => setCron(c.value)}
+                                        className={`text-[10px] font-hud uppercase tracking-[0.1em] px-2 py-1 rounded border transition-colors ${
+                                            cron === c.value
+                                                ? 'border-[var(--border-green)] bg-[rgba(0,255,65,0.12)] text-[var(--accent-green)]'
+                                                : 'border-[var(--border-dim)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                                        }`}
+                                    >{c.label}</button>
                                 ))}
                             </div>
-                            <input value={cron} onChange={e => setCron(e.target.value)} placeholder="cron (blank = manual)" className="mt-2 w-full px-3 py-1.5 text-xs font-mono rounded-lg bg-black/30 border border-white/10 text-gray-300 outline-none" />
+                            <input
+                                value={cron} onChange={e => setCron(e.target.value)}
+                                placeholder="cron (blank = manual)"
+                                className="mt-2 w-full px-3 py-1.5 text-xs font-hud rounded bg-black/60 border border-[var(--border-dim)] text-[var(--text-secondary)] outline-none focus:border-[var(--border-green)]"
+                            />
                         </div>
 
                         {/* Steps */}
                         <div>
-                            <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5">🔗 Steps (do)</div>
+                            <div className="text-[10px] font-hud uppercase tracking-[0.25em] text-[var(--text-tertiary)] mb-1.5">// Steps (do)</div>
                             <div className="space-y-2">
                                 {steps.map((st, i) => {
                                     const spec = TOOL_SPECS[st.tool];
                                     return (
-                                        <div key={i} className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+                                        <div key={i} className="rounded-lg border border-[var(--border-dim)] bg-black/40 p-3 space-y-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs text-gray-500">{i + 1}.</span>
+                                                <span className="text-xs font-hud text-[var(--text-tertiary)]">{i + 1}.</span>
                                                 <select
                                                     value={st.tool}
                                                     onChange={e => setStepTool(i, e.target.value)}
-                                                    className="flex-1 px-2 py-1.5 text-xs rounded-md bg-black/40 border border-white/10 text-white outline-none"
+                                                    className="flex-1 px-2 py-1.5 text-xs font-hud rounded bg-black/60 border border-[var(--border-dim)] text-[var(--text-primary)] outline-none focus:border-[var(--border-green)]"
                                                 >
                                                     {Object.entries(TOOL_SPECS).map(([id, s]) => <option key={id} value={id}>{s.icon} {s.label}</option>)}
                                                 </select>
-                                                {steps.length > 1 && <button onClick={() => removeStep(i)} className="text-gray-500 hover:text-red-400 text-xs px-1">✕</button>}
+                                                {steps.length > 1 && (
+                                                    <button onClick={() => removeStep(i)} className="text-[var(--text-tertiary)] hover:text-[var(--accent-red)] text-xs px-1">✕</button>
+                                                )}
                                             </div>
                                             {spec.fields.map(f => (
                                                 f.type === 'textarea'
-                                                    ? <textarea key={f.key} value={st.args[f.key] || ''} onChange={e => setStepArg(i, f.key, e.target.value)} placeholder={f.placeholder} rows={2} className="w-full px-2 py-1.5 text-xs rounded-md bg-black/30 border border-white/10 text-white placeholder-gray-600 outline-none resize-none" />
-                                                    : <input key={f.key} value={st.args[f.key] || ''} onChange={e => setStepArg(i, f.key, e.target.value)} placeholder={f.placeholder} className="w-full px-2 py-1.5 text-xs rounded-md bg-black/30 border border-white/10 text-white placeholder-gray-600 outline-none" />
+                                                    ? <textarea
+                                                        key={f.key}
+                                                        value={st.args[f.key] || ''}
+                                                        onChange={e => setStepArg(i, f.key, e.target.value)}
+                                                        placeholder={f.placeholder}
+                                                        rows={2}
+                                                        className="w-full px-2 py-1.5 text-xs rounded bg-black/50 border border-[var(--border-dim)] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] outline-none resize-none focus:border-[var(--border-green)]"
+                                                    />
+                                                    : <input
+                                                        key={f.key}
+                                                        value={st.args[f.key] || ''}
+                                                        onChange={e => setStepArg(i, f.key, e.target.value)}
+                                                        placeholder={f.placeholder}
+                                                        className="w-full px-2 py-1.5 text-xs rounded bg-black/50 border border-[var(--border-dim)] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] outline-none focus:border-[var(--border-green)]"
+                                                    />
                                             ))}
                                         </div>
                                     );
                                 })}
                             </div>
-                            <button onClick={addStep} className="mt-2 text-xs text-green-400 hover:text-green-300">+ Add step</button>
+                            <button onClick={addStep} className="mt-2 text-xs font-hud uppercase tracking-[0.15em] text-[var(--accent-green)] hover:text-glow-green">+ Add step</button>
                         </div>
 
-                        <button onClick={saveAutomation} disabled={busy} className="w-full py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:opacity-90 disabled:opacity-40">
+                        <button onClick={saveAutomation} disabled={busy} className="btn-term solid w-full py-2 text-xs disabled:opacity-40">
                             {busy ? '…' : 'Save automation'}
                         </button>
                     </div>
@@ -223,30 +265,35 @@ export default function AutomationHub({ onClose }: { onClose?: () => void } = {}
 
                 {/* Existing automations */}
                 {missions.length === 0 && !building && (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-500">
-                        <div className="text-4xl mb-3">🤖</div>
-                        <p className="text-sm">No automations yet.</p>
-                        <p className="text-xs mt-1">Click “+ New automation” to build your first one.</p>
+                    <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)]">
+                        <div className="text-3xl mb-3 text-[var(--accent-green)]">🤖</div>
+                        <p className="text-sm font-hud uppercase tracking-[0.15em]">No automations yet.</p>
+                        <p className="text-xs mt-1 font-hud">Click "New automation" to build your first one.</p>
                     </div>
                 )}
                 {missions.map(m => (
-                    <div key={m.id} className={`rounded-xl border p-3 ${m.enabled ? 'border-white/10 bg-white/3' : 'border-white/5 bg-white/1 opacity-60'}`}>
+                    <div key={m.id} className={`rounded-lg border p-3 transition-colors ${m.enabled ? 'border-[var(--border-dim)] bg-[rgba(0,255,65,0.03)] hover:border-[var(--border-green)]' : 'border-[var(--border-subtle)] bg-black/20 opacity-50'}`}>
                         <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm text-white font-medium truncate">{m.name}</span>
-                                    <span className="text-[11px] text-gray-500 shrink-0">{cronLabel(m.cron)}</span>
+                                    <span className="text-sm font-hud uppercase tracking-[0.1em] text-[var(--text-primary)] truncate">{m.name}</span>
+                                    <span className="text-[10px] font-hud text-[var(--text-tertiary)] shrink-0">{cronLabel(m.cron)}</span>
+                                    {!m.enabled && (
+                                        <span className="text-[9px] font-hud uppercase tracking-[0.15em] px-1.5 py-0.5 rounded border border-[rgba(255,179,0,0.35)] bg-[rgba(255,179,0,0.08)] text-[var(--accent-amber)]">[PAUSED]</span>
+                                    )}
                                 </div>
                                 <div className="flex flex-wrap gap-1 mt-1.5">
                                     {(m.steps || []).map((s: any, i: number) => (
-                                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400">{TOOL_SPECS[s.tool]?.icon || '•'} {s.tool}</span>
+                                        <span key={i} className="text-[10px] font-hud px-1.5 py-0.5 rounded bg-[rgba(0,255,65,0.06)] border border-[var(--border-subtle)] text-[var(--text-tertiary)]">{TOOL_SPECS[s.tool]?.icon || '•'} {s.tool}</span>
                                     ))}
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                                <button onClick={() => onRun(m)} title="Run now" className="p-1.5 text-xs rounded-md hover:bg-white/10 text-green-400">▶</button>
-                                <button onClick={() => onToggle(m)} title={m.enabled ? 'Disable' : 'Enable'} className={`p-1.5 text-xs rounded-md hover:bg-white/10 ${m.enabled ? 'text-green-400' : 'text-gray-500'}`}>{m.enabled ? '◉' : '○'}</button>
-                                <button onClick={() => onDelete(m)} title="Delete" className="p-1.5 text-xs rounded-md hover:bg-white/10 text-gray-500 hover:text-red-400">🗑</button>
+                                <button onClick={() => onRun(m)} title="Run now" className="p-1.5 text-xs rounded hover:bg-[rgba(0,255,65,0.08)] text-[var(--accent-green)]">▶</button>
+                                <button onClick={() => onToggle(m)} title={m.enabled ? 'Disable' : 'Enable'} className={`p-1.5 text-xs rounded hover:bg-[rgba(0,255,65,0.08)] ${m.enabled ? 'text-[var(--accent-green)]' : 'text-[var(--text-tertiary)]'}`}>
+                                    <span className={`status-dot ${m.enabled ? 'green' : 'amber'}`} />
+                                </button>
+                                <button onClick={() => onDelete(m)} title="Delete" className="p-1.5 text-xs rounded hover:bg-[rgba(255,59,92,0.1)] text-[var(--text-tertiary)] hover:text-[var(--accent-red)]">🗑</button>
                             </div>
                         </div>
                     </div>

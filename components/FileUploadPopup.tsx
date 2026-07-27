@@ -68,17 +68,17 @@ export default function FileUploadPopup({ onSendFile, onClose, isConnected, init
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-            <div className="w-[420px] max-w-[95vw] bg-[#0a0f1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+            <div className="w-[420px] max-w-[95vw] term-window animate-phosphor-in overflow-hidden">
 
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-white/10">
-                    <h3 className="text-white font-semibold text-lg flex items-center gap-2">
-                        <Upload size={18} className="text-cyan-400" />
-                        Send to Echo
+                <div className="flex items-center justify-between p-4 border-b border-[var(--border-dim)]">
+                    <h3 className="font-hud text-[var(--text-primary)] font-semibold text-sm uppercase tracking-widest flex items-center gap-2">
+                        <Upload size={16} className="text-[var(--accent-green)]" />
+                        SEND TO ECHO
                     </h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+                    <button onClick={onClose} className="text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors">
                         <X size={20} />
                     </button>
                 </div>
@@ -88,9 +88,9 @@ export default function FileUploadPopup({ onSendFile, onClose, isConnected, init
                     <div className="p-4 space-y-3">
                         {/* Drag & Drop Zone */}
                         <div
-                            className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${dragOver
-                                ? 'border-cyan-400 bg-cyan-400/10'
-                                : 'border-white/20 hover:border-white/40 bg-white/5'
+                            className={`border-2 border-dashed rounded p-8 text-center transition-all cursor-pointer ${dragOver
+                                ? 'border-[var(--accent-green)] bg-[rgba(0,255,65,0.1)] shadow-[0_0_16px_rgba(0,255,65,0.25)]'
+                                : 'border-[var(--border-green)] hover:border-[var(--accent-green)] bg-[rgba(0,255,65,0.03)]'
                                 }`}
                             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                             onDragLeave={() => setDragOver(false)}
@@ -102,23 +102,23 @@ export default function FileUploadPopup({ onSendFile, onClose, isConnected, init
                             }}
                             onClick={() => fileRef.current?.click()}
                         >
-                            <Upload size={32} className="mx-auto mb-3 text-gray-400" />
-                            <p className="text-gray-300 text-sm font-medium">Drop any file here</p>
-                            <p className="text-gray-500 text-xs mt-1">Images, PDFs, Code, Documents, CSV, etc.</p>
+                            <Upload size={32} className="mx-auto mb-3 text-[var(--accent-green)]" />
+                            <p className="text-[var(--text-secondary)] text-sm font-term uppercase tracking-widest">DROP FILES TO INJECT</p>
+                            <p className="text-[var(--text-tertiary)] text-xs mt-1">Images, PDFs, Code, Documents, CSV, etc.</p>
                         </div>
 
                         {/* Quick Actions */}
                         <div className="flex gap-2">
                             <button
                                 onClick={() => cameraRef.current?.click()}
-                                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-300 hover:from-cyan-500/30 hover:to-blue-500/30 transition-all text-sm font-medium"
+                                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded bg-[rgba(0,255,65,0.08)] border border-[var(--border-green)] text-[var(--accent-green)] hover:bg-[rgba(0,255,65,0.15)] transition-all text-xs font-term uppercase tracking-widest"
                             >
                                 <Camera size={18} />
                                 Camera
                             </button>
                             <button
                                 onClick={() => fileRef.current?.click()}
-                                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30 transition-all text-sm font-medium"
+                                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded bg-[rgba(43,217,107,0.08)] border border-[rgba(43,217,107,0.3)] text-[var(--accent-purple)] hover:bg-[rgba(43,217,107,0.15)] transition-all text-xs font-term uppercase tracking-widest"
                             >
                                 <FileText size={18} />
                                 Browse Files
@@ -135,35 +135,35 @@ export default function FileUploadPopup({ onSendFile, onClose, isConnected, init
                     /* File Preview + Analysis Mode */
                     <div className="p-4 space-y-3">
                         {/* Preview */}
-                        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-3 p-3 rounded bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)]">
                             {preview ? (
-                                <img src={preview} alt="preview" className="w-14 h-14 rounded-lg object-cover" />
+                                <img src={preview} alt="preview" className="w-14 h-14 rounded object-cover" />
                             ) : (
-                                <div className="w-14 h-14 rounded-lg bg-white/10 flex items-center justify-center text-2xl">
+                                <div className="w-14 h-14 rounded bg-[rgba(0,255,65,0.08)] flex items-center justify-center text-2xl">
                                     {getFileIcon(selectedFile)}
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <p className="text-white text-sm font-medium truncate">{selectedFile.name}</p>
-                                <p className="text-gray-400 text-xs">{formatSize(selectedFile.size)} • {selectedFile.type || 'unknown'}</p>
+                                <p className="text-[var(--text-primary)] text-sm font-medium truncate">{selectedFile.name}</p>
+                                <p className="text-[var(--text-tertiary)] text-xs">{formatSize(selectedFile.size)} • {selectedFile.type || 'unknown'}</p>
                             </div>
                             <button onClick={() => { setSelectedFile(null); setPreview(null); }}
-                                className="text-gray-500 hover:text-red-400 transition-colors p-1">
+                                className="text-[var(--text-tertiary)] hover:text-[var(--accent-red)] transition-colors p-1">
                                 <X size={16} />
                             </button>
                         </div>
 
                         {/* Analysis Mode */}
                         <div>
-                            <p className="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wider">Analysis Mode</p>
+                            <p className="text-[var(--text-tertiary)] text-xs font-term mb-2 uppercase tracking-widest">Analysis Mode</p>
                             <div className="flex gap-2">
                                 {ANALYSIS_MODES.map(m => (
                                     <button
                                         key={m.id}
                                         onClick={() => setMode(m.id)}
-                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${mode === m.id
-                                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.15)]'
-                                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white'
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded text-xs font-term uppercase tracking-wider transition-all ${mode === m.id
+                                            ? 'bg-[rgba(0,255,65,0.15)] text-[var(--accent-green)] border border-[var(--border-green)] shadow-[0_0_10px_rgba(0,255,65,0.15)]'
+                                            : 'bg-[rgba(0,255,65,0.03)] text-[var(--text-tertiary)] border border-[var(--border-dim)] hover:bg-[rgba(0,255,65,0.08)] hover:text-[var(--text-primary)]'
                                             }`}
                                     >
                                         <m.icon size={14} />
@@ -179,7 +179,7 @@ export default function FileUploadPopup({ onSendFile, onClose, isConnected, init
                                 value={customPrompt}
                                 onChange={(e) => setCustomPrompt(e.target.value)}
                                 placeholder="e.g., 'Deep review this resume and find weaknesses' or 'Extract all numbers from this document'"
-                                className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-gray-500 resize-none focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                                className="w-full p-3 rounded bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] text-[var(--text-primary)] text-sm placeholder-[var(--text-tertiary)] resize-none focus:outline-none focus:border-[var(--border-green)] focus:ring-1 focus:ring-[var(--accent-green)]/30"
                                 rows={3}
                                 autoFocus
                             />
@@ -189,11 +189,11 @@ export default function FileUploadPopup({ onSendFile, onClose, isConnected, init
                         <button
                             onClick={handleSend}
                             disabled={sending || !isConnected}
-                            className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold text-sm hover:from-cyan-400 hover:to-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
+                            className="w-full py-3 rounded bg-[var(--accent-green)] text-black font-term uppercase tracking-widest text-sm hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_0_16px_rgba(0,255,65,0.3)]"
                         >
                             {sending ? (
                                 <>
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                                     Analyzing...
                                 </>
                             ) : (

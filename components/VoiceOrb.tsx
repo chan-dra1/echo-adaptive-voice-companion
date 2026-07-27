@@ -10,12 +10,12 @@
  *  6. Canvas: sparkle burst at high volume
  *  7. Glassmorphism overlay with live state label
  *
- * Color state machine:
- *  idle/disconnected → dim blue-slate
- *  connected/ready   → blue
- *  listening         → cyan / teal
- *  speaking          → emerald green  (matches matrix theme)
- *  thinking          → amber / gold
+ * Color state machine (Matrix phosphor tiers — monochrome green discipline):
+ *  idle/disconnected → dim phosphor #00ff41
+ *  connected/ready   → phosphor #00ff41
+ *  listening         → mint #57ffb0
+ *  speaking          → bright phosphor #00ff41 + white-green flash
+ *  thinking          → moss #2bd96b
  */
 import React, { useEffect, useRef } from 'react';
 
@@ -97,11 +97,11 @@ const VoiceOrb: React.FC<Props> = ({ isActive, outputVolume, inputVolume, isThin
 
       // ── Color state ──────────────────────────────────────────
       let r: number, g: number, b: number;
-      if (!isActive)        { r = 20;  g = 60;  b = 180; }
-      else if (isThinking)  { r = 255; g = 170; b = 0;   }
-      else if (echoSpeaking){ r = 0;   g = 255; b = 136; }
-      else if (userSpeaking){ r = 0;   g = 210; b = 255; }
-      else                  { r = 30;  g = 140; b = 255; }
+      if (!isActive)        { r = 0;   g = 120; b = 30;  }  // dim phosphor
+      else if (isThinking)  { r = 43;  g = 217; b = 107; }  // moss
+      else if (echoSpeaking){ r = 0;   g = 255; b = 65;  }  // bright phosphor
+      else if (userSpeaking){ r = 87;  g = 255; b = 176; }  // mint
+      else                  { r = 0;   g = 255; b = 65;  }  // phosphor ready
 
       const baseR  = Math.min(W, H) * 0.30;
       const coreR0 = Math.min(W, H) * 0.095;
@@ -240,7 +240,7 @@ const VoiceOrb: React.FC<Props> = ({ isActive, outputVolume, inputVolume, isThin
   const echoSpeaking = outputVolume > 8;
   const userSpeaking = inputVolume  > 8;
 
-  const rc = echoSpeaking ? '0,255,136' : userSpeaking ? '0,210,255' : isActive ? '30,140,255' : '20,60,180';
+  const rc = echoSpeaking ? '0,255,65' : userSpeaking ? '87,255,176' : isActive ? '0,255,65' : '0,120,30';
   const outerAlpha = echoSpeaking ? 0.32 : userSpeaking ? 0.28 : isActive ? 0.12 : 0.04;
   const midAlpha   = echoSpeaking ? 0.42 : userSpeaking ? 0.38 : isActive ? 0.16 : 0.06;
   const innerAlpha = echoSpeaking ? 0.56 : userSpeaking ? 0.48 : isActive ? 0.22 : 0.08;
@@ -255,23 +255,23 @@ const VoiceOrb: React.FC<Props> = ({ isActive, outputVolume, inputVolume, isThin
   let labelGlow: string;
   if (!isActive) {
     stateLabel = '·  S T A N D B Y  ·';
-    labelColor = 'rgba(255,255,255,0.12)';
+    labelColor = 'rgba(0,255,65,0.22)';
     labelGlow  = 'none';
   } else if (isThinking) {
     stateLabel = '◌  P R O C E S S I N G  ◌';
-    labelColor = '#ffb300';
-    labelGlow  = '0 0 10px rgba(255,179,0,0.9), 0 0 28px rgba(255,179,0,0.4)';
+    labelColor = '#2bd96b';
+    labelGlow  = '0 0 10px rgba(43,217,107,0.9), 0 0 28px rgba(43,217,107,0.4)';
   } else if (echoSpeaking) {
     stateLabel = '◈  S P E A K I N G  ◈';
-    labelColor = '#00ff88';
-    labelGlow  = '0 0 10px rgba(0,255,136,0.9), 0 0 28px rgba(0,255,136,0.4)';
+    labelColor = '#00ff41';
+    labelGlow  = '0 0 10px rgba(0,255,65,0.9), 0 0 28px rgba(0,255,65,0.4)';
   } else if (userSpeaking) {
     stateLabel = '◉  L I S T E N I N G  ◉';
-    labelColor = '#00d4ff';
-    labelGlow  = '0 0 10px rgba(0,212,255,0.9), 0 0 28px rgba(0,212,255,0.4)';
+    labelColor = '#57ffb0';
+    labelGlow  = '0 0 10px rgba(87,255,176,0.9), 0 0 28px rgba(87,255,176,0.4)';
   } else {
     stateLabel = '·  R E A D Y  ·';
-    labelColor = 'rgba(255,255,255,0.25)';
+    labelColor = 'rgba(0,255,65,0.4)';
     labelGlow  = 'none';
   }
 

@@ -80,20 +80,20 @@ export default function KnowledgeDropZone({ children, onFileDrop }: { children: 
 
             {/* Drag Overlay */}
             {(isDragActive || isProcessing) && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in pointer-events-none">
-                    <div className="p-8 rounded-3xl bg-neutral-900/90 border border-white/10 shadow-2xl flex flex-col items-center text-center max-w-sm">
+                <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in pointer-events-none">
+                    <div className="p-8 rounded-lg border-2 border-dashed border-[var(--border-green)] bg-[rgba(0,255,65,0.05)] shadow-[0_0_30px_rgba(0,255,65,0.15)] flex flex-col items-center text-center max-w-sm">
                         {isProcessing ? (
                             <>
-                                <Loader2 size={48} className="text-echo-primary animate-spin mb-4" />
-                                <h3 className="text-xl font-bold text-white mb-2">Expanding Knowledge</h3>
-                                <p className="text-gray-400">Echo is reading and indexing your documents...</p>
+                                <Loader2 size={48} className="text-[var(--accent-green)] animate-spin mb-4" />
+                                <h3 className="font-hud text-xl uppercase tracking-widest text-[var(--text-primary)] mb-2">Expanding Knowledge</h3>
+                                <p className="text-[var(--text-secondary)]">Echo is reading and indexing your documents...</p>
                             </>
                         ) : (
                             <>
-                                <UploadCloud size={48} className="text-blue-400 mb-4 animate-bounce" />
-                                <h3 className="text-xl font-bold text-white mb-2">Add to Knowledge Base</h3>
-                                <p className="text-gray-400 mb-4">Drop PDF or Text files here to let Echo learn from them.</p>
-                                <div className="flex gap-4 text-xs text-gray-500">
+                                <UploadCloud size={48} className="text-[var(--accent-green)] mb-4 animate-bounce" />
+                                <h3 className="font-hud text-xl uppercase tracking-widest text-[var(--text-primary)] mb-2">DROP FILES TO INJECT</h3>
+                                <p className="text-[var(--text-secondary)] mb-4">Drop PDF or Text files here to let Echo learn from them.</p>
+                                <div className="flex gap-4 text-xs text-[var(--text-tertiary)] font-term uppercase tracking-wider">
                                     <span className="flex items-center gap-1"><FileText size={12} /> PDF</span>
                                     <span className="flex items-center gap-1"><BookOpen size={12} /> Markdown</span>
                                     <span className="flex items-center gap-1"><FileText size={12} /> Text</span>

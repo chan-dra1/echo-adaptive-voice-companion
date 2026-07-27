@@ -66,10 +66,10 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top', 
   };
 
   const arrowClasses = {
-    top: 'top-full left-1/2 -translate-x-1/2 border-t-gray-800 border-x-transparent border-b-transparent',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-gray-800 border-x-transparent border-t-transparent',
-    left: 'left-full top-1/2 -translate-y-1/2 border-l-gray-800 border-y-transparent border-r-transparent',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-gray-800 border-y-transparent border-l-transparent',
+    top: 'top-full left-1/2 -translate-x-1/2 border-t-black border-x-transparent border-b-transparent',
+    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-black border-x-transparent border-t-transparent',
+    left: 'left-full top-1/2 -translate-y-1/2 border-l-black border-y-transparent border-r-transparent',
+    right: 'right-full top-1/2 -translate-y-1/2 border-r-black border-y-transparent border-l-transparent',
   };
 
   return (
@@ -87,7 +87,7 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top', 
           className={`absolute ${positionClasses[position]} z-50 pointer-events-none`}
           role="tooltip"
         >
-          <div className="bg-black text-[#00ff41] text-[10px] font-mono px-3 py-1.5 rounded-md shadow-[0_0_15px_rgba(0,255,65,0.2)] border border-[#00ff41]/30 whitespace-nowrap uppercase tracking-widest">
+          <div className="bg-[var(--bg-base)] text-[var(--accent-green)] text-[10px] font-term px-3 py-1.5 rounded shadow-[0_0_15px_rgba(0,255,65,0.2)] border border-[var(--border-green)] whitespace-nowrap uppercase tracking-widest">
             {content}
             <div className={`absolute ${arrowClasses[position]} w-0 h-0 border-4 opacity-50`} />
           </div>

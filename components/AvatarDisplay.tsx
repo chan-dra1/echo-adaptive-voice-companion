@@ -4,7 +4,7 @@
  * A fully animated holographic orb with:
  *  - 4 rotating elliptical rings (like VIKI's core sphere)
  *  - Audio-reactive glow that pulses with volume
- *  - State-driven color shifts: cyan (idle) → green (listening) → blue (thinking) → bright green (speaking)
+ *  - State-driven color shifts: dim phosphor (idle) → mint (listening) → moss (thinking) → bright phosphor (speaking)
  *  - Particle dots orbiting on the rings
  *  - Inner core sphere with state texture
  *  - PiP camera feed when camera is active
@@ -20,33 +20,33 @@ interface AvatarDisplayProps {
 
 const STATE_CONFIG = {
     idle: {
-        coreColor:  'radial-gradient(circle at 40% 35%, rgba(0,229,255,0.25) 0%, rgba(0,80,160,0.15) 50%, rgba(0,20,60,0.4) 100%)',
-        glow:       'rgba(0,229,255,0.35)',
-        glowFar:    'rgba(0,100,200,0.12)',
-        ringColor:  'rgba(0,229,255,',
+        coreColor:  'radial-gradient(circle at 40% 35%, rgba(0,255,65,0.18) 0%, rgba(0,90,35,0.14) 50%, rgba(0,20,10,0.4) 100%)',
+        glow:       'rgba(0,255,65,0.22)',
+        glowFar:    'rgba(0,120,45,0.10)',
+        ringColor:  'rgba(0,255,65,',
         label:      'STANDBY',
-        labelColor: '#00E5FF',
-        dotColor:   '#00E5FF',
+        labelColor: 'rgba(0,255,65,0.55)',
+        dotColor:   '#00ff41',
         speed:      1,
     },
     listening: {
-        coreColor:  'radial-gradient(circle at 40% 35%, rgba(0,255,65,0.3) 0%, rgba(0,120,50,0.2) 50%, rgba(0,30,15,0.4) 100%)',
-        glow:       'rgba(0,255,65,0.45)',
-        glowFar:    'rgba(0,150,50,0.15)',
-        ringColor:  'rgba(0,255,65,',
+        coreColor:  'radial-gradient(circle at 40% 35%, rgba(87,255,176,0.3) 0%, rgba(20,150,100,0.2) 50%, rgba(0,30,20,0.4) 100%)',
+        glow:       'rgba(87,255,176,0.45)',
+        glowFar:    'rgba(40,180,130,0.15)',
+        ringColor:  'rgba(87,255,176,',
         label:      'LISTENING',
-        labelColor: '#00FF41',
-        dotColor:   '#00FF41',
+        labelColor: '#57ffb0',
+        dotColor:   '#57ffb0',
         speed:      1.6,
     },
     thinking: {
-        coreColor:  'radial-gradient(circle at 40% 35%, rgba(160,100,255,0.3) 0%, rgba(80,40,160,0.2) 50%, rgba(20,10,50,0.4) 100%)',
-        glow:       'rgba(160,100,255,0.4)',
-        glowFar:    'rgba(80,40,200,0.12)',
-        ringColor:  'rgba(160,100,255,',
+        coreColor:  'radial-gradient(circle at 40% 35%, rgba(43,217,107,0.3) 0%, rgba(20,110,60,0.2) 50%, rgba(10,40,25,0.4) 100%)',
+        glow:       'rgba(43,217,107,0.4)',
+        glowFar:    'rgba(20,140,75,0.12)',
+        ringColor:  'rgba(43,217,107,',
         label:      'PROCESSING',
-        labelColor: '#A064FF',
-        dotColor:   '#A064FF',
+        labelColor: '#2bd96b',
+        dotColor:   '#2bd96b',
         speed:      2.2,
     },
     speaking: {
@@ -55,8 +55,8 @@ const STATE_CONFIG = {
         glowFar:    'rgba(0,200,80,0.2)',
         ringColor:  'rgba(0,255,65,',
         label:      'SPEAKING',
-        labelColor: '#00FF41',
-        dotColor:   '#00FF41',
+        labelColor: '#00ff41',
+        dotColor:   '#00ff41',
         speed:      3,
     },
 };
@@ -271,7 +271,7 @@ export default function AvatarDisplay({ state, volume, cameraStream, avatarUrl }
             {/* State label */}
             <div className="mt-6 flex flex-col items-center gap-2">
                 <div className="flex items-center gap-2">
-                    <span className={`status-dot ${state === 'idle' ? 'cyan' : state === 'listening' ? 'green' : state === 'thinking' ? 'purple' : 'green'}`} />
+                    <span className={`status-dot ${state === 'idle' ? 'green' : state === 'listening' ? 'cyan' : state === 'thinking' ? 'purple' : 'green'}`} />
                     <span
                         className="font-hud text-xs tracking-widest uppercase"
                         style={{ color: cfg.labelColor, textShadow: `0 0 10px ${cfg.glow}` }}

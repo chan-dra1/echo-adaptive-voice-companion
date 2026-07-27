@@ -52,24 +52,27 @@ const VaultOrganizerPanel: React.FC<VaultOrganizerPanelProps> = ({ onClose }) =>
     }, [assignType, tasks, memories, docs]);
 
     return (
-        <div className="h-full flex flex-col bg-echo-surface/50 border-l border-white/10 backdrop-blur-md w-full max-w-full">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                <div>
-                    <h2 className="text-lg font-mono font-semibold text-echo-primary">VAULT_ORGANIZER</h2>
-                    <p className="text-xs text-gray-500">Folders for tasks, memory, and docs.</p>
+        <div className="term-window animate-phosphor-in h-full flex flex-col w-full max-w-full">
+            <div className="term-titlebar justify-between">
+                <div className="flex items-center gap-2.5">
+                    <span className="term-dots" />
+                    <span>VAULT.ORG</span>
+                    <span className="text-[9px] tracking-[0.2em] text-[var(--text-tertiary)] normal-case">
+                        FOLDERS // TASKS · MEMORY · DOCS
+                    </span>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white">
-                    <X size={18} />
+                <button onClick={onClose} className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors">
+                    <X size={16} />
                 </button>
             </div>
 
-            <div className="p-4 space-y-3 border-b border-white/10">
+            <div className="p-4 space-y-3 border-b border-[rgba(0,255,65,0.14)]">
                 <div className="flex gap-2">
                     <input
                         value={folderName}
                         onChange={(e) => setFolderName(e.target.value)}
                         placeholder="New folder"
-                        className="flex-1 bg-black/20 border border-white/10 rounded px-3 py-2 text-sm"
+                        className="flex-1 bg-black/60 border border-[var(--border-dim)] rounded px-3 py-2 text-sm font-hud text-[var(--text-primary)] placeholder-[var(--text-tertiary)] outline-none focus:border-[var(--border-green)]"
                     />
                     <button
                         onClick={() => {
@@ -81,9 +84,9 @@ const VaultOrganizerPanel: React.FC<VaultOrganizerPanelProps> = ({ onClose }) =>
                                 // keep UI minimal
                             }
                         }}
-                        className="px-3 py-2 bg-echo-primary/20 text-echo-primary rounded text-xs flex items-center gap-1"
+                        className="btn-term px-3 py-2 text-[11px] flex items-center gap-1"
                     >
-                        <FolderPlus size={14} /> Create
+                        <FolderPlus size={13} /> Create
                     </button>
                 </div>
 
@@ -94,7 +97,7 @@ const VaultOrganizerPanel: React.FC<VaultOrganizerPanelProps> = ({ onClose }) =>
                             setAssignType(e.target.value as AssignType);
                             setAssignItemId('');
                         }}
-                        className="bg-black/20 border border-white/10 rounded px-2 py-2 text-xs"
+                        className="bg-black/60 border border-[var(--border-dim)] rounded px-2 py-2 text-xs font-hud uppercase tracking-[0.1em] text-[var(--text-primary)] outline-none focus:border-[var(--border-green)]"
                     >
                         <option value="task">Task</option>
                         <option value="memory">Memory</option>
@@ -103,7 +106,7 @@ const VaultOrganizerPanel: React.FC<VaultOrganizerPanelProps> = ({ onClose }) =>
                     <select
                         value={assignItemId}
                         onChange={(e) => setAssignItemId(e.target.value)}
-                        className="bg-black/20 border border-white/10 rounded px-2 py-2 text-xs"
+                        className="bg-black/60 border border-[var(--border-dim)] rounded px-2 py-2 text-xs font-hud text-[var(--text-primary)] outline-none focus:border-[var(--border-green)]"
                     >
                         <option value="">Select item</option>
                         {sourceItems.map((item) => (
@@ -113,7 +116,7 @@ const VaultOrganizerPanel: React.FC<VaultOrganizerPanelProps> = ({ onClose }) =>
                     <select
                         value={assignFolderId}
                         onChange={(e) => setAssignFolderId(e.target.value)}
-                        className="bg-black/20 border border-white/10 rounded px-2 py-2 text-xs"
+                        className="bg-black/60 border border-[var(--border-dim)] rounded px-2 py-2 text-xs font-hud text-[var(--text-primary)] outline-none focus:border-[var(--border-green)]"
                     >
                         <option value="">Select folder</option>
                         {folders.map((folder) => (
@@ -132,47 +135,49 @@ const VaultOrganizerPanel: React.FC<VaultOrganizerPanelProps> = ({ onClose }) =>
                         }
                         await reload();
                     }}
-                    className="w-full px-3 py-2 bg-white/10 rounded text-xs hover:bg-white/20"
+                    className="btn-term w-full py-2 text-[11px]"
                 >
                     Move item into folder
                 </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="bg-white/5 border border-white/10 rounded p-3">
-                    <h3 className="text-sm font-semibold">Marketing Plans</h3>
-                    <p className="text-xs text-gray-500 mt-1 mb-2">Latest generated plans (local encrypted history).</p>
+                <div className="bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] rounded-lg p-3">
+                    <h3 className="text-sm font-hud uppercase tracking-[0.1em] text-[var(--text-primary)]">Marketing Plans</h3>
+                    <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-2">Latest generated plans (local encrypted history).</p>
                     <PlanHistoryPanel compact />
                 </div>
                 {folders.map((folder) => (
-                    <div key={folder.id} className="bg-white/5 border border-white/10 rounded p-3">
+                    <div key={folder.id} className="bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] rounded-lg p-3 hover:border-[var(--border-green)] transition-colors">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-semibold">{folder.name}</h3>
+                            <h3 className="text-sm font-hud uppercase tracking-[0.1em] text-[var(--text-primary)]">{folder.name}</h3>
                             <button
                                 onClick={async () => {
                                     if (!window.confirm(`Delete folder "${folder.name}"?`)) return;
                                     folderService.deleteFolder(folder.id);
                                     await reload();
                                 }}
-                                className="p-1 text-gray-500 hover:text-red-400"
+                                className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-red)] transition-colors"
                             >
                                 <Trash2 size={14} />
                             </button>
                         </div>
                         <div className="mt-2 space-y-2">
                             {(contents[folder.id] || []).length === 0 && (
-                                <p className="text-xs text-gray-500">No items.</p>
+                                <p className="text-xs text-[var(--text-tertiary)] font-hud">No items.</p>
                             )}
                             {(contents[folder.id] || []).map((item) => (
-                                <div key={item.id} className="flex items-center justify-between text-xs bg-black/20 rounded px-2 py-2">
-                                    <span className="truncate pr-2">{item.itemType}: {item.label}</span>
+                                <div key={item.id} className="flex items-center justify-between text-xs font-hud bg-black/40 border border-[var(--border-subtle)] rounded px-2 py-2">
+                                    <span className="truncate pr-2 text-[var(--text-secondary)]">
+                                        <span className="text-[var(--text-tertiary)] uppercase tracking-[0.1em]">{item.itemType}:</span> {item.label}
+                                    </span>
                                     <button
                                         onClick={async () => {
                                             if (!window.confirm(`Delete this ${item.itemType}?`)) return;
                                             await folderService.deleteItem(item.itemType, item.itemId);
                                             await reload();
                                         }}
-                                        className="text-gray-500 hover:text-red-400"
+                                        className="text-[var(--text-tertiary)] hover:text-[var(--accent-red)] transition-colors"
                                     >
                                         <Trash2 size={12} />
                                     </button>

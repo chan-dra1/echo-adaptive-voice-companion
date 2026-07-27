@@ -61,43 +61,42 @@ export default function FilesPanel({ onClose }: Props) {
     return (
         <div className="fixed inset-0 z-[65] flex items-stretch justify-end bg-black/70 backdrop-blur-sm" onClick={onClose}>
             <div
-                className="relative w-full max-w-md h-full bg-black border-l border-[#00E5FF]/25 shadow-2xl flex flex-col font-mono text-white animate-[slideIn_0.25s_ease]"
+                className="term-window relative w-full max-w-md h-full shadow-2xl flex flex-col font-mono animate-[slideIn_0.25s_ease]"
                 onClick={e => e.stopPropagation()}
-                style={{ boxShadow: '0 0 60px rgba(0,229,255,0.12)' }}
+                style={{ boxShadow: '0 0 60px rgba(87,255,176,0.10)', borderColor: 'var(--accent-cyan)' }}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-                    <div className="flex items-center gap-2">
-                        <Package size={18} style={{ color: 'var(--c-cyan)' }} />
-                        <div>
-                            <div className="text-sm tracking-[0.3em] uppercase">Echo Files</div>
-                            <div className="text-[10px] text-white/40 uppercase tracking-widest">{total} artifact{total === 1 ? '' : 's'} · everything Echo made</div>
-                        </div>
+                <div className="term-titlebar" style={{ color: 'var(--accent-cyan)' }}>
+                    <span className="term-dots" />
+                    <Package size={16} style={{ color: 'var(--accent-cyan)' }} aria-hidden="true" />
+                    <div className="flex-1">
+                        <div className="text-xs tracking-[0.25em] uppercase" style={{ color: 'var(--accent-cyan)' }}>FILES.DIR</div>
+                        <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest">{total} artifact{total === 1 ? '' : 's'} · everything Echo made</div>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => wrap(refresh)} className="p-1.5 rounded hover:bg-white/10" title="Refresh">
-                            <RefreshCw size={15} className={busy ? 'animate-spin' : ''} style={{ color: 'var(--c-cyan)' }} />
-                        </button>
-                        <button onClick={onClose} className="p-1.5 rounded hover:bg-white/10"><X size={16} /></button>
-                    </div>
+                    <button onClick={() => wrap(refresh)} className="p-1.5 rounded hover:bg-[rgba(87,255,176,0.1)]" title="Refresh">
+                        <RefreshCw size={15} className={busy ? 'animate-spin' : ''} style={{ color: 'var(--accent-cyan)' }} />
+                    </button>
+                    <button onClick={onClose} className="p-1.5 rounded hover:bg-[rgba(87,255,176,0.1)] text-[var(--text-tertiary)] hover:text-[var(--accent-cyan)]" aria-label="Close files panel"><X size={16} /></button>
                 </div>
 
                 {/* Download-all bar */}
-                <div className="px-5 py-3 border-b border-white/10 flex items-center gap-2">
+                <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border-dim)' }}>
                     <button
                         disabled={busy || total === 0}
                         onClick={() => wrap(async () => { const n = await downloadEverything(); if (!n) alert('Nothing to download yet.'); })}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#00E5FF]/12 border border-[#00E5FF]/40 text-[#00E5FF] hover:bg-[#00E5FF]/20 disabled:opacity-30 transition text-xs tracking-widest uppercase"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[rgba(87,255,176,0.1)] border border-[var(--accent-cyan)]/40 hover:bg-[rgba(87,255,176,0.18)] disabled:opacity-30 transition text-xs tracking-widest uppercase"
+                        style={{ color: 'var(--accent-cyan)' }}
                     >
                         <Package size={14} /> Download Everything (.zip)
                     </button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-white/10">
+                <div className="flex border-b" style={{ borderColor: 'var(--border-dim)' }}>
                     {TABS.map(t => (
                         <button key={t.id} onClick={() => setTab(t.id)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] tracking-widest uppercase transition border-b-2 ${tab === t.id ? 'border-[#00E5FF] text-[#00E5FF] bg-[#00E5FF]/5' : 'border-transparent text-white/45 hover:text-white/70'}`}>
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] tracking-widest uppercase transition border-b-2"
+                            style={tab === t.id ? { borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)', background: 'rgba(87,255,176,0.05)' } : { borderColor: 'transparent', color: 'var(--text-tertiary)' }}>
                             {t.icon}{t.label}<span className="opacity-50">({t.n})</span>
                         </button>
                     ))}
@@ -143,9 +142,9 @@ export default function FilesPanel({ onClose }: Props) {
 
                     {tab === 'projects' && (
                         !handsOn ? (
-                            <div className="text-center text-white/40 text-xs py-10 px-6 leading-relaxed">
+                            <div className="text-center text-[var(--text-tertiary)] text-xs py-10 px-6 leading-relaxed">
                                 <FolderGit2 size={28} className="mx-auto mb-3 opacity-40" />
-                                Projects live as real files in <span className="text-[#00E5FF]">~/EchoProjects</span>.<br />
+                                Projects live as real files in <span style={{ color: 'var(--accent-cyan)' }}>~/EchoProjects</span>.<br />
                                 Start the Echo Hands daemon (⌘K → Connect Echo Hands) to list and download them here.
                             </div>
                         ) : (
@@ -181,7 +180,7 @@ function Section({ children, empty, emptyText, bulk, bulkLabel }: {
 }) {
     if (empty) {
         return (
-            <div className="text-center text-white/35 text-xs py-12 px-6 leading-relaxed">
+            <div className="text-center text-[var(--text-tertiary)] text-xs py-12 px-6 leading-relaxed">
                 <Inbox size={28} className="mx-auto mb-3 opacity-40" />
                 {emptyText}
             </div>
@@ -191,7 +190,7 @@ function Section({ children, empty, emptyText, bulk, bulkLabel }: {
         <>
             {bulk && (
                 <button onClick={bulk}
-                    className="w-full mb-2 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 text-[11px] tracking-widest uppercase text-white/70 transition">
+                    className="w-full mb-2 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] hover:bg-[rgba(0,255,65,0.08)] text-[11px] tracking-widest uppercase text-[var(--text-secondary)] transition">
                     <Download size={12} /> {bulkLabel}
                 </button>
             )}
@@ -206,22 +205,23 @@ function Row({ title, sub, preview, onDownload, secondary }: {
     secondary?: { label: string; onClick: () => void | Promise<any> };
 }) {
     return (
-        <div className="group relative p-3 rounded-lg bg-white/[0.03] border border-white/8 hover:border-[#00E5FF]/30 transition">
+        <div className="group relative p-3 rounded-lg bg-[rgba(0,255,65,0.03)] border border-[var(--border-dim)] hover:border-[var(--accent-cyan)]/30 transition">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                    <div className="text-sm text-white/90 truncate">{title}</div>
-                    <div className="text-[10px] text-white/40 uppercase tracking-widest mt-0.5">{sub}</div>
-                    <div className="text-[11px] text-white/35 mt-1.5 line-clamp-2 leading-snug">{preview.slice(0, 140)}</div>
+                    <div className="text-sm text-[var(--text-primary)] truncate">{title}</div>
+                    <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest mt-0.5">{sub}</div>
+                    <div className="text-[11px] text-[var(--text-tertiary)] mt-1.5 line-clamp-2 leading-snug">{preview.slice(0, 140)}</div>
                 </div>
                 <div className="flex flex-col gap-1 flex-shrink-0">
                     <button onClick={onDownload}
-                        className="p-2 rounded-md bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] hover:bg-[#00E5FF]/20 transition"
+                        className="p-2 rounded-md bg-[rgba(87,255,176,0.08)] border border-[var(--accent-cyan)]/30 hover:bg-[rgba(87,255,176,0.16)] transition"
+                        style={{ color: 'var(--accent-cyan)' }}
                         title="Download">
                         <Download size={14} />
                     </button>
                     {secondary && (
                         <button onClick={secondary.onClick}
-                            className="p-2 rounded-md bg-white/5 border border-white/10 text-white/50 hover:bg-white/10 transition text-[9px]"
+                            className="p-2 rounded-md bg-[rgba(0,255,65,0.04)] border border-[var(--border-dim)] text-[var(--text-tertiary)] hover:bg-[rgba(0,255,65,0.08)] transition text-[9px]"
                             title={secondary.label}>
                             <FolderGit2 size={13} />
                         </button>

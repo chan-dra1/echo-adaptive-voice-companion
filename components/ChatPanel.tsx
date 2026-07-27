@@ -59,27 +59,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
   }, [history]);
 
   return (
-    <div className="h-full flex flex-col bg-black/95 border-r border-[#00ff41]/20 backdrop-blur-md w-full sm:w-96 max-w-full shadow-2xl font-mono text-[#00ff41]" role="region" aria-label="Chat history">
-      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <MessageSquare size={18} className="text-[#00ff41]" aria-hidden="true" />
-            <h2 className="text-lg font-mono font-semibold text-[#00ff41]">TERMINAL_LOG</h2>
-          </div>
-          {isThinking && (
-            <div className="flex items-center gap-1.5 mt-1 animate-pulse" role="status" aria-live="polite">
-              <Sparkles size={10} className="text-echo-accent" aria-hidden="true" />
-              <span className="text-[10px] text-echo-accent font-mono tracking-widest uppercase">ECHO PROCESSING...</span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
+    <div className="term-window animate-phosphor-in h-full flex flex-col w-full sm:w-96 max-w-full rounded-none" role="region" aria-label="Chat history">
+      {/* Titlebar */}
+      <div className="term-titlebar">
+        <span className="term-dots" aria-hidden="true" />
+        <span className="text-glow-green">ECHO://SESSION</span>
+        <div className="ml-auto flex items-center gap-1 tracking-normal">
           {history.length > 0 && (
             <>
               <Tooltip content="Export chat history">
                 <button
                   onClick={handleExport}
-                  className="text-gray-400 hover:text-white p-2 rounded-md hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
+                  className="p-2 rounded text-[var(--text-tertiary)] hover:text-[var(--accent-green)] hover:bg-[rgba(0,255,65,0.08)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
                   aria-label="Export chat history"
                 >
                   <Download size={16} />
@@ -88,7 +79,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
               <Tooltip content="Clear all history">
                 <button
                   onClick={handleClear}
-                  className="text-gray-400 hover:text-red-400 p-2 rounded-md hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="p-2 rounded text-[var(--text-tertiary)] hover:text-[var(--accent-red)] hover:bg-[rgba(255,59,92,0.08)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-red"
                   aria-label="Clear chat history"
                 >
                   <Trash2 size={16} />
@@ -99,21 +90,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
           <Tooltip content="Close panel">
             <button
               onClick={onClose}
-              className="text-[#00ff41]/60 hover:text-[#00ff41] p-3 rounded-full hover:bg-[#00ff41]/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00ff41] bg-black/40 border border-[#00ff41]/20"
+              className="p-2 rounded border border-[var(--border-dim)] bg-[rgba(0,255,65,0.04)] text-[var(--text-secondary)] hover:text-[var(--accent-green)] hover:border-[var(--border-green)] hover:bg-[rgba(0,255,65,0.1)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
               aria-label="Close chat panel"
             >
-              <X size={24} />
+              <X size={18} />
             </button>
           </Tooltip>
         </div>
       </div>
 
+      {/* Thinking status strip */}
+      {isThinking && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-[var(--border-subtle)] animate-pulse" role="status" aria-live="polite">
+          <Sparkles size={10} className="text-[var(--accent-cyan)]" aria-hidden="true" />
+          <span className="text-[10px] text-[var(--accent-cyan)] font-mono tracking-widest uppercase">ECHO PROCESSING...</span>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
         {history.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm mt-10" role="status">
-            <MessageSquare size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="opacity-40 mb-2">Conversation history empty.</p>
-            <p className="text-xs opacity-30">Start a conversation by connecting and speaking.</p>
+          <div className="text-center text-[var(--text-tertiary)] text-sm mt-10 font-mono" role="status">
+            <MessageSquare size={48} className="mx-auto mb-4 opacity-20 text-[var(--accent-green)]" />
+            <p className="mb-2 tracking-widest uppercase text-[var(--text-secondary)]">&gt; SESSION LOG EMPTY</p>
+            <p className="text-xs">Start a conversation by connecting and speaking.</p>
           </div>
         ) : (
           history.map((msg) => (
@@ -123,9 +122,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
             >
               <div className="relative">
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user'
-                    ? 'bg-echo-primary/20 border border-echo-primary/30 text-white rounded-br-none'
-                    : 'bg-white/5 border border-white/10 text-gray-200 rounded-bl-none'
+                  className={`max-w-[85%] rounded-md px-4 py-3 text-sm leading-relaxed font-ui text-[var(--text-primary)] ${msg.role === 'user'
+                    ? 'bg-[rgba(87,255,176,0.08)] border border-[rgba(87,255,176,0.3)] rounded-br-none'
+                    : 'bg-[rgba(0,255,65,0.06)] border border-[var(--border-dim)] rounded-bl-none'
                     }`}
                 >
                   {msg.text}
@@ -133,23 +132,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
                 <Tooltip content={copiedId === msg.id ? "Copied!" : "Copy message"}>
                   <button
                     onClick={() => handleCopy(msg.text, msg.id)}
-                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-echo-surface border border-white/10 p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
+                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg-elevated)] border border-[var(--border-dim)] p-1.5 rounded hover:bg-[rgba(0,255,65,0.1)] hover:border-[var(--border-green)] focus:outline-none focus-visible:ring-2 focus-visible:ring-echo-primary"
                     aria-label={`Copy ${msg.role === 'user' ? 'your' : 'Echo\'s'} message`}
                   >
                     {copiedId === msg.id ? (
-                      <Check size={14} className="text-green-400" />
+                      <Check size={14} className="text-[var(--accent-green)]" />
                     ) : (
-                      <Copy size={14} className="text-gray-400" />
+                      <Copy size={14} className="text-[var(--text-secondary)]" />
                     )}
                   </button>
                 </Tooltip>
               </div>
               <div className="flex items-center gap-1 mt-1 px-1">
-                <span className="text-[10px] text-gray-500 font-mono uppercase">
-                  {msg.role === 'user' ? 'You' : 'Echo'}
+                <span className={`text-[10px] font-mono tracking-widest uppercase ${msg.role === 'user' ? 'text-[var(--accent-cyan)]' : 'text-[var(--accent-green)]'}`}>
+                  {msg.role === 'user' ? 'YOU>' : 'ECHO>'}
                 </span>
-                <span className="text-[10px] text-gray-600" aria-hidden="true">•</span>
-                <time className="text-[10px] text-gray-600 font-mono" dateTime={new Date(msg.timestamp).toISOString()}>
+                <span className="text-[10px] text-[var(--text-tertiary)]" aria-hidden="true">•</span>
+                <time className="text-[10px] text-[var(--text-tertiary)] font-mono" dateTime={new Date(msg.timestamp).toISOString()}>
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </time>
               </div>
@@ -160,11 +159,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, onHistoryClear, isThinki
         {/* Thinking Indicator Bubble */}
         {isThinking && (
           <div className="flex flex-col items-start animate-fade-in">
-            <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-none px-4 py-3">
+            <div className="bg-[rgba(0,255,65,0.06)] border border-[var(--border-dim)] rounded-md rounded-bl-none px-4 py-3">
               <div className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-echo-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="w-1.5 h-1.5 bg-echo-primary rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="w-1.5 h-1.5 bg-echo-primary rounded-full animate-bounce"></span>
+                <span className="w-1.5 h-1.5 bg-[var(--accent-green)] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                <span className="w-1.5 h-1.5 bg-[var(--accent-green)] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-1.5 h-1.5 bg-[var(--accent-green)] rounded-full animate-bounce"></span>
               </div>
             </div>
           </div>

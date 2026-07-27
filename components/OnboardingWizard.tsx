@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { saveOnboardingMemory, saveCompanionState, COMPANION_MODES, CompanionMode } from '../services/companionPersonaService';
 import { addHabit, addGoal, HABIT_TEMPLATES } from '../services/lifeCoachService';
 import { testApiKey, detectProviderFromKey, LlmProvider } from '../services/llmRouter';
+import DecodeText from './fx/DecodeText';
 
 interface Props {
     onComplete: () => void;
@@ -331,63 +332,58 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
 
     const greenDim  = 'rgba(0,255,65,0.35)';
     const greenMid  = 'rgba(0,255,65,0.6)';
-    const greenBright = '#00FF41';
+    const greenBright = 'var(--accent-green)';
 
     return (
         <div
-            className="fixed inset-0 z-50 flex flex-col overflow-hidden"
-            style={{ background: '#000601', fontFamily: '"Share Tech Mono", "Courier New", monospace' }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden sm:p-6"
+            style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-term)' }}
         >
-            {/* CRT scanlines */}
-            <div
-                className="pointer-events-none absolute inset-0 z-10"
-                style={{
-                    backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,0.012) 2px,rgba(0,255,65,0.012) 4px)',
-                }}
-            />
+            <style>{`
+                .ow-input { caret-color: var(--accent-green); }
+                .ow-input::placeholder { color: rgba(0,255,65,0.28); }
+                .ow-input:focus { text-shadow: 0 0 8px rgba(0,255,65,0.45); }
+            `}</style>
 
-            {/* Header */}
-            <div
-                className="flex items-center justify-between px-6 py-3 z-20 flex-shrink-0"
-                style={{ borderBottom: '1px solid rgba(0,255,65,0.15)', background: 'rgba(0,255,65,0.025)' }}
-            >
-                <span style={{ color: greenBright, fontSize: 11, letterSpacing: '0.25em', textShadow: `0 0 8px ${greenBright}` }}>
-                    ECHO // SYSTEM INITIALIZATION
-                </span>
-                <div className="flex items-center gap-4">
-                    {/* Step bar */}
-                    <div className="flex gap-1">
-                        {STEPS.map((_, i) => (
-                            <div key={i} style={{
-                                width: 18, height: 2, borderRadius: 1,
-                                background: i <= stepIdx ? greenBright : 'rgba(0,255,65,0.12)',
-                                boxShadow: i <= stepIdx ? `0 0 5px ${greenBright}` : 'none',
-                                transition: 'all 0.4s',
-                            }} />
-                        ))}
+            <div className="term-window animate-phosphor-in flex flex-col w-full h-full max-w-4xl">
+                {/* Titlebar */}
+                <div className="term-titlebar flex-shrink-0">
+                    <span className="term-dots" />
+                    <DecodeText text="ECHO://INIT — SYSTEM INITIALIZATION" speed={16} />
+                    <div className="ml-auto flex items-center gap-4">
+                        {/* Step progress blocks */}
+                        <span aria-hidden="true" style={{ fontSize: 11, letterSpacing: '0.2em', whiteSpace: 'nowrap' }}>
+                            {STEPS.map((_, i) => (
+                                <span key={i} style={{
+                                    color: i <= stepIdx ? greenBright : 'rgba(0,255,65,0.18)',
+                                    textShadow: i <= stepIdx ? `0 0 6px ${greenBright}` : 'none',
+                                    transition: 'all 0.4s',
+                                }}>{i <= stepIdx ? '▮' : '▯'}</span>
+                            ))}
+                        </span>
+                        <span style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em' }}>
+                            {finished ? STEPS.length : stepIdx + 1}/{STEPS.length}
+                        </span>
+                        <button
+                            onClick={() => {
+                                saveCompanionState({ onboardingComplete: true });
+                                if (onSkip) {
+                                    onSkip();
+                                } else {
+                                    onComplete();
+                                }
+                            }}
+                            className="btn-term ghost"
+                            style={{ padding: '4px 10px', fontSize: 10 }}
+                        >SKIP</button>
                     </div>
-                    <span style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em' }}>
-                        {finished ? STEPS.length : stepIdx + 1}/{STEPS.length}
-                    </span>
-                    <button
-                        onClick={() => {
-                            saveCompanionState({ onboardingComplete: true });
-                            if (onSkip) {
-                                onSkip();
-                            } else {
-                                onComplete();
-                            }
-                        }}
-                        style={{ color: greenDim, fontSize: 10, letterSpacing: '0.15em', cursor: 'pointer' }}
-                    >[SKIP]</button>
                 </div>
-            </div>
 
-            {/* Terminal scroll area */}
-            <div
-                className="flex-1 overflow-y-auto px-8 py-6 z-20"
-                style={{ scrollbarWidth: 'none' }}
-            >
+                {/* Terminal scroll area */}
+                <div
+                    className="flex-1 overflow-y-auto px-8 py-6"
+                    style={{ scrollbarWidth: 'none' }}
+                >
                 {/* History */}
                 {history.map((line, i) => (
                     <div key={i} style={{
@@ -423,7 +419,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                     <div style={{ marginTop: 16 }}>
                         {/* Question */}
                         <div style={{ color: greenBright, fontSize: 13, marginBottom: 12, textShadow: `0 0 10px ${greenBright}` }}>
-                            ❯ {step.question}
+                            ❯ <DecodeText text={step.question} speed={22} />
                         </div>
 
                         {/* Choices */}
@@ -461,11 +457,11 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                                         onChange={e => setValue(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter' && !step.subKey) advance(); }}
                                         placeholder={step.placeholder}
-                                        className="flex-1 bg-transparent outline-none"
+                                        className="ow-input flex-1 bg-transparent outline-none"
                                         style={{
                                             color: greenBright, fontSize: 13,
-                                            caretColor: greenBright,
                                             border: 'none',
+                                            fontFamily: 'inherit',
                                         }}
                                     />
                                 </div>
@@ -478,8 +474,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                                             onChange={e => setSubValue(e.target.value)}
                                             onKeyDown={e => { if (e.key === 'Enter') advance(); }}
                                             placeholder={step.subPlaceholder}
-                                            className="flex-1 bg-transparent outline-none"
-                                            style={{ color: greenBright, fontSize: 13, caretColor: greenBright, border: 'none' }}
+                                            className="ow-input flex-1 bg-transparent outline-none"
+                                            style={{ color: greenBright, fontSize: 13, border: 'none', fontFamily: 'inherit' }}
                                         />
                                     </div>
                                 )}
@@ -499,22 +495,14 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                                     href="https://aistudio.google.com/apikey"
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    className="btn-term solid"
                                     style={{
-                                        display: 'inline-block',
+                                        display: 'inline-flex',
                                         margin: '16px 0',
-                                        padding: '10px 26px',
-                                        border: `1px solid ${greenBright}`,
-                                        color: greenBright,
-                                        fontSize: 13,
-                                        letterSpacing: '0.2em',
-                                        background: 'rgba(0,255,65,0.08)',
-                                        boxShadow: '0 0 16px rgba(0,255,65,0.3)',
-                                        textShadow: `0 0 8px ${greenBright}`,
                                         textDecoration: 'none',
-                                        cursor: 'pointer',
                                     }}
                                 >
-                                    [ GET MY FREE KEY → ]
+                                    GET MY FREE KEY →
                                 </a>
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -528,10 +516,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                                         placeholder="Paste your key here…"
                                         autoComplete="off"
                                         spellCheck={false}
-                                        className="flex-1 bg-transparent outline-none"
+                                        className="ow-input flex-1 bg-transparent outline-none"
                                         style={{
                                             color: greenBright, fontSize: 13,
-                                            caretColor: greenBright,
                                             border: 'none',
                                             fontFamily: 'inherit',
                                         }}
@@ -550,27 +537,17 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                                     </div>
                                 )}
                                 {keyStatus === 'invalid' && (
-                                    <div style={{ color: '#ff5555', fontSize: 12, marginTop: 10 }}>
+                                    <div style={{ color: 'var(--accent-red)', fontSize: 12, marginTop: 10 }}>
                                         ✗ {keyMessage}
                                     </div>
                                 )}
 
                                 <button
                                     onClick={skipKeyStep}
-                                    style={{
-                                        display: 'block',
-                                        marginTop: 18,
-                                        padding: 0,
-                                        background: 'none',
-                                        border: 'none',
-                                        color: greenDim,
-                                        fontSize: 11,
-                                        letterSpacing: '0.15em',
-                                        cursor: 'pointer',
-                                        fontFamily: 'inherit',
-                                    }}
+                                    className="btn-term ghost"
+                                    style={{ display: 'inline-flex', marginTop: 18, padding: '6px 14px', fontSize: 11 }}
                                 >
-                                    [ SKIP — I'LL DO THIS LATER ]
+                                    SKIP — I'LL DO THIS LATER
                                 </button>
                             </div>
                         )}
@@ -579,21 +556,15 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                         <button
                             onClick={advance}
                             disabled={step.type === 'apiKey' && keyStatus !== 'valid'}
+                            className="btn-term"
                             style={{
                                 marginTop: 20,
-                                padding: '6px 18px',
-                                border: `1px solid rgba(0,255,65,0.35)`,
-                                color: greenBright,
                                 fontSize: 11,
-                                letterSpacing: '0.2em',
-                                background: 'rgba(0,255,65,0.04)',
-                                boxShadow: '0 0 10px rgba(0,255,65,0.12)',
                                 cursor: step.type === 'apiKey' && keyStatus !== 'valid' ? 'not-allowed' : 'pointer',
                                 opacity: step.type === 'apiKey' && keyStatus !== 'valid' ? 0.35 : 1,
-                                transition: 'all 0.2s',
                             }}
                         >
-                            [CONFIRM] ↵ ENTER
+                            CONFIRM ↵ ENTER
                         </button>
                     </div>
                 )}
@@ -601,30 +572,34 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                 {/* Completion */}
                 {finished && (
                     <div style={{ marginTop: 24 }}>
-                        {['──────────────────────────────────────────',
-                          'INITIALIZATION COMPLETE.',
-                          'Memory encrypted and stored locally.',
-                          ...(keySaved ? ['AI BRAIN: CONNECTED'] : []),
-                          'Echo is online. Your companion is ready.',
-                        ].map((line, i) => (
-                            <div key={i} style={{
-                                color: line === 'INITIALIZATION COMPLETE.' || line === 'AI BRAIN: CONNECTED' ? greenBright : greenMid,
-                                fontSize: i === 0 ? 11 : 13,
-                                lineHeight: '1.9',
-                                textShadow: line === 'INITIALIZATION COMPLETE.' || line === 'AI BRAIN: CONNECTED' ? `0 0 12px ${greenBright}` : 'none',
-                                letterSpacing: line.includes('─') ? 0 : '0.05em',
-                            }}>{line}</div>
-                        ))}
+                        <div style={{ color: 'rgba(0,255,65,0.15)', fontSize: 11, lineHeight: '1.9' }}>
+                            {'─'.repeat(46)}
+                        </div>
+                        <div style={{ color: greenBright, fontSize: 13, lineHeight: '1.9', textShadow: `0 0 12px ${greenBright}`, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="status-dot green" /> [OK] INITIALIZATION COMPLETE.
+                        </div>
+                        <div style={{ color: greenMid, fontSize: 13, lineHeight: '1.9', letterSpacing: '0.05em' }}>
+                            [OK] Memory encrypted and stored locally.
+                        </div>
+                        {keySaved && (
+                            <div style={{ color: greenBright, fontSize: 13, lineHeight: '1.9', textShadow: `0 0 12px ${greenBright}`, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span className="status-dot green" /> [OK] AI BRAIN: CONNECTED
+                            </div>
+                        )}
+                        <div style={{ color: greenMid, fontSize: 13, lineHeight: '1.9', letterSpacing: '0.05em' }}>
+                            Echo is online. Your companion is ready.
+                        </div>
                         {!keySaved && (
                             <div style={{
-                                color: '#ffb000',
+                                color: 'var(--accent-amber)',
                                 fontSize: 12,
                                 lineHeight: '1.9',
                                 marginTop: 8,
                                 letterSpacing: '0.05em',
-                                textShadow: '0 0 8px rgba(255,176,0,0.5)',
+                                textShadow: '0 0 8px rgba(255,179,0,0.5)',
+                                display: 'flex', alignItems: 'center', gap: 8,
                             }}>
-                                NOTE: no AI key connected — Echo can't think yet. Add one anytime in Settings.
+                                <span className="status-dot amber" /> [WARN] no AI key connected — Echo can't think yet. Add one anytime in Settings.
                             </div>
                         )}
                         <div style={{
@@ -639,6 +614,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                 )}
 
                 <div ref={bottomRef} style={{ height: 40 }} />
+                </div>
             </div>
         </div>
     );

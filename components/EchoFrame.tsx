@@ -38,7 +38,7 @@ function fmtDate(d: Date): string {
 }
 
 const MOOD_GLYPH = ['—', '◔', '◑', '◕', '●', '✦'];
-const MOOD_COLOR = ['rgba(255,255,255,0.3)', '#FF3040', '#FF8C00', '#FFB300', '#00E5FF', '#00FF41'];
+const MOOD_COLOR = ['var(--text-tertiary)', 'var(--accent-red)', 'var(--accent-amber)', 'var(--accent-pink)', 'var(--accent-cyan)', 'var(--accent-green)'];
 
 export default function EchoFrame({ status, mobile = false }: Props) {
     const [now, setNow]           = useState(new Date());
@@ -60,16 +60,16 @@ export default function EchoFrame({ status, mobile = false }: Props) {
 
     const phaseCfg = getPhaseConfig(phase);
 
-    const statusColor = status === ConnectionStatus.CONNECTED ? '#00FF41'
-                      : status === ConnectionStatus.CONNECTING ? '#FFB300'
-                      : status === ConnectionStatus.ERROR ? '#FF3040'
-                      : 'rgba(255,255,255,0.4)';
+    const statusColor = status === ConnectionStatus.CONNECTED ? 'var(--accent-green)'
+                      : status === ConnectionStatus.CONNECTING ? 'var(--accent-amber)'
+                      : status === ConnectionStatus.ERROR ? 'var(--accent-red)'
+                      : 'var(--text-muted)';
     const statusLabel = status === ConnectionStatus.CONNECTED ? 'NEURAL LINK ACTIVE'
                       : status === ConnectionStatus.CONNECTING ? 'ESTABLISHING…'
                       : status === ConnectionStatus.ERROR ? 'LINK FAULT'
                       : 'STANDBY';
 
-    const accent   = 'var(--circadian-accent, #00E5FF)';
+    const accent   = 'var(--circadian-accent, #57ffb0)';
     const closest  = deadlines.length > 0
         ? deadlines.reduce((a, b) => a.daysLeft < b.daysLeft ? a : b)
         : null;
@@ -94,7 +94,7 @@ export default function EchoFrame({ status, mobile = false }: Props) {
                         <div className="font-hud text-[10px] tracking-[0.25em]" style={{ color: accent, textShadow: `0 0 8px ${accent}` }}>
                             {fmtTime(now)}
                         </div>
-                        <div className="font-mono-hud text-[8px] tracking-widest text-white/40">
+                        <div className="font-mono-hud text-[8px] tracking-widest text-[var(--text-tertiary)]">
                             {fmtDate(now)} · {phaseCfg.label}
                         </div>
                     </div>
@@ -108,8 +108,8 @@ export default function EchoFrame({ status, mobile = false }: Props) {
                         <div className="font-hud text-[10px] tracking-[0.25em]" style={{ color: statusColor, textShadow: `0 0 8px ${statusColor}` }}>
                             {statusLabel}
                         </div>
-                        <div className="font-mono-hud text-[8px] tracking-widest text-white/40">
-                            ENC: AES-GCM-256 · LOCAL
+                        <div className="font-mono-hud text-[8px] tracking-widest text-[var(--text-tertiary)]">
+                            SYS://ECHO · ENC: AES-GCM-256 · LOCAL
                         </div>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -123,17 +123,17 @@ export default function EchoFrame({ status, mobile = false }: Props) {
             <div className="echo-readout echo-readout-bl">
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5">
-                        <span style={{ color: MOOD_COLOR[mood?.mood || 0] || 'rgba(255,255,255,0.3)', fontSize: 12, textShadow: `0 0 6px currentColor` }}>
+                        <span style={{ color: MOOD_COLOR[mood?.mood || 0] || 'var(--text-tertiary)', fontSize: 12, textShadow: `0 0 6px currentColor` }}>
                             {MOOD_GLYPH[mood?.mood || 0]}
                         </span>
-                        <span className="font-mono-hud text-[8px] tracking-widest text-white/40">
+                        <span className="font-mono-hud text-[8px] tracking-widest text-[var(--text-tertiary)]">
                             MOOD
                         </span>
                     </div>
                     {companion.streakDays > 0 && (
-                        <div className="flex items-center gap-1.5" style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 12 }}>
+                        <div className="flex items-center gap-1.5" style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: 12 }}>
                             <span style={{ fontSize: 10 }}>🔥</span>
-                            <span className="font-hud text-[10px] tracking-widest" style={{ color: '#FF8C00', textShadow: '0 0 6px #FF8C00' }}>
+                            <span className="font-hud text-[10px] tracking-widest" style={{ color: 'var(--accent-pink)', textShadow: '0 0 6px var(--accent-pink)' }}>
                                 {companion.streakDays}D
                             </span>
                         </div>
@@ -145,12 +145,12 @@ export default function EchoFrame({ status, mobile = false }: Props) {
             <div className="echo-readout echo-readout-br">
                 <div className="flex items-center gap-3 justify-end">
                     {closest && (
-                        <div className="text-right" style={{ borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: 12 }}>
-                            <div className="font-mono-hud text-[8px] tracking-widest text-white/40">
+                        <div className="text-right" style={{ borderRight: '1px solid var(--border-subtle)', paddingRight: 12 }}>
+                            <div className="font-mono-hud text-[8px] tracking-widest text-[var(--text-tertiary)]">
                                 NEXT DEADLINE
                             </div>
                             <div className="font-hud text-[10px] tracking-widest" style={{
-                                color: closest.daysLeft <= 1 ? '#FF3040' : closest.daysLeft <= 3 ? '#FFB300' : accent,
+                                color: closest.daysLeft <= 1 ? 'var(--accent-red)' : closest.daysLeft <= 3 ? 'var(--accent-amber)' : accent,
                                 textShadow: `0 0 6px currentColor`,
                             }}>
                                 T-{closest.daysLeft}D
@@ -161,7 +161,7 @@ export default function EchoFrame({ status, mobile = false }: Props) {
                         <div className="font-hud text-[10px] tracking-[0.25em]" style={{ color: 'var(--c-pink)', textShadow: '0 0 6px var(--c-pink)' }}>
                             {(companion.userName || 'USER').toUpperCase()}
                         </div>
-                        <div className="font-mono-hud text-[8px] tracking-widest text-white/40">
+                        <div className="font-mono-hud text-[8px] tracking-widest text-[var(--text-tertiary)]">
                             SESSION {String(companion.totalSessions).padStart(4, '0')} · {companion.mode.toUpperCase()}
                         </div>
                     </div>
