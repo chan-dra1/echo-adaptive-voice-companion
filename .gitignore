@@ -47,12 +47,23 @@ mock_server.py
 server.py
 requirements.txt
 
-# ── Capacitor / Native (removed — web-only PWA) ──────────────────
-android/
-ios/
-mobile/
-capacitor.config.ts
-capacitor.config.ts.example
+# ── Capacitor / Native (iOS + Android — reinstated 2026-07-30) ────
+# Track the native projects and mobile/ bridge code; exclude only
+# generated/machine-local build output and the web-bundle copy that
+# `npx cap sync` regenerates from dist/ on every build.
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/*.iml
+ios/App/build/
+ios/App/DerivedData/
+ios/App/App/public/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
 
 # ── Server Data (Cloned voices and generated audio) ──────────────
 server_data/

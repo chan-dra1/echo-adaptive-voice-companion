@@ -34,7 +34,7 @@ export default function TranslationPanel({ onClose, history, isThinking }: Trans
     const translationMessages = history.filter(m => m.role === 'assistant');
 
     return (
-        <div className="term-window fixed top-20 left-4 w-96 z-50 flex flex-col max-h-[600px] animate-slide-in-left animate-phosphor-in">
+        <div className="term-window fixed top-20 left-4 right-4 w-auto md:right-auto md:w-96 z-50 flex flex-col max-h-[600px] animate-slide-in-left animate-phosphor-in">
             {/* Header */}
             <div className="term-titlebar handle cursor-move !justify-between">
                 <div className="flex items-center gap-2">

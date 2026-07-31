@@ -10,6 +10,7 @@
     "cap:init": "echo 'Copy capacitor.config.ts.example to capacitor.config.ts, npm run build, then npx cap sync'"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "^8.0.1",
     "@google/genai": "^2.8.0",
     "@octokit/rest": "^22.0.1",
     "@supabase/supabase-js": "^2.110.9",
@@ -25,10 +26,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.4.0",
-    "@capacitor/cli": "^8.4.0",
-    "@capacitor/core": "^8.4.0",
-    "@capacitor/ios": "^8.4.0",
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",

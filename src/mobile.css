@@ -74,3 +74,28 @@ a,
         animation: none !important;
     }
 }
+
+/* Mobile nav bottom sheet vs. floating mic dock — both render at z-50 and are
+   DOM siblings, and the dock is mounted after the sheet, so it paints on top
+   of the sheet's bottom "// Controls" row (H-Free / Interrupt / Mute mic /
+   Audio), making those buttons invisible-through and untappable on short
+   phones (confirmed on 375x667: dock spans y 554-644, sheet's control row
+   sits in that same band). Fade the dock out of the way whenever the sheet
+   is open — it reappears the instant the sheet closes.
+   (App.tsx owns the JSX; this only targets the sheet's exact class list.) */
+div.fixed.inset-0.z-50.flex.items-end.md\:hidden ~ .echo-dock {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+/* Safety net: on very short viewports (e.g. landscape phones, or a device
+   keyboard eating vertical space) the 13-item nav grid + controls row can
+   exceed the viewport height. Let the sheet scroll internally instead of
+   clipping its bottom rows off-screen. */
+@media (max-height: 700px) {
+    div.fixed.inset-0.z-50.flex.items-end.md\:hidden > div {
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+}

@@ -6,41 +6,69 @@
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "orientation": "any",
   "theme_color": "#050505",
-  "background_color": "#050505",
-  "categories": ["productivity", "utilities", "personalization"],
+  "background_color": "#010502",
+  "categories": [
+    "productivity",
+    "utilities",
+    "personalization"
+  ],
   "lang": "en",
   "dir": "ltr",
   "prefer_related_applications": false,
   "launch_handler": {
-    "client_mode": ["navigate-existing", "auto"]
+    "client_mode": [
+      "navigate-existing",
+      "auto"
+    ]
   },
   "icons": [
     {
-      "src": "logo192.png",
+      "src": "../icons/icon-48.webp",
+      "type": "image/png",
+      "sizes": "48x48",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-72.webp",
+      "type": "image/png",
+      "sizes": "72x72",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-96.webp",
+      "type": "image/png",
+      "sizes": "96x96",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-128.webp",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-192.webp",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
-      "src": "logo512.png",
+      "src": "../icons/icon-256.webp",
+      "type": "image/png",
+      "sizes": "256x256",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-512.webp",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "maskable"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
   "shortcuts": [
@@ -49,14 +77,26 @@
       "short_name": "New",
       "description": "Start a fresh conversation with Echo",
       "url": "/?action=new-chat",
-      "icons": [{ "src": "logo192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "logo192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Quick Reminder",
       "short_name": "Remind",
       "description": "Capture a quick reminder",
       "url": "/?action=reminder",
-      "icons": [{ "src": "logo192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "logo192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

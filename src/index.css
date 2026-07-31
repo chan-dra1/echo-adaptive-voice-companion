@@ -533,6 +533,28 @@ body::before {
     border-radius: 1px;
   }
 
+  /* The dock is centered via inline `left:50%; transform:translateX(-50%)`
+     in App.tsx, but its inline `animation:'float 8s...'` (also App.tsx)
+     replaces that transform every frame with the keyframes' translateY only,
+     silently uncentering the dock so it hangs off the right edge — worst on
+     narrow viewports where ~40% of it renders off-screen. Overriding the
+     animation here (needs !important to beat the inline style attribute)
+     with keyframes that keep translateX(-50%) in every step fixes centering
+     at all breakpoints without touching App.tsx. */
+  .echo-dock {
+    animation: dock-float-centered 8s ease-in-out infinite !important;
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .echo-dock::-webkit-scrollbar {
+    display: none;
+  }
+  @keyframes dock-float-centered {
+    0%, 100% { transform: translateX(-50%) translateY(0px); }
+    50%       { transform: translateX(-50%) translateY(-6px); }
+  }
+
   /* Left sidebar — terminal rail */
   .echo-sidebar {
     position: absolute;

@@ -4,6 +4,11 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ToastProvider } from './contexts/ToastContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { registerCapacitorWakeBridge } from './mobile/capacitorBridge';
+
+// No-op on web (Capacitor.isNativePlatform() is false there) — only does
+// anything inside the native iOS/Android shell. See mobile/capacitorBridge.ts.
+registerCapacitorWakeBridge();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
