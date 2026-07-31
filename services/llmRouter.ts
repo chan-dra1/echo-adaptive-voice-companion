@@ -77,6 +77,26 @@ export interface LlmChatOptions {
     maxTokens?: number;
     /** Tools the model may call. See module doc for provider support. */
     tools?: LlmToolDef[];
+    /**
+     * Optional prompt-caching hint. MUST be a literal prefix of the system
+     * message's content — the stable-across-turns portion (identity, persona,
+     * memories) with the volatile tail (per-query RAG hits) excluded.
+     *
+     * Providers differ in how much of this they can actually use:
+     *   - anthropic: explicit `cache_control: ephemeral` breakpoint at the
+     *     boundary. Real, largest win.
+     *   - openai / groq / openrouter / mistral: automatic prefix caching
+     *     server-side, no markers accepted. Benefits purely from the caller
+     *     keeping the prefix byte-stable across turns; this field is a no-op
+     *     on the wire but the stable ordering it implies is what matters.
+     *   - gemini: 2.5 models do implicit caching on a stable prefix. Explicit
+     *     `cachedContent` needs a separately-created cache resource with its
+     *     own TTL/lifecycle, which is not wired up here — so this is also
+     *     effectively "stable ordering helps, no marker sent".
+     * Ignored entirely if it isn't actually a prefix (guards against a caller
+     * silently corrupting the prompt).
+     */
+    cacheableSystemPrefix?: string;
 }
 
 export interface LlmChatResult {
@@ -450,6 +470,31 @@ function safeParseJson(s: string): any {
     try { return JSON.parse(s); } catch { return { result: s }; }
 }
 
+/**
+ * Validate a caching hint and split the system prompt at the boundary.
+ * Returns null when there's nothing safe/useful to cache, so callers can fall
+ * back to sending one plain system string.
+ *
+ * Refuses to split when the hint isn't a real prefix (a caller bug that would
+ * otherwise silently reorder or duplicate prompt text) or when the prefix is
+ * tiny — below a few hundred chars the cache-write premium outweighs the
+ * saving, and providers impose their own minimum-cacheable-token floors anyway.
+ */
+const MIN_CACHEABLE_PREFIX_CHARS = 500;
+
+function splitCacheablePrefix(
+    fullSystem: string,
+    hint: string | undefined,
+): { prefix: string; rest: string } | null {
+    if (!hint || !fullSystem) return null;
+    if (!fullSystem.startsWith(hint)) {
+        console.warn('[llmRouter] cacheableSystemPrefix is not a prefix of the system prompt — ignoring the caching hint.');
+        return null;
+    }
+    if (hint.length < MIN_CACHEABLE_PREFIX_CHARS) return null;
+    return { prefix: hint, rest: fullSystem.slice(hint.length) };
+}
+
 /** Shared LlmMessage → Gemini `contents` entry mapper (used by both the
  *  non-streaming and streaming Gemini calls so tool-turn encoding can't drift). */
 function geminiContentFor(m: LlmMessage): any {
@@ -575,11 +620,24 @@ async function callAnthropic(apiKey: string, model: string, opts: LlmChatOptions
         return { role: m.role, content: m.content };
     });
 
+    const fullSystem = sys?.content || '';
+    const split = splitCacheablePrefix(fullSystem, opts.cacheableSystemPrefix);
+
     const body: any = {
         model,
         max_tokens: opts.maxTokens ?? 2048,
         temperature: opts.temperature ?? 0.7,
-        system: sys?.content || '',
+        // Anthropic accepts either a plain string or an array of text blocks.
+        // The array form lets us drop an ephemeral cache breakpoint after the
+        // stable prefix so it's processed once per ~5min window instead of on
+        // every turn. Only the prefix block is marked; the volatile tail stays
+        // uncached so a per-query RAG change can't invalidate the whole thing.
+        system: split
+            ? [
+                { type: 'text', text: split.prefix, cache_control: { type: 'ephemeral' } },
+                ...(split.rest ? [{ type: 'text', text: split.rest }] : []),
+            ]
+            : fullSystem,
         messages,
     };
     if (opts.tools?.length) {

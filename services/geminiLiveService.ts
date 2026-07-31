@@ -5,6 +5,7 @@ import { createPcmBlob, decodeAudioData, base64ToArrayBuffer } from './audioUtil
 import { getLiveModelName, ECHO_SYSTEM_INSTRUCTION } from '../constants';
 import { PROACTIVE_AI_TOOLS, proactiveAI } from './proactiveAIService';
 import { agentSkillService } from './agentSkillService';
+import { spawnSubAgentToolDeclaration, executeSpawnSubAgentTool } from './subAgentService';
 import githubSkill from '../skills/githubSkill';
 import knowledgeSkill from '../skills/knowledgeSkill';
 import ghostSkill from '../skills/ghostSkill';
@@ -255,7 +256,7 @@ ${learningContext}
       const liveModel = getLiveModelName();
       console.log(`[GeminiLive] Model: ${liveModel}, voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
       console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars`);
-      const toolsCount = (agentSkillService.getTools()?.length || 0) + 2 + PROACTIVE_AI_TOOLS.length;
+      const toolsCount = (agentSkillService.getTools()?.length || 0) + 3 + PROACTIVE_AI_TOOLS.length;
       console.log(`[GeminiLive] Total Tools: ${toolsCount}`);
 
       this.intentionalDisconnect = false;
@@ -268,7 +269,10 @@ ${learningContext}
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any)] },
+            // spawnSubAgentToolDeclaration here is what makes background
+            // delegation reachable by VOICE, not just typed text chat — it
+            // was previously only registered in echoChatService's tool list.
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, spawnSubAgentToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any)] },
             googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
@@ -1003,6 +1007,10 @@ ${learningContext}
             name: fc.name,
             response: { result: `The current time is ${now.toLocaleTimeString()}` }
           });
+        }
+        else if (fc.name === 'spawn_sub_agent') {
+          const result = await executeSpawnSubAgentTool(fc.name, fc.args);
+          responses.push({ id: fc.id, name: fc.name, response: result });
         }
         else {
           // 1. Try Agent Skills

@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp, Bot } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
 import { useToast } from './hooks/useToast';
@@ -33,6 +33,8 @@ import { bootstrapAgent } from './services/agentBootstrap';
 import { buildSystemContext } from './services/modelContextBuilder';
 import { taskMissionService } from './services/taskMissionService';
 import VaultOrganizerPanel from './components/VaultOrganizerPanel';
+import SubAgentPanel from './components/SubAgentPanel';
+import { subAgentService } from './services/subAgentService';
 // MOBILE-AGENT: PWA / mobile-only additive imports.
 import InstallPrompt from './components/InstallPrompt';
 import { wakeLockService } from './services/wakeLockService';
@@ -53,6 +55,7 @@ import CompanionPanel from './components/CompanionPanel';
 import OnboardingWizard from './components/OnboardingWizard';
 import LandingPage from './components/LandingPage';
 import { getUiMode, subscribeUiMode, UiMode } from './services/uiModeService';
+import type { SubAgentRun } from './services/subAgentService';
 import SkillsVaultPanel from './components/SkillsVaultPanel';
 import SocialComposer from './components/SocialComposer';
 import AutomationHub from './components/AutomationHub';
@@ -146,6 +149,14 @@ export default function App() {
   const [showPersonalizedLearning, setShowPersonalizedLearning] = useState(false);
   const [showGhostMode, setShowGhostMode] = useState(false);
   const [showVaultOrganizer, setShowVaultOrganizer] = useState(false);
+  const [showSubAgents, setShowSubAgents] = useState(false);
+  // Live running-count for the sidebar badge, independent of whether the
+  // panel itself is open — this is what makes background work visible even
+  // when you're not looking at the panel.
+  const [runningSubAgents, setRunningSubAgents] = useState(0);
+  useEffect(() => subAgentService.onChange(
+    runs => setRunningSubAgents(runs.filter(r => r.status === 'running').length),
+  ), []);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -236,6 +247,11 @@ export default function App() {
     }
     return id;
   });
+  // Long-lived listeners (registered once, e.g. the sub-agent completion
+  // handlers below) can't close over currentConvoId directly without going
+  // stale — this ref gives them a live read, same idiom as serviceRef.
+  const currentConvoIdRef = useRef(currentConvoId);
+  useEffect(() => { currentConvoIdRef.current = currentConvoId; }, [currentConvoId]);
 
   useEffect(() => {
     setMemories(getMemories());
@@ -386,6 +402,48 @@ export default function App() {
     window.addEventListener('lifecycle:silence', onSilence);
     window.addEventListener('lifecycle:hard-cap', onHardCap);
 
+    // Sub-agent push completion (services/subAgentService.ts). A sub-agent
+    // runs off the conversational turn entirely — without this, it finishes
+    // silently and the user never sees the result. Completion is surfaced
+    // the same way fireFirstHello surfaces Echo's own messages: appended to
+    // the visible chat history and persisted, not just a toast that can be
+    // missed if you're not looking at the screen when it fires.
+    const injectSubAgentMessage = (text: string) => {
+      const message: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text,
+        timestamp: Date.now(),
+        isFinal: true,
+      };
+      setChatHistory(prev => [...prev, message]);
+      const convoId = currentConvoIdRef.current;
+      if (convoId) {
+        try { addMessageToConversation(convoId, 'ai', text); } catch { /* ignore */ }
+      }
+    };
+    const onSubAgentCompleted = (e: Event) => {
+      const run = (e as CustomEvent<{ run: SubAgentRun }>).detail?.run;
+      if (!run) return;
+      success(`Sub-agent finished: ${run.label}`);
+      injectSubAgentMessage(`🤖 Background task "${run.label}" finished:\n\n${run.result || '(no output)'}`);
+    };
+    const onSubAgentFailed = (e: Event) => {
+      const run = (e as CustomEvent<{ run: SubAgentRun }>).detail?.run;
+      if (!run) return;
+      const reason = run.status === 'timeout' ? 'timed out' : 'failed';
+      warning(`Sub-agent ${reason}: ${run.label}`);
+      injectSubAgentMessage(`⚠️ Background task "${run.label}" ${reason}: ${run.error || 'unknown error'}`);
+    };
+    const onSubAgentCancelled = (e: Event) => {
+      const run = (e as CustomEvent<{ run: SubAgentRun }>).detail?.run;
+      if (!run) return;
+      info(`Sub-agent cancelled: ${run.label}`);
+    };
+    window.addEventListener('echo:subagent:completed', onSubAgentCompleted);
+    window.addEventListener('echo:subagent:failed', onSubAgentFailed);
+    window.addEventListener('echo:subagent:cancelled', onSubAgentCancelled);
+
     // MOBILE-AGENT: pointer:coarse media query (re-evaluate if device flips).
     const mql = window.matchMedia?.('(pointer:coarse)');
     const onMqlChange = (e: MediaQueryListEvent) => setIsMobileCoarse(e.matches);
@@ -443,6 +501,9 @@ export default function App() {
       window.removeEventListener('lifecycle:idle', onIdle);
       window.removeEventListener('lifecycle:silence', onSilence);
       window.removeEventListener('lifecycle:hard-cap', onHardCap);
+      window.removeEventListener('echo:subagent:completed', onSubAgentCompleted);
+      window.removeEventListener('echo:subagent:failed', onSubAgentFailed);
+      window.removeEventListener('echo:subagent:cancelled', onSubAgentCancelled);
       if (mql?.removeEventListener) mql.removeEventListener('change', onMqlChange);
       else if (mql?.removeListener) mql.removeListener(onMqlChange);
       window.removeEventListener('mousemove', onCamMove);
@@ -469,6 +530,8 @@ export default function App() {
           setShowGhostMode(false);
         } else if (showVaultOrganizer) {
           setShowVaultOrganizer(false);
+        } else if (showSubAgents) {
+          setShowSubAgents(false);
         } else if (showChat) {
           setShowChat(false);
         } else if (showMemory) {
@@ -481,7 +544,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer]);
+  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents]);
 
   const handleConnect = useCallback(async () => {
     const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
@@ -873,7 +936,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col relative z-20 w-full h-full">
           {/* Backdrop Overlay for Sidebars */}
-          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault || showSocial || showAutomation || showMissions) && (
+          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault || showSocial || showAutomation || showMissions || showSubAgents) && (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-md z-30 transition-opacity duration-300"
               onClick={() => {
@@ -889,6 +952,7 @@ export default function App() {
                 setShowSocial(false);
                 setShowAutomation(false);
                 setShowMissions(false);
+                setShowSubAgents(false);
               }}
               aria-hidden="true"
             />
@@ -920,6 +984,11 @@ export default function App() {
                 initialFile={fileToUpload}
               />
             </div>
+          )}
+
+          {/* Sub-Agents (self-positioning floating panel, not a drawer) */}
+          {isAdvanced && showSubAgents && (
+            <SubAgentPanel onClose={() => setShowSubAgents(false)} />
           )}
 
           {/* Sidebars (Drawers) */}
@@ -1087,6 +1156,29 @@ export default function App() {
                     aria-label="Autonomous missions"
                   >
                     <Rocket size={18} />
+                  </button>
+                </Tooltip>
+
+                <Tooltip content={runningSubAgents > 0 ? `Sub-Agents (${runningSubAgents} running)` : 'Sub-Agents'}>
+                  <button
+                    onClick={() => setShowSubAgents(true)}
+                    className={`sidebar-btn relative ${showSubAgents ? 'active-cyan' : ''}`}
+                    aria-label="Sub-agents"
+                  >
+                    <Bot size={18} />
+                    {runningSubAgents > 0 && (
+                      <span
+                        className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full text-[9px] font-bold font-mono"
+                        style={{
+                          minWidth: 14, height: 14, padding: '0 3px',
+                          background: 'var(--accent-cyan)', color: '#001505',
+                          boxShadow: 'var(--glow-cyan-sm)',
+                        }}
+                        aria-hidden="true"
+                      >
+                        {runningSubAgents}
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
               </>
@@ -1400,6 +1492,7 @@ export default function App() {
                       { icon: Megaphone,    label: 'Social',     advanced: true, action: () => { setShowSocial(true);         setShowMobileMenu(false); } },
                       { icon: Zap,          label: 'Automations',advanced: true, action: () => { setShowAutomation(true);     setShowMobileMenu(false); } },
                       { icon: Rocket,       label: 'Missions',   advanced: true, action: () => { setShowMissions(true);       setShowMobileMenu(false); } },
+                      { icon: Bot,          label: 'Sub-Agents', advanced: true, action: () => { setShowSubAgents(true);     setShowMobileMenu(false); } },
                       { icon: Heart,        label: 'Companion',  action: () => { setShowCompanionPanel(true); setShowMobileMenu(false); } },
                       { icon: Ghost,        label: 'Ghost',      advanced: true, action: () => { setShowGhostMode(true);      setShowMobileMenu(false); } },
                       { icon: User,         label: 'Settings',   action: () => { setIsSettingsOpen(true);     setShowMobileMenu(false); } },
@@ -1472,7 +1565,7 @@ export default function App() {
             {/* ── MOBILE HAMBURGER ─── top-right corner, mobile only ─────────── */}
             {!hideBottomChrome && (
               <button
-                className="md:hidden"
+                className="flex md:hidden items-center justify-center"
                 onClick={() => setShowMobileMenu(true)}
                 style={{
                   position: 'fixed',
@@ -1485,9 +1578,6 @@ export default function App() {
                   background: 'var(--bg-elevated)',
                   backdropFilter: 'blur(12px)',
                   border: '1px solid var(--border-dim)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   color: 'var(--text-secondary)',
                   cursor: 'pointer',
                 }}

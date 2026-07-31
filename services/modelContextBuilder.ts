@@ -41,6 +41,19 @@ export interface BuildContextOptions {
 
 export interface BuildContextResult {
     systemInstruction: string;
+    /**
+     * The leading slice of `systemInstruction` that is stable across turns
+     * within a session (identity, persona, memories, goals, style). Always a
+     * literal prefix of `systemInstruction`.
+     *
+     * Providers that support prompt caching mark the boundary here so this
+     * chunk is billed/processed once instead of re-sent every turn. Everything
+     * after it (currently RAG hits, which are recomputed per query) is the
+     * volatile tail and must stay outside the cached region — caching a block
+     * that changes every turn is worse than not caching at all, since each
+     * miss still pays the cache-write premium.
+     */
+    cacheableSystemPrefix: string;
     /** Counts of what got included — for local debug log only. */
     debug: {
         memoryCount: number;
@@ -49,6 +62,9 @@ export interface BuildContextResult {
         styleExamplesIncluded: boolean;
         destination: ContextDestination;
         provider?: string;
+        /** Chars in the cacheable prefix vs the volatile tail — useful for tuning. */
+        stableChars: number;
+        volatileChars: number;
     };
 }
 
@@ -106,7 +122,15 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
         ? `\n\n${_pendingRagContext}`
         : '';
 
-    const systemInstruction =
+    // ORDER MATTERS FOR PROMPT CACHING. Everything stable within a session goes
+    // first and forms the cacheable prefix; the volatile RAG block goes LAST.
+    //
+    // This is a deliberate reorder: ragBlock used to sit in the middle (before
+    // styleBlock/extra), which meant a per-query RAG change shifted every byte
+    // after it and made the whole prompt uncacheable. Semantically the model
+    // treats these as labelled sections either way, so tail-positioning the
+    // retrieved snippets costs nothing and buys a large stable prefix.
+    const cacheableSystemPrefix =
         ECHO_SYSTEM_INSTRUCTION +
         companionInstruction +
         memContext +
@@ -114,9 +138,10 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
         deadlineBlock +
         monthPlanBlock +
         knowledge +
-        ragBlock +
         styleBlock +
         extra;
+
+    const systemInstruction = cacheableSystemPrefix + ragBlock;
 
     const debug = {
         memoryCount: safe.length,
@@ -125,13 +150,15 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
         styleExamplesIncluded: examples.length > 0,
         destination: opts.destination,
         provider: opts.provider,
+        stableChars: cacheableSystemPrefix.length,
+        volatileChars: ragBlock.length,
     };
 
     if (filteredOut > 0) {
         console.log(`[modelContext] Excluded ${filteredOut} local_only memories from ${opts.destination} destination (${opts.provider || 'unknown provider'}).`);
     }
 
-    return { systemInstruction, debug };
+    return { systemInstruction, cacheableSystemPrefix, debug };
 }
 
 export function getStyleExamplesPublic(): string[] {
