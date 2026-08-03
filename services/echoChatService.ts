@@ -209,12 +209,34 @@ class EchoChatService {
                     for (const tc of result.toolCalls) {
                         const toolResult = await this.dispatchTool(tc.name, tc.args)
                             .catch((e: any) => ({ error: e?.message || 'Tool execution failed' }));
-                        messages.push({
-                            role: 'tool',
-                            content: JSON.stringify(toolResult),
-                            toolCallId: tc.id,
-                            name: tc.name,
-                        });
+
+                        // A tool that returns an __image envelope (e.g.
+                        // screenshot_page) needs its payload lifted out of the
+                        // JSON tool-result and into a real multimodal message —
+                        // base64 inside a tool-result string is just unreadable
+                        // text to the model, so the screenshot would be wasted.
+                        const img = (toolResult as any)?.__image;
+                        if (img?.data) {
+                            const { __image, ...rest } = toolResult as any;
+                            messages.push({
+                                role: 'tool',
+                                content: JSON.stringify(rest),
+                                toolCallId: tc.id,
+                                name: tc.name,
+                            });
+                            messages.push({
+                                role: 'user',
+                                content: `[Screenshot returned by ${tc.name}]`,
+                                images: [{ data: img.data, mimeType: img.mimeType || 'image/png' }],
+                            });
+                        } else {
+                            messages.push({
+                                role: 'tool',
+                                content: JSON.stringify(toolResult),
+                                toolCallId: tc.id,
+                                name: tc.name,
+                            });
+                        }
                     }
                     continue;
                 }

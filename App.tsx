@@ -611,6 +611,12 @@ export default function App() {
           try { wakeLockService.release(); } catch { /* ignore */ }
           try { sessionLifecycleService.stop(); } catch { /* ignore */ }
         },
+        // A transient blip that's silently auto-reconnecting (same
+        // conversation resumed) — calm, not alarming. onDisconnect/onError
+        // only fire now if reconnection genuinely fails after retries.
+        onReconnecting: () => {
+          info("Connection blipped — reconnecting…");
+        },
         onError: (err) => {
           console.error(err);
           setStatus(ConnectionStatus.ERROR);

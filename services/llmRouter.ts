@@ -56,9 +56,25 @@ export interface LlmToolCall {
     args: any;
 }
 
+/** An image attached to a message. Base64 payload WITHOUT the `data:` prefix —
+ *  each provider re-wraps it in its own format (see the encoders below). */
+export interface LlmImagePart {
+    /** Raw base64, no "data:image/png;base64," prefix. */
+    data: string;
+    /** e.g. 'image/png', 'image/jpeg'. */
+    mimeType: string;
+}
+
 export interface LlmMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
+    /**
+     * Images attached to this message (screenshots, photos, diagrams).
+     * Additive and optional, so every existing text-only caller is unaffected.
+     * Only meaningful on 'user' (and, for some providers, 'tool') messages;
+     * ignored by providers that can't accept images (huggingface, ollama).
+     */
+    images?: LlmImagePart[];
     /** On an 'assistant' message: the tool call(s) it requested. */
     toolCalls?: LlmToolCall[];
     /** On a 'tool' message: which call this is the result of. */
@@ -510,9 +526,17 @@ function geminiContentFor(m: LlmMessage): any {
             parts: m.toolCalls.map(tc => ({ functionCall: { name: tc.name, args: tc.args } })),
         };
     }
+    const parts: any[] = [];
+    if (m.content) parts.push({ text: m.content });
+    for (const img of m.images || []) {
+        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    }
+    // A message with images but no text would otherwise send an empty parts
+    // array, which Gemini rejects.
+    if (!parts.length) parts.push({ text: '' });
     return {
         role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
+        parts,
     };
 }
 
@@ -617,6 +641,18 @@ async function callAnthropic(apiKey: string, model: string, opts: LlmChatOptions
             }
             return { role: 'assistant', content: blocks };
         }
+        if (m.images?.length) {
+            return {
+                role: m.role,
+                content: [
+                    ...(m.content ? [{ type: 'text', text: m.content }] : []),
+                    ...m.images.map(img => ({
+                        type: 'image',
+                        source: { type: 'base64', media_type: img.mimeType, data: img.data },
+                    })),
+                ],
+            };
+        }
         return { role: m.role, content: m.content };
     });
 
@@ -682,6 +718,18 @@ function openAiMessagesFor(msgs: LlmMessage[]): any[] {
                     type: 'function',
                     function: { name: tc.name, arguments: JSON.stringify(tc.args || {}) },
                 })),
+            };
+        }
+        if (m.images?.length) {
+            return {
+                role: m.role,
+                content: [
+                    ...(m.content ? [{ type: 'text', text: m.content }] : []),
+                    ...m.images.map(img => ({
+                        type: 'image_url',
+                        image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+                    })),
+                ],
             };
         }
         return { role: m.role, content: m.content };

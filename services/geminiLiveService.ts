@@ -39,6 +39,12 @@ interface LiveServiceCallbacks {
   onVolumeChange: (input: number, output: number) => void;
   onMemoryUpdate: (item: MemoryItem) => void;
   onMessageUpdate: (message: ChatMessage) => void;
+  /** Optional: a transient WebSocket blip is being silently auto-reconnected
+   *  (same conversation resumed, nothing lost). Distinct from onDisconnect,
+   *  which now only fires for a REAL disconnect — intentional, auth failure,
+   *  or reconnection that's exhausted its retries. UI can show something
+   *  subtle here (or nothing) instead of an alarming "Disconnected" toast. */
+  onReconnecting?: () => void;
 }
 
 const memoryToolDeclaration: FunctionDeclaration = {
@@ -103,6 +109,21 @@ export class GeminiLiveService {
   private volumeInterval: number | null = null;
   private isMuted: boolean = false;
   private useLocalVoice: boolean = false;
+
+  // Session resumption: Gemini periodically hands us an opaque token
+  // representing resumable conversation state. Reconnecting WITH this token
+  // continues the same session (Echo remembers what was just said);
+  // reconnecting without one starts completely fresh. Previously nothing
+  // captured or reused this, so every auto-reconnect silently amnesia'd the
+  // conversation — which is what "keeps disconnecting" actually felt like,
+  // even on the reconnects that "worked".
+  private resumptionHandle: string | null = null;
+  // How many consecutive unexpected closures we've auto-reconnected from
+  // without a successful re-open. Only surfaces a user-visible "disconnected"
+  // once this crosses a threshold — a single transient blip that self-heals
+  // in 3s shouldn't interrupt the user at all.
+  private consecutiveReconnectFailures = 0;
+  private readonly MAX_SILENT_RECONNECTS = 3;
 
   // VAD & Buffering Logic
   private silenceThreshold = 0.005; // Lowered for better sensitivity
@@ -280,11 +301,21 @@ ${learningContext}
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          // transparent:true asks Gemini to keep sending fresh resumption
+          // handles as the conversation goes, and (per the SDK docs) allows
+          // reconnecting without losing in-flight audio around the drop.
+          // Passing `handle` on a reconnect is what actually resumes the
+          // SAME session instead of starting a blank one.
+          sessionResumption: {
+            transparent: true,
+            ...(this.resumptionHandle ? { handle: this.resumptionHandle } : {}),
+          },
         },
         callbacks: {
           onopen: () => {
             console.log('Gemini Live WebSocket opened successfully');
             this.sessionOpened = true;
+            this.consecutiveReconnectFailures = 0;
             this.handleOpen();
           },
           onmessage: this.handleMessage.bind(this),
@@ -314,6 +345,32 @@ ${learningContext}
               this.intentionalDisconnect = true;
             }
 
+            // Auto-reconnect only after a successful session, not on failed setup or auth errors.
+            const eligibleForReconnect =
+              !this.intentionalDisconnect &&
+              !this.authFailure &&
+              wasConnected &&
+              event.code !== 1000 &&
+              event.code !== 1001;
+
+            // A transient closure about to self-heal (same conversation
+            // resumed via resumptionHandle) should NOT fire "Disconnected" +
+            // "Connection error" at the user — doing that on every blip is
+            // what "keeps disconnecting" meant even when reconnection worked
+            // fine 3 seconds later. Stay silent for the first few retries;
+            // only escalate to real user-visible callbacks once reconnection
+            // has genuinely failed repeatedly.
+            if (eligibleForReconnect && this.consecutiveReconnectFailures < this.MAX_SILENT_RECONNECTS) {
+              this.consecutiveReconnectFailures++;
+              console.log(
+                `[GeminiLive] Unexpected closure (${event.code}), silent retry ${this.consecutiveReconnectFailures}/${this.MAX_SILENT_RECONNECTS} ` +
+                `in 3s (resuming session: ${!!this.resumptionHandle}).`
+              );
+              try { this.callbacks.onReconnecting?.(); } catch { /* ignore */ }
+              setTimeout(() => this.connect(config), 3000);
+              return;
+            }
+
             if (!this.intentionalDisconnect && !wasConnected) {
               this.callbacks.onError(
                 new Error(
@@ -330,14 +387,9 @@ ${learningContext}
             this.stopScreenShare();
             this.stopCamera();
 
-            // Auto-reconnect only after a successful session, not on failed setup or auth errors
-            if (
-              !this.intentionalDisconnect &&
-              !this.authFailure &&
-              wasConnected &&
-              event.code !== 1000 &&
-              event.code !== 1001
-            ) {
+            if (eligibleForReconnect) {
+              // Silent retries exhausted — still try, but the user has now
+              // honestly been told the session actually dropped.
               console.log(`[GeminiLive] Unexpected closure (${event.code}). Attempting to reconnect in 3 seconds…`);
               setTimeout(() => this.connect(config), 3000);
             }
@@ -946,6 +998,15 @@ ${learningContext}
   }
 
   private async handleMessage(message: LiveServerMessage) {
+    // Gemini periodically hands us a fresh token representing resumable
+    // conversation state (only sent because sessionResumption.transparent is
+    // set on connect). Stash the latest one so a later reconnect can pass it
+    // back and continue THIS conversation instead of starting blank.
+    const resumptionUpdate = (message as any).sessionResumptionUpdate;
+    if (resumptionUpdate?.newHandle) {
+      this.resumptionHandle = resumptionUpdate.newHandle;
+    }
+
     const serverContent = message.serverContent;
     if (serverContent) {
       // MOBILE-AGENT fix: any server activity (Echo talking, transcribing,
@@ -1182,6 +1243,11 @@ ${learningContext}
   public async disconnect() {
     this.intentionalDisconnect = true;
     this.sessionOpened = false;
+    // A deliberate disconnect ends the conversation on purpose — the next
+    // connect() should start fresh, not silently resume whatever was
+    // happening before the user chose to hang up.
+    this.resumptionHandle = null;
+    this.consecutiveReconnectFailures = 0;
     // Close Live session if still open
     try {
       const session = await this.sessionPromise;
