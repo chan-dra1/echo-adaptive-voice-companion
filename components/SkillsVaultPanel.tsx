@@ -213,9 +213,9 @@ function InstalledTab({
                         {'> '}Built-in Skills ({staticTools.length})
                     </div>
                     <div className="space-y-2">
-                        {staticTools.map(t => (
+                        {staticTools.map((t, idx) => (
                             <SkillCard
-                                key={t.name}
+                                key={`${t.name}-${idx}`}
                                 name={t.name ?? ''}
                                 description={t.description ?? ''}
                                 badge={

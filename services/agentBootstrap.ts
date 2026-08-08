@@ -18,6 +18,7 @@ import fileGenSkill from '../skills/fileGenSkill';
 import reminderSkill from '../skills/reminderSkill';
 import flightSkill from '../skills/flightSkill';
 import webSkill from '../skills/webSkill';
+import browserSkill from '../skills/browserSkill';
 import resumeSkill from '../skills/resumeSkill';
 import resumeTailorSkill from '../skills/resumeTailorSkill';
 import taskMissionSkill from '../skills/taskMissionSkill';
@@ -182,6 +183,12 @@ export async function bootstrapAgent(): Promise<void> {
         agentSkillService.registerSkill(reminderSkill);
         agentSkillService.registerSkill(flightSkill);
         agentSkillService.registerSkill(webSkill);
+        // Registered unconditionally even though it needs Echo Core + Playwright:
+        // availability is checked per-call and returns a clear "not available,
+        // use read_webpage instead" error. Gating registration on Core being
+        // connected at boot would permanently hide these tools from a session
+        // where Core starts up later.
+        agentSkillService.registerSkill(browserSkill);
         agentSkillService.registerSkill(resumeSkill);
         agentSkillService.registerSkill(resumeTailorSkill);
         agentSkillService.registerSkill(taskMissionSkill);

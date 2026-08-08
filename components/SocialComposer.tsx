@@ -137,7 +137,7 @@ export default function SocialComposer({ onClose }: { onClose?: () => void } = {
     const saveConnection = async () => {
         if (!connectPanel) return;
         const platform = connectPanel;
-        const fields = Object.fromEntries(Object.entries(credDraft).filter(([, v]) => v?.trim()));
+        const fields = Object.fromEntries(Object.entries(credDraft).filter(([, v]) => typeof v === 'string' && v.trim()));
         const all = getCreds();
         all[platform] = { ...(all[platform] || {}), ...fields };
         saveCreds(all);

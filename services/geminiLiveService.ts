@@ -6,6 +6,13 @@ import { getLiveModelName, ECHO_SYSTEM_INSTRUCTION } from '../constants';
 import { PROACTIVE_AI_TOOLS, proactiveAI } from './proactiveAIService';
 import { agentSkillService } from './agentSkillService';
 import { spawnSubAgentToolDeclaration, executeSpawnSubAgentTool } from './subAgentService';
+import {
+  shouldUseToolSearch,
+  buildToolDirectory,
+  TOOL_SEARCH_META_TOOLS,
+  isToolSearchMetaTool,
+  executeToolSearchMetaTool,
+} from './toolSearchService';
 import githubSkill from '../skills/githubSkill';
 import knowledgeSkill from '../skills/knowledgeSkill';
 import ghostSkill from '../skills/ghostSkill';
@@ -275,10 +282,29 @@ ${learningContext}
       }
       const voiceName = config?.voiceName || 'Fenrir';
       const liveModel = getLiveModelName();
+
+      // Past ~40 registered skills, full schemas balloon the Live setup
+      // message (measured: 123 tools = ~73KB of function declarations alone,
+      // ~84KB total setup payload). The standard generateContent API tolerates
+      // that; Live's setup handshake is a heavier, stricter step — this is
+      // very likely why voice would still open a WebSocket ("connected") but
+      // never actually produce a response: the setup message itself silently
+      // failed to initialize a usable session. echoChatService.ts already
+      // solved this exact problem for text via tool-search (see
+      // toolSearchService.ts); voice never got the same treatment even as the
+      // registry kept growing, which is the real bug here.
+      const allSkillTools = agentSkillService.getTools();
+      // Live's setup handshake is stricter than text chat — silent "connected
+      // but never speaks" starts well below the text-chat tool-search threshold.
+      const useToolSearch = allSkillTools.length >= 15 || shouldUseToolSearch(allSkillTools.length);
+      const skillToolDecls = useToolSearch ? TOOL_SEARCH_META_TOOLS : (allSkillTools as any);
+      const toolDirectory = useToolSearch ? buildToolDirectory(allSkillTools) : '';
+      if (toolDirectory) fullSystemInstruction += toolDirectory;
+
       console.log(`[GeminiLive] Model: ${liveModel}, voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
       console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars`);
-      const toolsCount = (agentSkillService.getTools()?.length || 0) + 3 + PROACTIVE_AI_TOOLS.length;
-      console.log(`[GeminiLive] Total Tools: ${toolsCount}`);
+      const toolsCount = skillToolDecls.length + 3 + PROACTIVE_AI_TOOLS.length;
+      console.log(`[GeminiLive] Total Tools: ${toolsCount} (toolSearch=${useToolSearch}, full registry=${allSkillTools.length})`);
 
       this.intentionalDisconnect = false;
       this.authFailure = false;
@@ -293,7 +319,7 @@ ${learningContext}
             // spawnSubAgentToolDeclaration here is what makes background
             // delegation reachable by VOICE, not just typed text chat — it
             // was previously only registered in echoChatService's tool list.
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, spawnSubAgentToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...(agentSkillService.getTools() as any)] },
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, spawnSubAgentToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...skillToolDecls] },
             googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
           ],
           speechConfig: {
@@ -301,15 +327,13 @@ ${learningContext}
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          // transparent:true asks Gemini to keep sending fresh resumption
-          // handles as the conversation goes, and (per the SDK docs) allows
-          // reconnecting without losing in-flight audio around the drop.
-          // Passing `handle` on a reconnect is what actually resumes the
-          // SAME session instead of starting a blank one.
-          sessionResumption: {
-            transparent: true,
-            ...(this.resumptionHandle ? { handle: this.resumptionHandle } : {}),
-          },
+          // `transparent` is Enterprise/Agent Platform only — AI Studio
+          // (Developer API) keys throw:
+          //   "transparent parameter is only supported in Gemini Enterprise
+          //    Agent Platform mode, not in Gemini Developer API mode."
+          // That error leaves the socket "open" but Echo never speaks.
+          // Passing `handle` alone is enough to resume on Developer API.
+          ...(this.resumptionHandle ? { sessionResumption: { handle: this.resumptionHandle } } : {}),
         },
         callbacks: {
           onopen: () => {
@@ -998,10 +1022,9 @@ ${learningContext}
   }
 
   private async handleMessage(message: LiveServerMessage) {
-    // Gemini periodically hands us a fresh token representing resumable
-    // conversation state (only sent because sessionResumption.transparent is
-    // set on connect). Stash the latest one so a later reconnect can pass it
-    // back and continue THIS conversation instead of starting blank.
+    // Gemini may hand us a resumable-conversation token. Stash the latest
+    // one so a later reconnect can pass it back and continue THIS conversation
+    // instead of starting blank. (Developer API does not support transparent.)
     const resumptionUpdate = (message as any).sessionResumptionUpdate;
     if (resumptionUpdate?.newHandle) {
       this.resumptionHandle = resumptionUpdate.newHandle;
@@ -1024,12 +1047,19 @@ ${learningContext}
         this.handleTranscript(serverContent.outputTranscription.text, 'assistant', false);
       }
 
+      const modelParts = serverContent.modelTurn?.parts || [];
+      const textFromParts = modelParts.map((p: any) => p?.text).filter(Boolean).join('');
+
       // Handle Model Turn for Text (when in Local Voice mode)
-      if (this.useLocalVoice && serverContent.modelTurn?.parts?.[0]?.text) {
-        const text = serverContent.modelTurn.parts[0].text;
-        this.handleTranscript(text, 'assistant', true);
-        await this.synthesizeLocalVoice(text);
+      if (this.useLocalVoice && textFromParts) {
+        this.handleTranscript(textFromParts, 'assistant', true);
+        await this.synthesizeLocalVoice(textFromParts);
         return; // Skip default audio handling
+      }
+      // Gemini 3.1 can put transcript text in modelTurn.parts alongside audio.
+      // Don't double-count if outputTranscription already covered this event.
+      if (!this.useLocalVoice && textFromParts && !serverContent.outputTranscription) {
+        this.handleTranscript(textFromParts, 'assistant', false);
       }
       if (serverContent.turnComplete) {
         if (this.currentTurnId) {
@@ -1071,6 +1101,13 @@ ${learningContext}
         }
         else if (fc.name === 'spawn_sub_agent') {
           const result = await executeSpawnSubAgentTool(fc.name, fc.args);
+          responses.push({ id: fc.id, name: fc.name, response: result });
+        }
+        else if (isToolSearchMetaTool(fc.name)) {
+          // Only reachable when the connection was opened in tool-search
+          // mode (registry > 40 skills) — see connect(). search_tools /
+          // call_tool stand in for the full skill list in that case.
+          const result = await executeToolSearchMetaTool(fc.name, fc.args);
           responses.push({ id: fc.id, name: fc.name, response: result });
         }
         else {
@@ -1121,31 +1158,37 @@ ${learningContext}
       }
     }
 
-    const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-    if (base64Audio && this.outputAudioContext && this.outputAnalyser) {
+    // Gemini 3.1 can send multiple parts in one event (audio + text). Only
+    // reading parts[0] silently drops native audio when transcript comes first.
+    const audioParts = (message.serverContent?.modelTurn?.parts || [])
+      .map((p: any) => p?.inlineData?.data)
+      .filter(Boolean) as string[];
+    if (audioParts.length && this.outputAudioContext && this.outputAnalyser) {
       if (this.deferAiOutput) {
         this.updateMediaSession('listening');
       } else {
-      const audioBytes = base64ToArrayBuffer(base64Audio);
-      const audioBuffer = await decodeAudioData(new Uint8Array(audioBytes), this.outputAudioContext);
-      this.updateMediaSession('speaking');
+        for (const base64Audio of audioParts) {
+          const audioBytes = base64ToArrayBuffer(base64Audio);
+          const audioBuffer = await decodeAudioData(new Uint8Array(audioBytes), this.outputAudioContext);
+          this.updateMediaSession('speaking');
 
-      const now = this.outputAudioContext.currentTime;
-      if (this.nextStartTime < now) {
-        this.nextStartTime = now + 0.05;
-      }
+          const now = this.outputAudioContext.currentTime;
+          if (this.nextStartTime < now) {
+            this.nextStartTime = now + 0.05;
+          }
 
-      const source = this.outputAudioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.outputAnalyser); // Analyser is already connected to Gain -> Destination
+          const source = this.outputAudioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(this.outputAnalyser); // Analyser is already connected to Gain -> Destination
 
-      source.addEventListener('ended', () => {
-        this.sources.delete(source);
-      });
+          source.addEventListener('ended', () => {
+            this.sources.delete(source);
+          });
 
-      source.start(this.nextStartTime);
-      this.nextStartTime += audioBuffer.duration;
-      this.sources.add(source);
+          source.start(this.nextStartTime);
+          this.nextStartTime += audioBuffer.duration;
+          this.sources.add(source);
+        }
       }
     }
 

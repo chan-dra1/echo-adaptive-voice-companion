@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "description": "Echo Core — the terminal brain. Encrypted shared store + Ollama-first task LLM + WS sync hub + REPL. Keeps the terminal and the web dashboard in sync.",
-  "bin": { "echo": "./echo.mjs" },
+  "bin": {
+    "echo": "./echo.mjs"
+  },
   "scripts": {
     "start": "node echo.mjs"
   },
   "dependencies": {
+    "playwright": "^1.62.1",
     "ws": "^8.18.0"
   }
 }

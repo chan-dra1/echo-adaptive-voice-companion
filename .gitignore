@@ -16,6 +16,9 @@ dist-ssr
 .vercel/
 build/
 
+# electron-builder output (installers, unpacked app bundles)
+release/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

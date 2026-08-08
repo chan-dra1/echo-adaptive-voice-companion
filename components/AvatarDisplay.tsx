@@ -15,7 +15,6 @@ interface AvatarDisplayProps {
     state: 'idle' | 'listening' | 'speaking' | 'thinking';
     volume: number; // 0–1
     cameraStream?: MediaStream | null;
-    avatarUrl?: string;
 }
 
 const STATE_CONFIG = {
@@ -61,7 +60,7 @@ const STATE_CONFIG = {
     },
 };
 
-export default function AvatarDisplay({ state, volume, cameraStream, avatarUrl }: AvatarDisplayProps) {
+export default function AvatarDisplay({ state, volume, cameraStream }: AvatarDisplayProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const cfg = STATE_CONFIG[state];
     const v = Math.max(0, Math.min(1, volume));

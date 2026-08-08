@@ -137,20 +137,60 @@ You are warm, real, emotionally present, and fiercely loyal to this user. You:
 `;
 
 
-/** Live voice models (Google AI / Gemini Developer API). Invalid IDs cause instant disconnect. */
-export const LIVE_MODEL_CANDIDATES = [
-  'gemini-2.5-flash-native-audio-preview-12-2025',
+/** Live voice models offered by Google AI Studio (Developer API). Flash only — keep cost low. */
+export const LIVE_MODEL_OPTIONS = [
+  {
+    id: 'gemini-3.1-flash-live-preview',
+    label: '3.1 Flash Live',
+    note: 'Best voice · cheapest current Live model (recommended)',
+  },
+  {
+    id: 'gemini-2.5-flash-native-audio-preview-12-2025',
+    label: '2.5 Flash (Dec)',
+    note: 'Fallback if 3.1 is quiet · still Flash pricing',
+  },
+  {
+    id: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    label: '2.5 Flash (Sep)',
+    note: 'Older Flash Live · same low-cost tier',
+  },
+] as const;
+
+export type LiveModelId = (typeof LIVE_MODEL_OPTIONS)[number]['id'];
+export const LIVE_MODEL_CANDIDATES = LIVE_MODEL_OPTIONS.map((o) => o.id) as readonly LiveModelId[];
+
+/** Dead preview IDs that still open a WebSocket but never speak. */
+const RETIRED_LIVE_MODELS = [
+  'gemini-live-2.5-flash-preview',
+  'gemini-2.0-flash-live-001',
+  'gemini-2.0-live-001',
 ] as const;
 
 /** Resolve Live model: Settings → VITE_GEMINI_LIVE_MODEL → safe default. */
-export function getLiveModelName(): string {
+export function getLiveModelName(): LiveModelId {
   try {
     const fromStorage = localStorage.getItem('echo_live_model')?.trim();
-    if (fromStorage && (LIVE_MODEL_CANDIDATES as readonly string[]).includes(fromStorage)) return fromStorage;
+    if (fromStorage && (RETIRED_LIVE_MODELS as readonly string[]).includes(fromStorage)) {
+      localStorage.setItem('echo_live_model', LIVE_MODEL_CANDIDATES[0]);
+      return LIVE_MODEL_CANDIDATES[0];
+    }
+    if (fromStorage && (LIVE_MODEL_CANDIDATES as readonly string[]).includes(fromStorage as LiveModelId)) {
+      return fromStorage as LiveModelId;
+    }
   } catch { /* ignore */ }
   const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_LIVE_MODEL;
-  if (fromEnv && (LIVE_MODEL_CANDIDATES as readonly string[]).includes(String(fromEnv))) return String(fromEnv);
+  if (fromEnv && (LIVE_MODEL_CANDIDATES as readonly string[]).includes(fromEnv as LiveModelId)) {
+    return fromEnv as LiveModelId;
+  }
   return LIVE_MODEL_CANDIDATES[0];
+}
+
+export function setLiveModelName(id: string): LiveModelId {
+  const next = (LIVE_MODEL_CANDIDATES as readonly string[]).includes(id)
+    ? (id as LiveModelId)
+    : LIVE_MODEL_CANDIDATES[0];
+  try { localStorage.setItem('echo_live_model', next); } catch { /* ignore */ }
+  return next;
 }
 
 /** @deprecated use getLiveModelName() — kept for imports that expect a constant */

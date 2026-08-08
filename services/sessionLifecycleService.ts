@@ -28,9 +28,9 @@ const LS = {
 };
 
 const DEFAULTS: SessionLifecycleConfig = {
-    idleTimeoutMs: 5 * 60 * 1000,
-    hardCapMs: 30 * 60 * 1000,
-    silenceTimeoutMs: 90 * 1000,
+    idleTimeoutMs: 15 * 60 * 1000,       // 15 min idle before warning
+    hardCapMs: 4 * 60 * 60 * 1000,        // 4 hours hard cap
+    silenceTimeoutMs: 5 * 60 * 1000,      // 5 min silence before muting mic
     handsFree: false,
     skipIdleWhenHandsFree: true,
 };

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, MessageSquareText, X } from 'lucide-react';
 import { echoChatService, ChatTurn } from '../services/echoChatService';
 import { chooseProvider, hasKeyFor } from '../services/llmRouter';
+import { getActiveConversationId, getConversation } from '../services/conversationService';
 
 interface TextChatBarProps {
     onApiKeyMissing: () => void;
@@ -23,6 +24,33 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
     }, [messages, isOpen, embedded]);
+
+    // Synchronize local messages history with parent-provided session history
+    useEffect(() => {
+        if (isOpen || embedded) {
+            // Retrieve current conversation from the global active conversation.
+            // MUST go through conversationService, not raw localStorage — the
+            // 'echo_conversations' key is stored ENCRYPTED (cryptoService's
+            // setCached/persist write ciphertext under an "EVG1:" prefix), so
+            // a direct `JSON.parse(localStorage.getItem(...))` here reliably
+            // threw "Unexpected token 'E' ... EVG1:..." and crashed the whole
+            // app into the ErrorBoundary fallback for any returning user with
+            // saved chat history — which looked like "Echo stopped responding"
+            // even though nothing about the actual chat/voice pipeline was
+            // broken; the app just never finished mounting.
+            const activeId = getActiveConversationId();
+            if (activeId) {
+                const activeConvo = getConversation(activeId);
+                if (activeConvo && Array.isArray(activeConvo.messages)) {
+                    const mapped = activeConvo.messages.map((m: any) => ({
+                        role: m.role === 'ai' ? 'assistant' : 'user',
+                        content: m.text
+                    }));
+                    setMessages(mapped);
+                }
+            }
+        }
+    }, [isOpen, embedded]);
 
     useEffect(() => {
         if (isOpen || embedded) {

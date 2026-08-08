@@ -196,6 +196,41 @@ export function startSyncHub(store, opts = {}) {
                         break;
                     }
 
+                    // ── Browser automation (Playwright, desktop-only) ──────
+                    // One generic handler for every browser action rather than
+                    // a case per verb: they share identical plumbing and only
+                    // differ by which function runs. browser.mjs is imported
+                    // lazily so a Core install without playwright still boots
+                    // normally — see its module doc.
+                    case 'browser_action': {
+                        const id = msg.id;
+                        const action = String(msg.action || '');
+                        try {
+                            const b = await import('./browser.mjs');
+                            const fnByAction = {
+                                available: b.browserAvailable,
+                                navigate: b.browserNavigate,
+                                read_page: b.browserReadPage,
+                                list_elements: b.browserListElements,
+                                click: b.browserClick,
+                                fill: b.browserFill,
+                                screenshot: b.browserScreenshot,
+                                close: b.browserClose,
+                            };
+                            const fn = fnByAction[action];
+                            if (!fn) {
+                                send(ws, { type: 'browser_action_result', id, ok: false, error: `Unknown browser action: ${action}` });
+                                break;
+                            }
+                            if (opts.onExecLog) opts.onExecLog(`[browser] ${action} ${msg.args?.url || msg.args?.selector || ''}`);
+                            const result = await fn(msg.args || {});
+                            send(ws, { type: 'browser_action_result', id, ...result });
+                        } catch (e) {
+                            send(ws, { type: 'browser_action_result', id, ok: false, error: e.message });
+                        }
+                        break;
+                    }
+
                     case 'list_missions': {
                         const id = msg.id;
                         try {

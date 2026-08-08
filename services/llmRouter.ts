@@ -153,8 +153,17 @@ const DEFAULT_MODEL: Record<LlmProvider, string> = {
 };
 
 /** Order of preference when no explicit provider is set: prefer FREE first. */
+// Cloud providers first, 'ollama' last. hasKeyFor('ollama') is unconditionally
+// true (line below — it needs no API key), which used to put it FIRST here,
+// meaning any user who has a real, working cloud key (Gemini, Groq, ...) but
+// never explicitly saved a "Default Text Brain" choice got silently routed
+// to a local Ollama server that almost certainly isn't running — every text
+// message failed with a raw "Failed to fetch" and no assistant reply, with
+// no indication why. A present API key is real evidence a provider will
+// actually work; "needs no key" is not the same claim and shouldn't outrank
+// it. Ollama stays in the list as a genuine last resort for users who
+// deliberately run local models and have configured no cloud key at all.
 const FREE_PREFERENCE_ORDER: LlmProvider[] = [
-    'ollama',
     'groq',
     'openrouter',
     'gemini',
@@ -162,6 +171,7 @@ const FREE_PREFERENCE_ORDER: LlmProvider[] = [
     'huggingface',
     'openai',
     'anthropic',
+    'ollama',
 ];
 
 export function hasKeyFor(provider: LlmProvider): boolean {

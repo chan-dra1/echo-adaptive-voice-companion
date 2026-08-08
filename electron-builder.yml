@@ -1,0 +1,138 @@
+# electron-builder configuration for Echo's desktop shell.
+#
+# Referenced from package.json via a "build" field pointing at this file, OR
+# picked up automatically by electron-builder when it's named
+# electron-builder.yml at the repo root (which is the case here) — either
+# works, but see electron/README.md's package.json deltas for the config
+# this repo actually needs.
+#
+# Run with: npx electron-builder                 (build only, local testing)
+#           npx electron-builder --publish always (build AND upload to GitHub Releases)
+
+appId: com.echo.agent
+productName: Echo
+
+# electron-builder's default output layout:
+#   release/<version>/Echo-<version>.dmg, Echo-Setup-<version>.exe, etc.
+directories:
+  output: release/${version}
+  buildResources: electron/build
+
+# --- Files included in the app bundle -------------------------------------
+#
+# By default electron-builder includes package.json's "main" entry, plus
+# node_modules (minus devDependencies) and everything else in the repo root
+# EXCEPT common junk (like .git). We narrow it explicitly to just what the
+# app actually needs at runtime, both to keep the installer smaller and so
+# nothing in src/, echo-core's *source* duplicated oddly, or unrelated repo
+# clutter accidentally ships inside the asar archive.
+files:
+  - electron/**/*
+  - dist/**/*
+  - package.json
+  - "!electron/build/**/*" # icon sources only — consumed by electron-builder itself, not needed at runtime
+
+# --- Echo Core packaging ----------------------------------------------------
+#
+# THIS IS THE PART THAT'S EASY TO MISS. Echo Core (echo-core/echo.mjs) is a
+# separate Node/ESM program with its own package.json and node_modules (see
+# echo-core/package.json — it depends on `ws`). electron/main.js auto-starts
+# it with child_process.fork(), which spawns it as a REAL, SEPARATE Node
+# process running a real file on disk — it does NOT run from inside the
+# asar archive (fork() can't exec a path inside app.asar; Node's module
+# loader there is Electron's asar-patched one, not a good fit for spawning
+# as an independent process the way this needs to run).
+#
+# So echo-core/ — including its own node_modules — must be copied out as an
+# "extraResource": a plain, unpacked directory next to the app bundle
+# (accessible at runtime via process.resourcesPath, which is exactly what
+# main.js's startEchoCore() looks for via `path.join(process.resourcesPath,
+# 'echo-core', 'echo.mjs')` when app.isPackaged is true).
+#
+# If this block is missing or its glob is wrong, the build will succeed and
+# the app will launch fine — but startEchoCore() will silently find no
+# entry point and skip auto-start, and you'd only discover it by noticing
+# Echo Core never comes up in the PACKAGED app despite working in dev. Dev
+# mode doesn't exercise this path at all (it reads straight from the repo's
+# echo-core/ next to electron/), so this is very easy to miss until someone
+# actually installs a built copy.
+extraResources:
+  - from: echo-core
+    to: echo-core
+    filter:
+      - "**/*"
+      - "!**/*.md" # docs not needed at runtime
+
+# --- macOS ------------------------------------------------------------------
+mac:
+  category: public.app-category.productivity
+  icon: electron/build/icon.icns
+  # macOS shows this string in the native "Echo would like to access the
+  # microphone" prompt the first time the app requests it — required
+  # alongside the audio-input entitlement above, or the OS-level prompt
+  # itself won't have text and mic access will be rejected.
+  extendInfo:
+    NSMicrophoneUsageDescription: Echo listens for your voice to respond as a voice-first AI companion.
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Not code-signed/notarized here — that needs an Apple Developer account
+  # (CSC_LINK / CSC_KEY_PASSWORD env vars, or a local Keychain identity) that
+  # this environment doesn't have. Unsigned builds run locally but macOS
+  # Gatekeeper will warn on a fresh download from someone else's machine
+  # until that's set up. See electron/README.md for what's needed.
+  hardenedRuntime: true
+  entitlements: electron/build/entitlements.mac.plist
+  entitlementsInherit: electron/build/entitlements.mac.plist
+
+dmg:
+  # Nothing fancy — default two-icon (app + Applications symlink) layout.
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# --- Windows ------------------------------------------------------------------
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # No icon.ico is checked in (macOS has no first-class ICO encoder without
+  # extra tooling — see electron/README.md). electron-builder auto-generates
+  # a Windows icon from electron/build/icon.png (1024x1024 source) at build
+  # time when no platform-specific icon.ico is present, so this is fine as
+  # long as icon.png stays in electron/build/.
+  icon: electron/build/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# --- Linux (bonus target; not explicitly requested but free with this config) --
+linux:
+  target:
+    - AppImage
+  icon: electron/build/icon.png
+  category: Utility
+
+# --- Auto-update publish target ---------------------------------------------
+#
+# `npx electron-builder --publish always` uploads build artifacts AND a
+# generated update manifest (latest.yml on Windows/Linux, latest-mac.yml on
+# macOS) to a GitHub Release tagged with package.json's version. That
+# manifest is what electron/updater.js's autoUpdater checks against on every
+# launch. Needs a GH_TOKEN env var with `repo` scope (or public_repo for a
+# public repo) set when running the publish command — see
+# electron/README.md for the full release steps.
+publish:
+  provider: github
+  owner: chan-dra1
+  repo: echo-adaptive-voice-companion
+  releaseType: release

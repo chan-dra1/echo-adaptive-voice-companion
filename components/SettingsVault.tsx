@@ -9,6 +9,7 @@ import { getCached, setCached } from '../services/cryptoService';
 import { hasKeyFor, chooseProvider, LlmProvider, detectProviderFromKey } from '../services/llmRouter';
 import { getUiMode, setUiMode, UiMode } from '../services/uiModeService';
 import { echoCloudAuthService } from '../services/echoCloudAuthService';
+import { LIVE_MODEL_OPTIONS, getLiveModelName, setLiveModelName } from '../constants';
 import { Cloud } from 'lucide-react';
 
 interface SettingsVaultProps {
@@ -55,7 +56,6 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
     // Existing simple keys
     const [githubToken, setGithubToken] = useState('');
     const [serpApiKey, setSerpApiKey] = useState('');
-    const [avatarUrl, setAvatarUrl] = useState('');
     const [baseResume, setBaseResume] = useState('');
 
     // Multi-provider keys
@@ -90,7 +90,6 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
         if (!isOpen) return;
         setGithubToken(localStorage.getItem('echo_github_token') || '');
         setSerpApiKey(localStorage.getItem('VITE_SERP_API_KEY') || '');
-        setAvatarUrl(localStorage.getItem('echo_avatar_url') || '/ai-avatar.png');
         setBaseResume(localStorage.getItem('echo_base_resume') || '');
         setUiModeState(getUiMode());
         const savedBrain = (localStorage.getItem('echo_default_brain') as LlmProvider) || 'gemini';
@@ -145,7 +144,6 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
         try {
             if (githubToken) localStorage.setItem('echo_github_token', githubToken);
             if (serpApiKey) localStorage.setItem('VITE_SERP_API_KEY', serpApiKey);
-            if (avatarUrl) localStorage.setItem('echo_avatar_url', avatarUrl);
             if (baseResume) localStorage.setItem('echo_base_resume', baseResume);
 
             for (const p of PROVIDERS) {
@@ -529,15 +527,19 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                         <label className="block text-xs text-[var(--text-secondary)] mt-2">
                             Live voice model
                             <select
-                                defaultValue={localStorage.getItem('echo_live_model') || 'gemini-2.5-flash-native-audio-preview-12-2025'}
-                                onChange={(e) => localStorage.setItem('echo_live_model', e.target.value)}
+                                defaultValue={getLiveModelName()}
+                                onChange={(e) => setLiveModelName(e.target.value)}
                                 className="sv-input mt-1 w-full rounded-lg px-2 py-2 text-xs"
                             >
-                                <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio-preview-12-2025 (default)</option>
+                                {LIVE_MODEL_OPTIONS.map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.label} — {m.note}
+                                    </option>
+                                ))}
                             </select>
                         </label>
                         <p className="text-[10px] text-[var(--text-tertiary)]">
-                            Hands-free + native app (Capacitor) required for mic while screen locked. See mobile/README.md.
+                            AI Studio Flash Live only (low cost). Disconnect and reconnect after changing. Hands-free + native app required for mic while screen locked.
                         </p>
                     </div>
 
@@ -609,20 +611,6 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                             value={serpApiKey}
                             onChange={(e) => setSerpApiKey(e.target.value)}
                             placeholder="serpapi key..."
-                            className={INPUT_CLS}
-                        />
-                    </div>
-
-                    {/* Avatar */}
-                    <div className={SECTION_CLS}>
-                        <label>
-                            <SectionTitle icon={<User size={14} />}>AI Avatar URL</SectionTitle>
-                        </label>
-                        <input
-                            type="text"
-                            value={avatarUrl}
-                            onChange={(e) => setAvatarUrl(e.target.value)}
-                            placeholder="https://example.com/avatar.png"
                             className={INPUT_CLS}
                         />
                     </div>

@@ -15,7 +15,7 @@ import Tooltip from './components/Tooltip';
 import Button from './components/Button';
 import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp, Bot } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
-import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION } from './constants';
+import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION, LIVE_MODEL_OPTIONS, getLiveModelName, setLiveModelName, LiveModelId } from './constants';
 import { useToast } from './hooks/useToast';
 import { createConversation, getConversations, getActiveConversationId, setActiveConversationId, buildKnowledgeContext, Conversation, deleteConversation, getConversation, addMessageToConversation } from './services/conversationService';
 import StealthPanel from './components/StealthPanel';
@@ -23,7 +23,6 @@ import TranslationPanel from './components/TranslationPanel';
 import KnowledgeDropZone from './components/KnowledgeDropZone';
 import SettingsVault from './components/SettingsVault';
 import TextChatBar from './components/TextChatBar';
-import AvatarDisplay from './components/AvatarDisplay';
 import MatrixRain from './components/MatrixRain';
 import VoiceOrb from './components/VoiceOrb';
 import { ghostAgent } from './services/ghostAgentService';
@@ -62,6 +61,54 @@ import AutomationHub from './components/AutomationHub';
 import MissionDashboard from './components/MissionDashboard';
 
 export default function App() {
+  // ── Auto-seed Gemini key from build-time env → localStorage ──────
+  // Vite injects process.env.GEMINI_API_KEY at build time from .env.local.
+  // The rest of the app (llmRouter, geminiLiveService) reads keys exclusively
+  // from localStorage. Without this bridge the key exists at build time but
+  // is invisible at runtime, causing both voice and text chat to silently
+  // fail with "no API key configured".
+  (() => {
+    try {
+      const envKey = (
+        import.meta.env.VITE_GEMINI_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.API_KEY ||
+        ''
+      ).trim();
+      const stored = (localStorage.getItem('echo_api_key') || '').trim();
+      const isValidKey = envKey.startsWith('AIza') || envKey.startsWith('AQ.');
+      if (isValidKey) {
+        if (stored !== envKey) {
+          localStorage.setItem('echo_api_key', envKey);
+          console.log('[App] Force-seeded Gemini API key from env → localStorage:', envKey.substring(0, 10));
+        }
+        const defaultBrain = localStorage.getItem('echo_default_brain');
+        if (!defaultBrain || defaultBrain === 'ollama') {
+          localStorage.setItem('echo_default_brain', 'gemini');
+          localStorage.setItem('echo_llm_provider', 'gemini');
+          console.log('[App] Set default brain to gemini');
+        }
+      }
+
+      // Upgrade old lifecycle timeouts in localStorage to support long sessions
+      const currentSilence = localStorage.getItem('echo_silence_timeout_ms');
+      if (!currentSilence || currentSilence === '90000') {
+        localStorage.setItem('echo_silence_timeout_ms', '300000'); // 5 minutes
+        console.log('[App] Upgraded silence timeout to 5 mins');
+      }
+      const currentIdle = localStorage.getItem('echo_idle_timeout_ms');
+      if (!currentIdle || currentIdle === '300000') {
+        localStorage.setItem('echo_idle_timeout_ms', '900000'); // 15 minutes
+        console.log('[App] Upgraded idle timeout to 15 mins');
+      }
+      const currentHardCap = localStorage.getItem('echo_hard_cap_ms');
+      if (!currentHardCap || currentHardCap === '1800000') {
+        localStorage.setItem('echo_hard_cap_ms', '14400000'); // 4 hours
+        console.log('[App] Upgraded hard cap to 4 hours');
+      }
+    } catch { /* SSR / test guard */ }
+  })();
+
   // Check if ANY provider key is available
   const hasAnyApiKey = () => {
     return !!(localStorage.getItem('echo_api_key') || localStorage.getItem('echo_openai_key') || localStorage.getItem('echo_anthropic_key') || localStorage.getItem('echo_groq_key') || localStorage.getItem('echo_nvidia_key') || localStorage.getItem('echo_openrouter_key') || localStorage.getItem('echo_mistral_key') || localStorage.getItem('echo_hf_key'));
@@ -141,6 +188,7 @@ export default function App() {
 
   // Settings
   const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS.find(v => v.id === 'Kore') || VOICE_OPTIONS[0]);
+  const [liveModel, setLiveModel] = useState<LiveModelId>(() => getLiveModelName());
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   // UI Toggles
   const [showMemory, setShowMemory] = useState(false);
@@ -167,7 +215,6 @@ export default function App() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isTranslationMode, setIsTranslationMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string>(localStorage.getItem('echo_avatar_url') || '/ai-avatar.png');
   // Companion system
   const [showCompanionPanel, setShowCompanionPanel] = useState(false);
   const [showSkillsVault, setShowSkillsVault] = useState(false);
@@ -599,6 +646,7 @@ export default function App() {
           try { wakeLockService.acquire({ useNativeBridge: mobileAudioBridge.isNativeShell() }); } catch { /* ignore */ }
           // Apply current hands-free preference to fresh lifecycle.
           try { sessionLifecycleService.setHandsFree(isHandsFree); } catch { /* ignore */ }
+          try { sessionLifecycleService.start(); } catch { /* ignore */ }
           if (isHandsFree) {
             try { service.startHandsFreeKeepalive(); } catch { /* ignore */ }
           }
@@ -1293,10 +1341,10 @@ export default function App() {
               </div>
             )}
 
-            {/* STATUS PILL — top center */}
-            <div className="absolute top-5 left-0 right-0 flex justify-center z-10 pointer-events-none pt-safe">
+            {/* STATUS PILL + live model — top center */}
+            <div className="absolute top-5 left-0 right-0 flex flex-col items-center gap-2 z-10 pt-safe">
               <div
-                className={`status-pill ${
+                className={`status-pill pointer-events-none ${
                   status === ConnectionStatus.CONNECTED ? 'connected' : ''
                 }`}
               >
@@ -1324,19 +1372,32 @@ export default function App() {
                         : 'Echo · Standby'}
                 </span>
               </div>
+              <label className="pointer-events-auto flex items-center gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                  Voice model
+                </span>
+                <select
+                  value={liveModel}
+                  disabled={status === ConnectionStatus.CONNECTING}
+                  onChange={(e) => {
+                    const next = setLiveModelName(e.target.value);
+                    setLiveModel(next);
+                    if (status === ConnectionStatus.CONNECTED || status === ConnectionStatus.CONNECTING) {
+                      info('Disconnect and tap the mic again to use the new voice model.');
+                    }
+                  }}
+                  className="rounded-md px-2 py-1 text-[11px] font-mono bg-[rgba(1,7,3,0.85)] text-[var(--text-primary)] border border-[var(--border-dim)] outline-none focus:border-[var(--accent-green)]"
+                  aria-label="Live voice model"
+                >
+                  {LIVE_MODEL_OPTIONS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
-            {/* ORB STAGE — the centerpiece */}
-            <div
-              className="relative flex items-center justify-center"
-              style={{
-                width: 'clamp(280px, min(60vw, 60vh), 520px)',
-                height: 'clamp(280px, min(60vw, 60vh), 520px)',
-                maxWidth: 520,
-                maxHeight: 520,
-                flexShrink: 0,
-              }}
-            >
+            {/* ORB STAGE — full-screen Three.js (small core, rain fills the view) */}
+            <div className="absolute inset-0 z-[12] pointer-events-none flex items-center justify-center">
               <VoiceOrb
                 isActive={status === ConnectionStatus.CONNECTED}
                 outputVolume={volumeState.outputVolume}
@@ -1344,7 +1405,6 @@ export default function App() {
                 isThinking={isThinking}
               />
 
-              {/* AI response preview — floats below orb core */}
               {status === ConnectionStatus.CONNECTED && (() => {
                 const last = [...chatHistory].reverse().find(m => m.role === 'assistant');
                 if (!last?.text?.trim()) return null;
@@ -1353,11 +1413,11 @@ export default function App() {
                 return (
                   <div
                     key={last.id}
-                    className="absolute inset-x-4 flex justify-center pointer-events-none z-10"
-                    style={{ bottom: '10%' }}
+                    className="absolute left-0 right-0 flex justify-center z-10"
+                    style={{ top: '50%', transform: 'translateY(96px)' }}
                   >
                     <p
-                      className="animate-fade-up text-center max-w-xs leading-relaxed"
+                      className="animate-fade-up text-center max-w-sm leading-relaxed px-4"
                       style={{
                         fontFamily: 'var(--font-term)',
                         fontSize: 'clamp(9px, 1.3vw, 11px)',
@@ -1370,9 +1430,8 @@ export default function App() {
                   </div>
                 );
               })()}
-
-              {/* camera overlay moved to floating draggable below */}
             </div>
+            <div className="flex-1 min-h-0" aria-hidden />
 
             {/* ── FLOATING DRAGGABLE CAMERA OVERLAY ───────────────────────────── */}
             {isCameraActive && (

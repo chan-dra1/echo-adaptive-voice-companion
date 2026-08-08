@@ -227,6 +227,42 @@ export function coreListDir(dirPath: string) {
     );
 }
 
+/**
+ * Drive a real Chromium via Echo Core (see echo-core/browser.mjs).
+ *
+ * Desktop-only: mobile app sandboxes cannot spawn an external browser, and
+ * plain web has no Core connection at all. Callers must handle `ok: false`
+ * rather than assume availability — the common failure isn't a crash, it's
+ * "playwright isn't installed" or "Core isn't running", both of which come
+ * back as a normal error result the model can relay to the user.
+ */
+export interface CoreBrowserResult {
+    ok?: boolean;
+    error?: string;
+    url?: string;
+    title?: string;
+    status?: number | null;
+    text?: string;
+    truncated?: boolean;
+    count?: number;
+    elements?: Array<{ index: number; tag: string; type?: string; text: string; href?: string }>;
+    navigated?: boolean;
+    urlBefore?: string;
+    submitted?: boolean;
+    available?: boolean;
+    /** base64 PNG (screenshot action only) */
+    data?: string;
+    mimeType?: string;
+}
+
+export type CoreBrowserAction =
+    | 'available' | 'navigate' | 'read_page' | 'list_elements'
+    | 'click' | 'fill' | 'screenshot' | 'close';
+
+export function coreBrowser(action: CoreBrowserAction, args: Record<string, any> = {}) {
+    return coreRequest<CoreBrowserResult>('browser_action', { action, args }, 'browser_action_result');
+}
+
 /** List all missions from ~/.echo-core/missions.json via Core. */
 export function coreListMissions() {
     return coreRequest<{ missions?: any[]; error?: string }>(
