@@ -80,6 +80,7 @@ const KNOWN_KEYS: string[] = [
     'echo_repo_path',
     'echo_feature_tickets',
     'echo_campaigns',
+    'echo_hotkey_config',
 ];
 
 interface VaultState {

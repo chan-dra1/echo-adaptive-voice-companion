@@ -2,14 +2,11 @@ import { GoogleGenAI, LiveServerMessage, Modality, Type, FunctionDeclaration } f
 import { MemoryItem, ChatMessage } from '../types';
 import { saveMemory, generateContextString } from './memoryService';
 import { createPcmBlob, decodeAudioData, base64ToArrayBuffer } from './audioUtils';
-import { getLiveModelName, ECHO_SYSTEM_INSTRUCTION } from '../constants';
-import { PROACTIVE_AI_TOOLS, proactiveAI } from './proactiveAIService';
+import { getLiveModelName, VOICE_LIVE_INSTRUCTION } from '../constants';
+import { proactiveAI } from './proactiveAIService';
 import { agentSkillService } from './agentSkillService';
-import { spawnSubAgentToolDeclaration, executeSpawnSubAgentTool } from './subAgentService';
+import { executeSpawnSubAgentTool } from './subAgentService';
 import {
-  shouldUseToolSearch,
-  buildToolDirectory,
-  TOOL_SEARCH_META_TOOLS,
   isToolSearchMetaTool,
   executeToolSearchMetaTool,
 } from './toolSearchService';
@@ -27,7 +24,6 @@ import marketingPlannerSkill from '../skills/marketingPlannerSkill';
 import calcSkill from '../skills/calcSkill';
 import screenIntelSkill from '../skills/screenIntelSkill';
 import jobHuntSkill from '../skills/jobHuntSkill';
-import { summaryService } from './summaryService';
 import { personalizedLearning } from './personalizedLearningService';
 import { bootstrapAgent } from './agentBootstrap';
 // MOBILE-AGENT: additive hook — lifecycle/idle/silence/hard-cap timers.
@@ -52,6 +48,10 @@ interface LiveServiceCallbacks {
    *  or reconnection that's exhausted its retries. UI can show something
    *  subtle here (or nothing) instead of an alarming "Disconnected" toast. */
   onReconnecting?: () => void;
+  /** User finished speaking and we are waiting on Echo. */
+  onWaitingForReply?: () => void;
+  /** Watchdog: still no audio/text after nudge. Session is likely stuck. */
+  onStalled?: () => void;
 }
 
 const memoryToolDeclaration: FunctionDeclaration = {
@@ -82,9 +82,6 @@ const timeToolDeclaration: FunctionDeclaration = {
   description: "Get the current system time.",
 };
 
-// Google Search grounding for real-world data (sports, stocks, weather, news)
-const googleSearchTool = { google_search: {} };
-
 export interface ConnectConfig {
   voiceName?: string;
   speechConfig?: {
@@ -92,7 +89,10 @@ export interface ConnectConfig {
     preRollMs?: number; // Ms of audio to keep before speech detection (latency buffer)
   }
   useLocalVoice?: boolean;
+  /** @deprecated Live ignores bulky prompts; use extraVoiceInstructions. */
   systemInstruction?: string;
+  /** Short add-ons only (translation / ghost). Keep under a few hundred chars. */
+  extraVoiceInstructions?: string;
   /** polite | balanced | eager — when to duck / barge-in / defer during overlap */
   interruptMode?: InterruptMode;
 }
@@ -108,6 +108,11 @@ export class GeminiLiveService {
   private nextStartTime = 0;
   private sources = new Set<AudioBufferSourceNode>();
   private sessionPromise: Promise<any> | null = null;
+  private liveSession: any = null;
+  private reconnectTimer: number | null = null;
+  private connecting = false;
+  private replacingSession = false;
+  private lastConnectConfig: ConnectConfig | undefined;
   private intentionalDisconnect = false;
   private authFailure = false;
   private sessionOpened = false;
@@ -138,7 +143,7 @@ export class GeminiLiveService {
   private maxPreRollFrames = 4; // Default ~500ms
   private isSpeechActive = false;
   private silenceFrameCount = 0;
-  private maxSilenceFrames = 8; // Hangover: 8 * 128ms = ~1s
+  private maxSilenceFrames = 3; // ~400ms — faster turn-end so Echo replies quicker
 
   // Smart interrupt / ambient defer
   private deferAiOutput = false;
@@ -150,6 +155,17 @@ export class GeminiLiveService {
   private currentTurnId: string | null = null;
   private currentRole: 'user' | 'assistant' = 'user';
   private currentTranscript: string = '';
+
+  // Reply watchdog — Live can open a socket and then never speak. After the
+  // user stops talking we expect audio/transcript; if not, nudge once, then
+  // surface onStalled so the UI can tell the truth instead of hanging.
+  private replyWatchdog: number | null = null;
+  private nudgeCount = 0;
+  private awaitingReply = false;
+  private greetingSent = false;
+  private lastFrameAt = 0;
+  private sessionAsks: string[] = [];
+  private pendingUserUtterance = '';
 
   // Screen/Camera Share state
   private screenStream: MediaStream | null = null;
@@ -173,66 +189,151 @@ export class GeminiLiveService {
     this.isMuted = muted;
   }
 
-  public async connect(config?: ConnectConfig) {
+  private canSend(): boolean {
+    return this.sessionOpened && !this.intentionalDisconnect && !!this.liveSession;
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer != null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private stopAudioInput() {
+    if (!this.inputProcessor) return;
+    try { this.inputProcessor.disconnect(); } catch { /* ignore */ }
+    this.inputProcessor.onaudioprocess = null;
+    this.inputProcessor = null;
+  }
+
+  /** Stop pumping PCM into a dead socket without tearing down the mic graph. */
+  private pauseLiveIO() {
+    this.sessionOpened = false;
+    this.liveSession = null;
+    this.stopAudioInput();
+    this.clearReplyWatchdog();
+    this.awaitingReply = false;
+  }
+
+  private scheduleReconnect(config?: ConnectConfig) {
+    if (this.intentionalDisconnect || this.authFailure) return;
+    if (this.reconnectTimer != null) return;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.intentionalDisconnect || this.authFailure || this.connecting) return;
+      void this.connect(config ?? this.lastConnectConfig);
+    }, 3000);
+  }
+
+  private async closeLiveSession() {
+    const pending = this.sessionPromise;
+    this.sessionPromise = null;
+    this.liveSession = null;
+    this.sessionOpened = false;
+    if (!pending) return;
     try {
-      this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const session = await pending;
+      session?.close?.();
+    } catch { /* ignore */ }
+  }
 
-      this.inputAnalyser = this.inputAudioContext.createAnalyser();
-      this.inputAnalyser.fftSize = 256;
-      this.outputAnalyser = this.outputAudioContext.createAnalyser();
-      this.outputAnalyser.fftSize = 256;
+  private audioGraphAlive(): boolean {
+    return !!(
+      this.inputAudioContext &&
+      this.inputAudioContext.state !== 'closed' &&
+      this.outputAudioContext &&
+      this.outputAudioContext.state !== 'closed' &&
+      this.stream &&
+      this.stream.active
+    );
+  }
 
-      // Resume AudioContexts (Critical for iOS/Mobile)
-      if (this.inputAudioContext.state === 'suspended') {
-        await this.inputAudioContext.resume();
+  private async ensureAudioGraph() {
+    this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+
+    this.inputAnalyser = this.inputAudioContext.createAnalyser();
+    this.inputAnalyser.fftSize = 256;
+    this.outputAnalyser = this.outputAudioContext.createAnalyser();
+    this.outputAnalyser.fftSize = 256;
+
+    if (this.inputAudioContext.state === 'suspended') {
+      await this.inputAudioContext.resume();
+    }
+    if (this.outputAudioContext.state === 'suspended') {
+      await this.outputAudioContext.resume();
+    }
+
+    this.outputGainNode = this.outputAudioContext.createGain();
+    this.outputGainNode.gain.value = 1.0;
+
+    this.outputAnalyser.connect(this.outputGainNode);
+    this.outputGainNode.connect(this.outputAudioContext.destination);
+
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+
+    mobileAudioBridge.registerAudioContexts({
+      input: this.inputAudioContext,
+      output: this.outputAudioContext,
+    });
+  }
+
+  public async connect(config?: ConnectConfig) {
+    if (this.connecting) return;
+    this.connecting = true;
+    this.clearReconnectTimer();
+    this.pauseLiveIO();
+    if (config) this.lastConnectConfig = config;
+    const cfg = config ?? this.lastConnectConfig;
+
+    try {
+      this.replacingSession = true;
+      await this.closeLiveSession();
+      this.replacingSession = false;
+
+      if (!this.audioGraphAlive()) {
+        await this.ensureAudioGraph();
+      } else {
+        if (this.inputAudioContext!.state === 'suspended') {
+          await this.inputAudioContext!.resume();
+        }
+        if (this.outputAudioContext!.state === 'suspended') {
+          await this.outputAudioContext!.resume();
+        }
+        mobileAudioBridge.registerAudioContexts({
+          input: this.inputAudioContext!,
+          output: this.outputAudioContext!,
+        });
       }
-      if (this.outputAudioContext.state === 'suspended') {
-        await this.outputAudioContext.resume();
-      }
-
-      // Create Gain Node for volume control
-      this.outputGainNode = this.outputAudioContext.createGain();
-      this.outputGainNode.gain.value = 1.0; // Default to full volume
-
-      // Route: Analyser -> Gain -> Destination
-      this.outputAnalyser.connect(this.outputGainNode);
-      this.outputGainNode.connect(this.outputAudioContext.destination);
-
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
 
       // Apply Config
-      if (config?.speechConfig) {
-        if (config.speechConfig.silenceThreshold) {
-          this.silenceThreshold = config.speechConfig.silenceThreshold;
+      if (cfg?.speechConfig) {
+        if (cfg.speechConfig.silenceThreshold) {
+          this.silenceThreshold = cfg.speechConfig.silenceThreshold;
         }
-        if (config.speechConfig.preRollMs) {
+        if (cfg.speechConfig.preRollMs) {
           // 2048 samples @ 16000Hz is approx 128ms per frame
-          this.maxPreRollFrames = Math.ceil(config.speechConfig.preRollMs / 128);
+          this.maxPreRollFrames = Math.ceil(cfg.speechConfig.preRollMs / 128);
         }
       }
 
-      this.useLocalVoice = !!config?.useLocalVoice;
-      if (config?.interruptMode) {
-        this.interruptMode = config.interruptMode;
-        conversationPolicyService.setMode(config.interruptMode);
+      this.useLocalVoice = !!cfg?.useLocalVoice;
+      if (cfg?.interruptMode) {
+        this.interruptMode = cfg.interruptMode;
+        conversationPolicyService.setMode(cfg.interruptMode);
       } else {
         this.interruptMode = loadInterruptMode();
         conversationPolicyService.setMode(this.interruptMode);
       }
       this.deferAiOutput = false;
       conversationPolicyService.reset();
-
-      mobileAudioBridge.registerAudioContexts({
-        input: this.inputAudioContext,
-        output: this.outputAudioContext,
-      });
 
       // Skills are registered globally on app boot via bootstrapAgent().
       // We call it again defensively (it's idempotent) so the service still
@@ -259,52 +360,25 @@ export class GeminiLiveService {
         } catch { /* swallow */ }
       }
 
-      // Initialize tools. If the caller already supplied a system instruction
-      // (e.g. App.tsx now builds the full context via modelContextBuilder),
-      // we don't re-append memory/knowledge here to avoid duplication.
-      const summaryContext = await summaryService.getContextString();
-      const learningContext = personalizedLearning.generatePersonalizedPrompt();
-
-      let fullSystemInstruction: string;
-      if (config?.systemInstruction) {
-        fullSystemInstruction = `${config.systemInstruction}\n\n${summaryContext}\n\n${learningContext}`;
-      } else {
-        const memoryContext = generateContextString('cloud');
-        fullSystemInstruction = `
-${ECHO_SYSTEM_INSTRUCTION}
-
-${memoryContext}
-
-${summaryContext}
-
-${learningContext}
-`;
+      // VOICE CORE: keep Live tiny. Full skill registry + Google Search + a
+      // 20k+ system prompt is what made Echo "connected" but silent or slow.
+      // Text chat still gets the full brain. Voice only remembers facts + time.
+      let memorySlice = '';
+      try {
+        const mem = generateContextString('cloud');
+        memorySlice = mem && mem.length > 1400 ? mem.slice(0, 1400) + '\n…' : (mem || '');
+      } catch { /* ignore */ }
+      const extras = (cfg?.extraVoiceInstructions || '').trim();
+      let fullSystemInstruction = [VOICE_LIVE_INSTRUCTION, memorySlice, extras].filter(Boolean).join('\n\n');
+      if (fullSystemInstruction.length > 2800) {
+        fullSystemInstruction = fullSystemInstruction.slice(0, 2800);
       }
-      const voiceName = config?.voiceName || 'Fenrir';
+      const voiceName = cfg?.voiceName || 'Fenrir';
       const liveModel = getLiveModelName();
 
-      // Past ~40 registered skills, full schemas balloon the Live setup
-      // message (measured: 123 tools = ~73KB of function declarations alone,
-      // ~84KB total setup payload). The standard generateContent API tolerates
-      // that; Live's setup handshake is a heavier, stricter step — this is
-      // very likely why voice would still open a WebSocket ("connected") but
-      // never actually produce a response: the setup message itself silently
-      // failed to initialize a usable session. echoChatService.ts already
-      // solved this exact problem for text via tool-search (see
-      // toolSearchService.ts); voice never got the same treatment even as the
-      // registry kept growing, which is the real bug here.
-      const allSkillTools = agentSkillService.getTools();
-      // Live's setup handshake is stricter than text chat — silent "connected
-      // but never speaks" starts well below the text-chat tool-search threshold.
-      const useToolSearch = allSkillTools.length >= 15 || shouldUseToolSearch(allSkillTools.length);
-      const skillToolDecls = useToolSearch ? TOOL_SEARCH_META_TOOLS : (allSkillTools as any);
-      const toolDirectory = useToolSearch ? buildToolDirectory(allSkillTools) : '';
-      if (toolDirectory) fullSystemInstruction += toolDirectory;
-
       console.log(`[GeminiLive] Model: ${liveModel}, voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
-      console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars`);
-      const toolsCount = skillToolDecls.length + 3 + PROACTIVE_AI_TOOLS.length;
-      console.log(`[GeminiLive] Total Tools: ${toolsCount} (toolSearch=${useToolSearch}, full registry=${allSkillTools.length})`);
+      console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars (voice-slim)`);
+      console.log('[GeminiLive] Tools: updateMemory, get_current_time only');
 
       this.intentionalDisconnect = false;
       this.authFailure = false;
@@ -316,17 +390,16 @@ ${learningContext}
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            // spawnSubAgentToolDeclaration here is what makes background
-            // delegation reachable by VOICE, not just typed text chat — it
-            // was previously only registered in echoChatService's tool list.
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, spawnSubAgentToolDeclaration, ...(PROACTIVE_AI_TOOLS as any), ...skillToolDecls] },
-            googleSearchTool as any // Enables real-time search for sports, stocks, weather, news
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration] },
           ],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName } }
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          ...(liveModel.startsWith('gemini-3')
+            ? { thinkingConfig: { thinkingLevel: 'minimal' } as any }
+            : {}),
           // `transparent` is Enterprise/Agent Platform only — AI Studio
           // (Developer API) keys throw:
           //   "transparent parameter is only supported in Gemini Enterprise
@@ -338,9 +411,18 @@ ${learningContext}
         callbacks: {
           onopen: () => {
             console.log('Gemini Live WebSocket opened successfully');
+            this.connecting = false;
             this.sessionOpened = true;
             this.consecutiveReconnectFailures = 0;
-            this.handleOpen();
+            void (async () => {
+              try {
+                this.liveSession = await this.sessionPromise;
+              } catch {
+                return;
+              }
+              if (!this.sessionOpened || this.intentionalDisconnect) return;
+              this.handleOpen();
+            })();
           },
           onmessage: this.handleMessage.bind(this),
           onerror: (e) => {
@@ -354,8 +436,16 @@ ${learningContext}
               `[GeminiLive] WebSocket closed | Code: ${event.code} | Reason: ${reason} | WasClean: ${event.wasClean}`
             );
 
+            if (this.replacingSession) {
+              this.pauseLiveIO();
+              this.sessionPromise = null;
+              return;
+            }
+
+            this.connecting = false;
             const wasConnected = this.sessionOpened;
-            this.sessionOpened = false;
+            this.pauseLiveIO();
+            this.sessionPromise = null;
 
             const authFailure =
               event.code === 1007 ||
@@ -391,7 +481,7 @@ ${learningContext}
                 `in 3s (resuming session: ${!!this.resumptionHandle}).`
               );
               try { this.callbacks.onReconnecting?.(); } catch { /* ignore */ }
-              setTimeout(() => this.connect(config), 3000);
+              this.scheduleReconnect(cfg);
               return;
             }
 
@@ -415,15 +505,17 @@ ${learningContext}
               // Silent retries exhausted — still try, but the user has now
               // honestly been told the session actually dropped.
               console.log(`[GeminiLive] Unexpected closure (${event.code}). Attempting to reconnect in 3 seconds…`);
-              setTimeout(() => this.connect(config), 3000);
+              this.scheduleReconnect(cfg);
             }
           },
         },
       });
 
-      this.startVolumeMonitoring();
+      if (!this.volumeInterval) this.startVolumeMonitoring();
       this.setupMediaSession();
     } catch (error) {
+      this.replacingSession = false;
+      this.connecting = false;
       this.callbacks.onError(error instanceof Error ? error : new Error('Failed to connect'));
     }
   }
@@ -452,12 +544,7 @@ ${learningContext}
       // 4. Update Stream Reference & Restart Processing
       this.stream = destination.stream;
 
-      // Cleanup old processor if exists
-      if (this.inputProcessor) {
-        this.inputProcessor.disconnect();
-        this.inputProcessor = null;
-      }
-
+      this.stopAudioInput();
       this.startAudioInput();
 
       // Handle stream end (user stops sharing)
@@ -506,16 +593,15 @@ ${learningContext}
         this.captureAndSendFrame();
 
         // Tell the AI it can now see the screen
-        this.sendTextMessage(
-          '[SYSTEM] Screen sharing is now active. You can see the user\'s screen in real-time. ' +
-          'Proactively describe what you see, answer questions about screen content, and provide suggestions. ' +
-          'Respond quickly and concisely.'
+        this.sendTextPrompt(
+          '[SCREEN ON] You can see the latest frame. Use it to answer instantly. Do not narrate unless asked. Remember what you see.'
         );
 
-        // Then continue at 2 FPS (every 500ms) for fast response
+        // Live API max is ~1 FPS. Faster sends queue up and DELAY audio.
+        // Burst an extra frame when the user starts/stops speaking instead.
         this.screenShareInterval = window.setInterval(() => {
-          this.captureAndSendFrame();
-        }, 500);
+          this.burstScreenFrame(false);
+        }, 1000);
       }, { once: true });
 
       await this.videoElement.play();
@@ -574,15 +660,13 @@ ${learningContext}
         }
         this.captureAndSendFrame();
 
-        this.sendTextMessage(
-          '[SYSTEM] Camera is now active. You can see the user and their environment. ' +
-          'Be conversational and react to what you see. ' +
-          'Respond quickly and concisely.'
+        this.sendTextPrompt(
+          '[CAMERA ON] You can see the latest frame. Use it to answer instantly. Remember what you see.'
         );
 
         this.cameraInterval = window.setInterval(() => {
-          this.captureAndSendFrame();
-        }, 1000); // 1 FPS for camera to save bandwidth
+          this.burstScreenFrame(false);
+        }, 1000);
       }, { once: true });
 
       await this.videoElement.play();
@@ -618,6 +702,29 @@ ${learningContext}
     return newFacing;
   }
 
+  /** Live video cap is ~1 FPS. Speech start/end may force one extra frame. */
+  private burstScreenFrame(force: boolean) {
+    if (!this.videoElement || (!this.screenStream && !this.cameraStream)) return;
+    const now = Date.now();
+    if (!force && now - this.lastFrameAt < 900) return;
+    if (force && now - this.lastFrameAt < 280) return;
+    this.lastFrameAt = now;
+    this.captureAndSendFrame();
+  }
+
+  private flushUserAsk() {
+    const ask = (this.pendingUserUtterance || '').replace(/\s+/g, ' ').trim();
+    this.pendingUserUtterance = '';
+    if (ask.length < 2) return;
+    const clipped = ask.length > 180 ? ask.slice(0, 180) + '…' : ask;
+    this.sessionAsks.push(clipped);
+    if (this.sessionAsks.length > 10) this.sessionAsks.shift();
+    const earlier = this.sessionAsks.length > 1
+      ? ` Earlier this session: ${this.sessionAsks.slice(0, -1).join(' · ')}.`
+      : '';
+    this.sendTextPrompt(`[ASK] ${clipped}.${earlier} Answer the latest now. Keep earlier asks.`);
+  }
+
   private captureAndSendFrame() {
     if (!this.videoElement || !this.videoCanvas) return;
 
@@ -625,8 +732,8 @@ ${learningContext}
     const vh = this.videoElement.videoHeight;
     if (vw === 0 || vh === 0) return;
 
-    // Scale down to max 640px wide for fast transfer
-    const scale = Math.min(1, 640 / vw);
+    // Small + medium JPEG = less wire delay so voice stays snappy.
+    const scale = Math.min(1, 480 / vw);
     const w = Math.round(vw * scale);
     const h = Math.round(vh * scale);
 
@@ -636,11 +743,15 @@ ${learningContext}
     if (!ctx) return;
 
     ctx.drawImage(this.videoElement, 0, 0, w, h);
-    const base64 = this.videoCanvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+    const base64 = this.videoCanvas.toDataURL('image/jpeg', 0.42).split(',')[1];
+    this.lastFrameAt = Date.now();
 
-    this.sessionPromise?.then(session => {
-      session.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
-    });
+    if (!this.canSend()) return;
+    try {
+      this.liveSession.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
+    } catch {
+      this.pauseLiveIO();
+    }
   }
 
   // ─── File type categories ───
@@ -657,8 +768,8 @@ ${learningContext}
    * Returns a description of what was sent for UI feedback.
    */
   public async sendFile(file: File, instruction?: string): Promise<string> {
-    const session = await this.sessionPromise;
-    if (!session) throw new Error('Not connected');
+    if (!this.canSend()) throw new Error('Not connected');
+    const session = this.liveSession;
 
     const mime = file.type || this.guessMime(file.name);
     const prefix = instruction ? `[USER INSTRUCTION: ${instruction}]\n\n` : '';
@@ -717,11 +828,14 @@ ${learningContext}
 
   /** Send a text message into the live session */
   public async sendTextMessage(text: string): Promise<void> {
-    const session = await this.sessionPromise;
-    if (!session) return;
+    if (!this.canSend()) return;
     // MOBILE-AGENT: any explicit user input counts as activity.
     try { sessionLifecycleService.noteActivity(); } catch { /* ignore */ }
-    session.sendClientContent({ turns: [{ role: 'user', parts: [{ text }] }] });
+    try {
+      this.liveSession.sendClientContent({ turns: [{ role: 'user', parts: [{ text }] }] });
+    } catch {
+      this.pauseLiveIO();
+    }
   }
 
   /** Keep sendImage for backward compat */
@@ -736,9 +850,12 @@ ${learningContext}
     } else {
       base64 = await this.fileToBase64(input);
     }
-    const session = await this.sessionPromise;
-    if (!session) return;
-    session.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
+    if (!this.canSend()) return;
+    try {
+      this.liveSession.sendRealtimeInput({ video: { mimeType: 'image/jpeg', data: base64 } });
+    } catch {
+      this.pauseLiveIO();
+    }
   }
 
   private compressImageFile(file: File | Blob, maxDim: number, quality: number): Promise<string> {
@@ -828,6 +945,62 @@ ${learningContext}
     this.updateMediaSession('connected');
     // MOBILE-AGENT: start lifecycle timers (idle/silence/hard-cap).
     try { sessionLifecycleService.start(); } catch (e) { console.warn('[lifecycle.start]', e); }
+
+    // Prove the session can speak. A Live socket can open and still be dead;
+    // a one-sentence hello is the cheapest health check and better UX.
+    if (!this.greetingSent) {
+      this.greetingSent = true;
+      window.setTimeout(() => {
+        if (!this.sessionOpened || this.intentionalDisconnect) return;
+        this.sendTextPrompt('Say a very short hello. One sentence.');
+        this.armReplyWatchdog(5000);
+      }, 450);
+    }
+  }
+
+  private sendTextPrompt(text: string) {
+    if (!this.canSend()) return;
+    try {
+      this.liveSession.sendRealtimeInput({ text });
+    } catch (e) {
+      console.warn('[GeminiLive] sendRealtimeInput(text) failed', e);
+      this.pauseLiveIO();
+    }
+  }
+
+  private clearReplyWatchdog() {
+    if (this.replyWatchdog != null) {
+      window.clearTimeout(this.replyWatchdog);
+      this.replyWatchdog = null;
+    }
+  }
+
+  private noteAssistantActivity() {
+    this.awaitingReply = false;
+    this.nudgeCount = 0;
+    this.clearReplyWatchdog();
+  }
+
+  private armReplyWatchdog(ms = 4000) {
+    this.clearReplyWatchdog();
+    this.awaitingReply = true;
+    try { this.callbacks.onWaitingForReply?.(); } catch { /* ignore */ }
+    this.replyWatchdog = window.setTimeout(() => this.onReplyTimeout(), ms);
+  }
+
+  private onReplyTimeout() {
+    if (!this.sessionOpened || this.intentionalDisconnect || !this.awaitingReply) return;
+    if (this.nudgeCount < 1) {
+      this.nudgeCount++;
+      console.warn('[GeminiLive] No reply yet — nudging the model');
+      this.sendTextPrompt('Please reply briefly to what I just said. One or two sentences.');
+      this.replyWatchdog = window.setTimeout(() => this.onReplyTimeout(), 4500);
+      return;
+    }
+    console.warn('[GeminiLive] Still no reply after nudge — session looks stalled');
+    this.awaitingReply = false;
+    this.clearReplyWatchdog();
+    try { this.callbacks.onStalled?.(); } catch { /* ignore */ }
   }
 
   private calculateRMS(data: Float32Array): number {
@@ -864,6 +1037,7 @@ ${learningContext}
 
   private startAudioInput() {
     if (!this.inputAudioContext || !this.stream) return;
+    this.stopAudioInput();
 
     const source = this.inputAudioContext.createMediaStreamSource(this.stream);
     if (this.inputAnalyser) source.connect(this.inputAnalyser);
@@ -874,7 +1048,7 @@ ${learningContext}
     this.inputProcessor = this.inputAudioContext.createScriptProcessor(bufferSize, 1, 1);
 
     this.inputProcessor.onaudioprocess = (e) => {
-      if (this.isMuted) return;
+      if (this.isMuted || !this.sessionOpened || !this.liveSession) return;
 
       const inputData = e.inputBuffer.getChannelData(0);
       const inputRate = this.inputAudioContext?.sampleRate || 16000;
@@ -925,37 +1099,39 @@ ${learningContext}
           break;
       }
 
-      // VAD Logic
+      // Always stream PCM. Gemini Live's server VAD needs a continuous
+      // stream; gating on client VAD was a main cause of "never replies".
+      this.sendAudioChunk(processedData, finalRate);
+
       if (isCurrentFrameSpeech) {
         this.silenceFrameCount = 0;
-
         if (!this.isSpeechActive) {
           this.isSpeechActive = true;
-          this.flushPreRoll(finalRate);
+          this.pendingUserUtterance = '';
+          this.clearReplyWatchdog();
+          this.awaitingReply = false;
           this.updateMediaSession('listening');
+          this.burstScreenFrame(true);
         }
-
-        // MOBILE-AGENT: feed lifecycle service "user is here" signal.
         try { sessionLifecycleService.noteAudioActivity(); } catch { /* ignore */ }
-
-        this.sendAudioChunk(processedData, finalRate);
-      } else {
-        // Silence detected
-        if (this.isSpeechActive) {
-          this.silenceFrameCount++;
-          if (this.silenceFrameCount <= this.maxSilenceFrames) {
-            this.sendAudioChunk(processedData, finalRate);
-          } else {
-            this.isSpeechActive = false;
-          }
-        } else {
-          this.addToPreRoll(processedData);
+      } else if (this.isSpeechActive) {
+        this.silenceFrameCount++;
+        if (this.silenceFrameCount > this.maxSilenceFrames) {
+          this.isSpeechActive = false;
+          this.burstScreenFrame(true);
+          this.flushUserAsk();
+          this.armReplyWatchdog();
         }
       }
     };
 
     source.connect(this.inputProcessor);
-    this.inputProcessor.connect(this.inputAudioContext.destination);
+    // ScriptProcessor only runs if connected to the graph — mute it so the
+    // mic is not played out of the speakers (feedback / self-interrupt).
+    const silent = this.inputAudioContext.createGain();
+    silent.gain.value = 0;
+    this.inputProcessor.connect(silent);
+    silent.connect(this.inputAudioContext.destination);
   }
 
   private setupMediaSession() {
@@ -1015,10 +1191,13 @@ ${learningContext}
   }
 
   private sendAudioChunk(data: Float32Array, sampleRate: number = 16000) {
+    if (!this.canSend()) return;
     const pcmBlob = createPcmBlob(data, sampleRate);
-    this.sessionPromise?.then((session) => {
-      session.sendRealtimeInput({ audio: pcmBlob });
-    });
+    try {
+      this.liveSession.sendRealtimeInput({ audio: pcmBlob });
+    } catch {
+      this.pauseLiveIO();
+    }
   }
 
   private async handleMessage(message: LiveServerMessage) {
@@ -1044,6 +1223,7 @@ ${learningContext}
         this.handleTranscript(serverContent.inputTranscription.text, 'user', false);
       }
       if (serverContent.outputTranscription) {
+        this.noteAssistantActivity();
         this.handleTranscript(serverContent.outputTranscription.text, 'assistant', false);
       }
 
@@ -1052,6 +1232,7 @@ ${learningContext}
 
       // Handle Model Turn for Text (when in Local Voice mode)
       if (this.useLocalVoice && textFromParts) {
+        this.noteAssistantActivity();
         this.handleTranscript(textFromParts, 'assistant', true);
         await this.synthesizeLocalVoice(textFromParts);
         return; // Skip default audio handling
@@ -1059,6 +1240,7 @@ ${learningContext}
       // Gemini 3.1 can put transcript text in modelTurn.parts alongside audio.
       // Don't double-count if outputTranscription already covered this event.
       if (!this.useLocalVoice && textFromParts && !serverContent.outputTranscription) {
+        this.noteAssistantActivity();
         this.handleTranscript(textFromParts, 'assistant', false);
       }
       if (serverContent.turnComplete) {
@@ -1149,12 +1331,14 @@ ${learningContext}
         }
       }
 
-      if (responses.length > 0) {
-        this.sessionPromise?.then(session => {
-          session.sendToolResponse({
+      if (responses.length > 0 && this.canSend()) {
+        try {
+          this.liveSession.sendToolResponse({
             functionResponses: responses as any
           });
-        });
+        } catch {
+          this.pauseLiveIO();
+        }
       }
     }
 
@@ -1164,6 +1348,7 @@ ${learningContext}
       .map((p: any) => p?.inlineData?.data)
       .filter(Boolean) as string[];
     if (audioParts.length && this.outputAudioContext && this.outputAnalyser) {
+      this.noteAssistantActivity();
       if (this.deferAiOutput) {
         this.updateMediaSession('listening');
       } else {
@@ -1266,6 +1451,7 @@ ${learningContext}
     }
 
     this.currentTranscript += text;
+    if (role === 'user') this.pendingUserUtterance = this.currentTranscript;
 
     this.callbacks.onMessageUpdate({
       id: this.currentTurnId,
@@ -1285,17 +1471,21 @@ ${learningContext}
 
   public async disconnect() {
     this.intentionalDisconnect = true;
-    this.sessionOpened = false;
+    this.connecting = false;
+    this.replacingSession = false;
+    this.clearReconnectTimer();
+    this.pauseLiveIO();
+    this.greetingSent = false;
+    this.nudgeCount = 0;
+    this.sessionAsks = [];
+    this.pendingUserUtterance = '';
+    this.lastFrameAt = 0;
     // A deliberate disconnect ends the conversation on purpose — the next
     // connect() should start fresh, not silently resume whatever was
     // happening before the user chose to hang up.
     this.resumptionHandle = null;
     this.consecutiveReconnectFailures = 0;
-    // Close Live session if still open
-    try {
-      const session = await this.sessionPromise;
-      session?.close?.();
-    } catch { /* ignore */ }
+    await this.closeLiveSession();
     // MOBILE-AGENT: stop lifecycle timers on disconnect.
     try { sessionLifecycleService.stop(); } catch { /* ignore */ }
     mobileAudioBridge.stopAudioKeepalive();
@@ -1303,11 +1493,6 @@ ${learningContext}
     this.deferAiOutput = false;
     this.stopScreenShare();
     this.stopCamera();
-    if (this.inputProcessor) {
-      this.inputProcessor.disconnect();
-      this.inputProcessor.onaudioprocess = null;
-      this.inputProcessor = null;
-    }
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
       this.stream = null;
@@ -1333,6 +1518,7 @@ ${learningContext}
   }
 
   private startVolumeMonitoring() {
+    if (this.volumeInterval != null) return;
     this.volumeInterval = window.setInterval(() => {
       let inputVol = 0;
       let outputVol = 0;

@@ -31,6 +31,33 @@ files:
   - dist/**/*
   - package.json
   - "!electron/build/**/*" # icon sources only — consumed by electron-builder itself, not needed at runtime
+  # @capacitor* packages are real "dependencies" (used by the separate
+  # Capacitor mobile app, mobile/capacitorBridge.ts) so electron-builder's
+  # automatic dependency walker pulls their node_modules trees in regardless
+  # of the includes above — but their android/ and ios/ subfolders are raw
+  # native mobile PROJECT sources (Gradle build intermediates, Xcode project
+  # files), never touched by the Electron runtime. Discovered because
+  # electron-builder was individually code-signing hundreds of nested files
+  # under keep-awake's android/build/ output, needlessly prompting for the
+  # signing key over and over during a real packaging run.
+  - "!node_modules/@capacitor*/**/android/**/*"
+  - "!node_modules/@capacitor*/**/ios/**/*"
+
+# --- Native module unpacking -------------------------------------------------
+#
+# @nut-tree-fork/nut-js (system-wide dictation + selection-read's keyboard/
+# clipboard automation, electron/globalInput.js) ships prebuilt native .node
+# addons per-platform (confirmed at node_modules/@nut-tree-fork/{libnut-darwin,
+# libnut-linux,libnut-win32}/build/Release/*.node, plus node-mac-permissions
+# on macOS). Native addons can't load from inside app.asar — Node's dlopen
+# needs a real file path on disk, the same underlying constraint documented
+# above for why echo-core/ ships as an extraResource instead. asarUnpack is
+# the other valid remedy for that constraint: the files stay logically part
+# of the asar's node_modules tree (so plain `require()` resolution still
+# finds them at the expected path) but are physically stored unpacked in an
+# app.asar.unpacked/ sibling directory electron-builder creates automatically.
+asarUnpack:
+  - "**/node_modules/@nut-tree-fork/**/*"
 
 # --- Echo Core packaging ----------------------------------------------------
 #

@@ -8,9 +8,17 @@ interface TextChatBarProps {
     onApiKeyMissing: () => void;
     onNewMessage: (role: 'user' | 'assistant', text: string) => void;
     embedded?: boolean;
+    /** Selection-read (system-wide, Electron desktop only): text captured
+     *  from another app via a global hotkey, pre-filled here as a DRAFT —
+     *  never auto-sent, so the user can see exactly what was captured and
+     *  add their own question before sending. `nonce` (not just `text`) is
+     *  the effect's dependency below, so capturing the identical text twice
+     *  in a row still re-opens/re-focuses instead of being silently
+     *  swallowed by a same-value comparison. */
+    injectedText?: { text: string; nonce: number } | null;
 }
 
-export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = false }: TextChatBarProps) {
+export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = false, injectedText }: TextChatBarProps) {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<ChatTurn[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +65,13 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
             setTimeout(() => inputRef.current?.focus(), 150);
         }
     }, [isOpen, embedded]);
+
+    useEffect(() => {
+        if (!injectedText) return;
+        setInput(injectedText.text);
+        setIsOpen(true);
+        setTimeout(() => inputRef.current?.focus(), 150);
+    }, [injectedText?.nonce]);
 
     const handleSend = async () => {
         const text = input.trim();

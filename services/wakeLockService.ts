@@ -25,6 +25,14 @@ let visibilityHandlerAttached = false;
 let nativeBridge: NativeWakeLockBridge | null = null;
 let activeOptions: WakeLockOptions = {};
 
+// Refcounted by holder key — e.g. 'voice' and 'meeting' can each hold the
+// lock independently. Without this, a voice session's idle-out (or hard-cap)
+// calling release() unconditionally would drop a concurrently-running
+// meeting recording's wake lock too (and vice versa). The underlying
+// OS/browser lock is engaged whenever this set is non-empty and released
+// only when the last holder releases.
+const holders = new Set<string>();
+
 export function registerNativeBridge(bridge: NativeWakeLockBridge): void {
     nativeBridge = bridge;
 }
@@ -53,6 +61,7 @@ async function acquireBrowser(): Promise<boolean> {
 }
 
 async function reacquireIfNeeded(): Promise<void> {
+    if (holders.size === 0) return; // nothing currently needs the lock held
     if (document.visibilityState !== 'visible') return;
     if (sentinel && !sentinel.released) return;
     await acquireBrowser();
@@ -68,9 +77,21 @@ function ensureVisibilityHandler(): void {
     visibilityHandlerAttached = true;
 }
 
-export async function acquire(options: WakeLockOptions = {}): Promise<boolean> {
-    activeOptions = options;
+/**
+ * `key` identifies the caller holding the lock (e.g. 'voice', 'meeting').
+ * Re-calling acquire() with a key that's already held is a safe no-op — the
+ * underlying lock is only actually (re-)requested on a 0→1 transition, so a
+ * repeated acquire (e.g. mobileAudioBridge's visibilitychange re-acquire)
+ * never double-counts a holder.
+ */
+export async function acquire(key: string, options: WakeLockOptions = {}): Promise<boolean> {
+    const wasEmpty = holders.size === 0;
+    holders.add(key);
     ensureVisibilityHandler();
+
+    if (!wasEmpty) return isHeld(); // another holder already has the lock engaged
+
+    activeOptions = options;
     if (options.useNativeBridge && nativeBridge) {
         try {
             await nativeBridge.acquire();
@@ -82,7 +103,13 @@ export async function acquire(options: WakeLockOptions = {}): Promise<boolean> {
     return acquireBrowser();
 }
 
-export async function release(): Promise<void> {
+/** Releasing a key that isn't currently held (already released, or never
+ *  acquired) is a safe no-op — it does NOT touch the underlying lock while
+ *  other holders remain. */
+export async function release(key: string): Promise<void> {
+    holders.delete(key);
+    if (holders.size > 0) return; // other holders still need the lock
+
     if (activeOptions.useNativeBridge && nativeBridge) {
         try { await nativeBridge.release(); } catch (e) { console.warn('[wakeLockService] native release:', e); }
     }

@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp, Bot } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp, Bot, Video } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION, LIVE_MODEL_OPTIONS, getLiveModelName, setLiveModelName, LiveModelId } from './constants';
 import { useToast } from './hooks/useToast';
@@ -27,13 +27,16 @@ import MatrixRain from './components/MatrixRain';
 import VoiceOrb from './components/VoiceOrb';
 import { ghostAgent } from './services/ghostAgentService';
 import SkillApprovalModal from './components/SkillApprovalModal';
-import { initVault, isUnlocked, resetVaultKeys } from './services/cryptoService';
+import { initVault, isUnlocked, resetVaultKeys, getCached } from './services/cryptoService';
 import { bootstrapAgent } from './services/agentBootstrap';
-import { buildSystemContext } from './services/modelContextBuilder';
 import { taskMissionService } from './services/taskMissionService';
 import VaultOrganizerPanel from './components/VaultOrganizerPanel';
 import SubAgentPanel from './components/SubAgentPanel';
 import { subAgentService } from './services/subAgentService';
+import MeetingPanel from './components/MeetingPanel';
+import * as meetingCaptureService from './services/meetingCaptureService';
+import { dictationService } from './services/dictationService';
+import { desktopAutomationService } from './services/desktopAutomationService';
 // MOBILE-AGENT: PWA / mobile-only additive imports.
 import InstallPrompt from './components/InstallPrompt';
 import { wakeLockService } from './services/wakeLockService';
@@ -175,6 +178,17 @@ export default function App() {
       const onboarded = getCompanionState().onboardingComplete;
       setShowOnboarding(!onboarded);
       setShowLanding(!onboarded && !localStorage.getItem('echo_landing_seen'));
+      // Re-apply any customized global hotkeys — main.js only knows the
+      // hardcoded defaults at boot (it has no vault access; the config
+      // lives in the renderer's encrypted store). Without this, a restart
+      // silently reverts a user's custom hotkey to the default until they
+      // happen to reopen Settings.
+      if (desktopAutomationService.isElectronDesktop()) {
+        const savedHotkeys = getCached<{ dictation: string; selectionRead: string }>('echo_hotkey_config', null as any);
+        if (savedHotkeys?.dictation && savedHotkeys?.selectionRead) {
+          void desktopAutomationService.registerHotkeys(savedHotkeys);
+        }
+      }
       setVaultReady(true);
     })().catch((e) => {
       console.error('[App] vault boot failed:', e);
@@ -189,6 +203,7 @@ export default function App() {
   // Settings
   const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS.find(v => v.id === 'Kore') || VOICE_OPTIONS[0]);
   const [liveModel, setLiveModel] = useState<LiveModelId>(() => getLiveModelName());
+  const [voiceWaiting, setVoiceWaiting] = useState(false);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   // UI Toggles
   const [showMemory, setShowMemory] = useState(false);
@@ -205,6 +220,46 @@ export default function App() {
   useEffect(() => subAgentService.onChange(
     runs => setRunningSubAgents(runs.filter(r => r.status === 'running').length),
   ), []);
+  const [showMeeting, setShowMeeting] = useState(false);
+  // Mirrors meetingCaptureService's own module-level state — a running
+  // capture survives the panel being closed (no unmount-triggered stop),
+  // so this badge is what makes an in-progress meeting visible even when
+  // showMeeting is false.
+  const [isMeetingRecording, setIsMeetingRecording] = useState(false);
+  useEffect(() => meetingCaptureService.onChange(
+    s => setIsMeetingRecording(s.status === 'recording' || s.status === 'stopping'),
+  ), []);
+  // Selection-read (electron/globalInput.js): a global hotkey captures
+  // whatever's selected in another app and pushes it here via IPC. `nonce`
+  // (not just `text`) is what TextChatBar keys its prefill effect off of —
+  // capturing the exact same text twice in a row must still re-trigger the
+  // "open chat and focus the input" behavior, which a plain text-equality
+  // dependency would silently swallow the second time.
+  const [pendingChatInjection, setPendingChatInjection] = useState<{ text: string; nonce: number } | null>(null);
+  useEffect(() => {
+    const unsub = desktopAutomationService.onSelectionCaptured(
+      ({ text }) => setPendingChatInjection({ text, nonce: Date.now() }),
+    );
+    return () => unsub();
+  }, []);
+  // System-wide dictation (electron/globalInput.js's global hotkey + main-
+  // process paste injection; services/dictationService.ts owns mic capture/
+  // VAD/transcription here in the renderer). This subscription is
+  // deliberately always-mounted, not gated behind any panel being open —
+  // the whole point is that dictation works while you're using some OTHER
+  // app, so it can't depend on Echo's own UI being visible.
+  const [isDictationActive, setIsDictationActive] = useState(false);
+  useEffect(() => dictationService.onChange(
+    s => setIsDictationActive(s.status === 'listening' || s.status === 'starting'),
+  ), []);
+  useEffect(() => {
+    const unsub = desktopAutomationService.onDictationHotkey(() => {
+      void dictationService.toggleDictation().catch((e) => {
+        console.error('[App] dictation toggle failed:', e);
+      });
+    });
+    return () => unsub();
+  }, []);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -426,7 +481,7 @@ export default function App() {
     const onIdle = () => {
       info('Echo went idle — disconnecting to save battery.');
       serviceRef.current?.disconnect();
-      wakeLockService.release();
+      wakeLockService.release('voice');
     };
     const onSilence = () => {
       // Soft pause, not a teardown: mute the mic (stops sending audio —
@@ -443,7 +498,7 @@ export default function App() {
     const onHardCap = () => {
       warning('Session hit the safety cap. Disconnecting.');
       serviceRef.current?.disconnect();
-      wakeLockService.release();
+      wakeLockService.release('voice');
     };
     window.addEventListener('lifecycle:idle', onIdle);
     window.addEventListener('lifecycle:silence', onSilence);
@@ -579,6 +634,8 @@ export default function App() {
           setShowVaultOrganizer(false);
         } else if (showSubAgents) {
           setShowSubAgents(false);
+        } else if (showMeeting) {
+          setShowMeeting(false);
         } else if (showChat) {
           setShowChat(false);
         } else if (showMemory) {
@@ -591,7 +648,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents]);
+  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting]);
 
   const handleConnect = useCallback(async () => {
     const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
@@ -641,9 +698,10 @@ export default function App() {
       const service = new GeminiLiveService(trimmedKey, {
         onConnect: () => {
           setStatus(ConnectionStatus.CONNECTED);
+          setVoiceWaiting(false);
           success("Connected to Echo");
           // MOBILE-AGENT: hold the screen awake during a live session.
-          try { wakeLockService.acquire({ useNativeBridge: mobileAudioBridge.isNativeShell() }); } catch { /* ignore */ }
+          try { wakeLockService.acquire('voice', { useNativeBridge: mobileAudioBridge.isNativeShell() }); } catch { /* ignore */ }
           // Apply current hands-free preference to fresh lifecycle.
           try { sessionLifecycleService.setHandsFree(isHandsFree); } catch { /* ignore */ }
           try { sessionLifecycleService.start(); } catch { /* ignore */ }
@@ -653,10 +711,11 @@ export default function App() {
         },
         onDisconnect: () => {
           setStatus(ConnectionStatus.DISCONNECTED);
+          setVoiceWaiting(false);
           setIsScreenSharing(false);
           info("Disconnected from Echo");
           // MOBILE-AGENT: release wake-lock when the session ends.
-          try { wakeLockService.release(); } catch { /* ignore */ }
+          try { wakeLockService.release('voice'); } catch { /* ignore */ }
           try { sessionLifecycleService.stop(); } catch { /* ignore */ }
         },
         // A transient blip that's silently auto-reconnecting (same
@@ -664,6 +723,13 @@ export default function App() {
         // only fire now if reconnection genuinely fails after retries.
         onReconnecting: () => {
           info("Connection blipped — reconnecting…");
+        },
+        onWaitingForReply: () => {
+          setVoiceWaiting(true);
+        },
+        onStalled: () => {
+          setVoiceWaiting(false);
+          warning("Echo didn’t reply. Speak again, or disconnect and tap the mic.");
         },
         onError: (err) => {
           console.error(err);
@@ -687,6 +753,7 @@ export default function App() {
         onVolumeChange: (input, output) => setVolumeState({ inputVolume: input, outputVolume: output }),
         onMemoryUpdate: () => setMemories(getMemories()),
         onMessageUpdate: (message) => {
+          if (message.role === 'assistant') setVoiceWaiting(false);
           // Update UI state immediately (handling streaming)
           setChatHistory(prev => {
             const existingIndex = prev.findIndex(m => m.id === message.id);
@@ -733,21 +800,15 @@ export default function App() {
         } catch { /* ignore */ }
       }
 
-      const builtSys = buildSystemContext({
-        destination: 'cloud',
-        provider: 'gemini-live',
-        extraInstructions: extras.join('\n\n'),
-      });
-      const systemInstruction = builtSys.systemInstruction;
       const effectiveStealth = isStealthMode || persistedStealth;
 
       await service.connect({
         voiceName: selectedVoice.id,
         useLocalVoice: isLocalVoiceEnabled || effectiveStealth,
-        systemInstruction,
+        extraVoiceInstructions: extras.join('\n\n'),
         speechConfig: {
           preRollMs: 300,
-          silenceThreshold: 0.015
+          silenceThreshold: 0.008
         },
         interruptMode,
       });
@@ -873,10 +934,10 @@ export default function App() {
     }
   };
 
-  const isThinking = status === ConnectionStatus.CONNECTED &&
+  const isThinking = voiceWaiting || (status === ConnectionStatus.CONNECTED &&
     chatHistory.length > 0 &&
     chatHistory[chatHistory.length - 1].role === 'user' &&
-    chatHistory[chatHistory.length - 1].isFinal;
+    chatHistory[chatHistory.length - 1].isFinal);
 
   const isUserSpeaking = volumeState.inputVolume > 10;
 
@@ -990,7 +1051,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col relative z-20 w-full h-full">
           {/* Backdrop Overlay for Sidebars */}
-          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault || showSocial || showAutomation || showMissions || showSubAgents) && (
+          {(showChat || showMemory || showVoiceVault || showMobileMenu || showPersonalizedLearning || showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault || showSocial || showAutomation || showMissions || showSubAgents || showMeeting) && (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-md z-30 transition-opacity duration-300"
               onClick={() => {
@@ -1007,6 +1068,7 @@ export default function App() {
                 setShowAutomation(false);
                 setShowMissions(false);
                 setShowSubAgents(false);
+                setShowMeeting(false);
               }}
               aria-hidden="true"
             />
@@ -1043,6 +1105,11 @@ export default function App() {
           {/* Sub-Agents (self-positioning floating panel, not a drawer) */}
           {isAdvanced && showSubAgents && (
             <SubAgentPanel onClose={() => setShowSubAgents(false)} />
+          )}
+
+          {/* Live Meeting Mode (self-positioning floating panel, not a drawer) */}
+          {showMeeting && (
+            <MeetingPanel onClose={() => setShowMeeting(false)} />
           )}
 
           {/* Sidebars (Drawers) */}
@@ -1236,6 +1303,50 @@ export default function App() {
                   </button>
                 </Tooltip>
               </>
+            )}
+
+            <Tooltip content={isMeetingRecording ? 'Live Meeting (recording)' : 'Live Meeting Mode'}>
+              <button
+                onClick={() => setShowMeeting(true)}
+                className={`sidebar-btn relative ${showMeeting ? 'active-cyan' : ''}`}
+                aria-label="Live meeting mode"
+              >
+                <Video size={18} />
+                {isMeetingRecording && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 rounded-full animate-pulse"
+                    style={{
+                      width: 8, height: 8,
+                      background: 'var(--accent-red)',
+                      boxShadow: '0 0 4px var(--accent-red)',
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            </Tooltip>
+
+            {desktopAutomationService.isElectronDesktop() && (
+              <Tooltip content={isDictationActive ? 'Dictation ON — ⌘⇧D to stop' : 'System-Wide Dictation (⌘⇧D)'}>
+                <button
+                  onClick={() => void dictationService.toggleDictation().catch((e) => error(e?.message || 'Could not toggle dictation.'))}
+                  className={`sidebar-btn relative ${isDictationActive ? 'active-cyan' : ''}`}
+                  aria-label="Toggle system-wide dictation"
+                >
+                  <Mic size={18} />
+                  {isDictationActive && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 rounded-full animate-pulse"
+                      style={{
+                        width: 8, height: 8,
+                        background: 'var(--accent-red)',
+                        boxShadow: '0 0 4px var(--accent-red)',
+                      }}
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              </Tooltip>
             )}
 
             <Tooltip content="Companion">
@@ -1559,6 +1670,7 @@ export default function App() {
                       { icon: Rocket,       label: 'Missions',   advanced: true, action: () => { setShowMissions(true);       setShowMobileMenu(false); } },
                       { icon: Bot,          label: 'Sub-Agents', advanced: true, action: () => { setShowSubAgents(true);     setShowMobileMenu(false); } },
                       { icon: Heart,        label: 'Companion',  action: () => { setShowCompanionPanel(true); setShowMobileMenu(false); } },
+                      { icon: Video,        label: 'Meeting',    action: () => { setShowMeeting(true);        setShowMobileMenu(false); } },
                       { icon: Ghost,        label: 'Ghost',      advanced: true, action: () => { setShowGhostMode(true);      setShowMobileMenu(false); } },
                       { icon: User,         label: 'Settings',   action: () => { setIsSettingsOpen(true);     setShowMobileMenu(false); } },
                       { icon: Monitor,      label: 'Screen',     action: () => {
@@ -1657,6 +1769,7 @@ export default function App() {
               <>
                 <TextChatBar
                   onApiKeyMissing={() => setIsSettingsOpen(true)}
+                  injectedText={pendingChatInjection}
                   onNewMessage={(role, text) => {
                     const message: ChatMessage = {
                       id: crypto.randomUUID(),

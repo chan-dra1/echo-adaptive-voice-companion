@@ -47,4 +47,38 @@ contextBridge.exposeInMainWorld('echoDesktop', {
     ipcRenderer.on('echo:core-status', handler);
     return () => ipcRenderer.removeListener('echo:core-status', handler);
   },
+
+  // System-wide dictation + selection-read (electron/globalInput.js). These
+  // are the app's first ipcRenderer.invoke calls — everything above this is
+  // fire-and-forget (send) or a push subscription (on); accessibility
+  // status, hotkey registration, and text injection all need an actual
+  // return value, hence invoke/handle instead.
+  getAccessibilityStatus: () => ipcRenderer.invoke('echo:get-accessibility-status'),
+  requestAccessibilityPermission: () => ipcRenderer.invoke('echo:request-accessibility-permission'),
+  registerHotkeys: (accelerators) => ipcRenderer.invoke('echo:register-hotkeys', accelerators),
+  openAccessibilitySettings: () => ipcRenderer.send('echo:open-accessibility-settings'),
+  relaunch: () => ipcRenderer.send('echo:relaunch'),
+  injectText: (text) => ipcRenderer.invoke('echo:inject-text', text),
+
+  // The renderer owns the actual dictation-active state machine (mic
+  // capture, VAD, transcription all happen there — see
+  // services/dictationService.ts); this just lets it push that state to
+  // main so the Tray icon/menu can reflect it.
+  setDictationActive: (active) => ipcRenderer.send('echo:dictation-state-changed', active),
+
+  // Global hotkey fired (main process, works even when Echo isn't focused)
+  // — the renderer decides what "toggle dictation" actually means.
+  onDictationHotkey: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('echo:dictation-hotkey', handler);
+    return () => ipcRenderer.removeListener('echo:dictation-hotkey', handler);
+  },
+
+  // Selection-read's captured text, pushed once main has grabbed it from
+  // the OS clipboard and restored the user's original clipboard content.
+  onSelectionCaptured: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('echo:selection-captured', handler);
+    return () => ipcRenderer.removeListener('echo:selection-captured', handler);
+  },
 });

@@ -13,10 +13,30 @@
 // renderer (the existing React app) never gets nodeIntegration — see
 // preload.js for the narrow, safe bridge it's given instead.
 
-const { app, BrowserWindow, session, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, session, shell, ipcMain, desktopCapturer } = require('electron');
 const path = require('node:path');
 const { fork } = require('node:child_process');
 const fs = require('node:fs');
+
+// ---------------------------------------------------------------------------
+// Live Meeting Mode: macOS system-audio loopback feature flags
+// ---------------------------------------------------------------------------
+//
+// Must be set before app.whenReady() — Chromium reads command-line switches
+// at startup, not on demand. This is what lets setDisplayMediaRequestHandler
+// (below) request `audio: 'loopback'` and get REAL system-wide audio via
+// ScreenCaptureKit on macOS 13+, rather than silence or a rejection.
+//
+// Verified hands-on this session, not assumed from docs: a standalone probe
+// with this exact switch, on this exact machine (macOS 26.4.1, Electron
+// 33.4.11), captured real spoken audio through the system speakers —
+// RMS 0.137, peak 1.001, track labelled "System audio" by macOS itself, WAV
+// round-tripped correctly. This is a big part of why the app needs
+// "Screen & System Audio Recording" permission (System Settings > Privacy &
+// Security) — Electron.app must be added there manually the first time;
+// macOS does not always show an automatic prompt for a bare/dev Electron
+// binary the way it does for camera/mic.
+app.commandLine.appendSwitch('enable-features', 'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -40,6 +60,15 @@ const BG_COLOR = '#010502';
 let mainWindow = null;
 let echoCoreProcess = null;
 let lastCoreStatus = null; // replayed to the renderer once it's ready to listen (see notifyEchoCoreStatus)
+
+// Set true only by the real quit paths below (Tray "Quit Echo", Cmd+Q,
+// before-quit). Everywhere else, closing the window just hides it — see the
+// 'close' handler in createWindow() for why: system-wide dictation
+// (electron/globalInput.js) runs in the renderer, so destroying the window
+// on a plain close would silently kill dictation the moment the user
+// "closes" what looks like just a window, defeating the feature's entire
+// premise of working while some OTHER app has focus.
+let isQuitting = false;
 
 // ---------------------------------------------------------------------------
 // Echo Core (the separate terminal-brain daemon) — auto-start as a child
@@ -193,6 +222,35 @@ function setupMicPermissions() {
 }
 
 // ---------------------------------------------------------------------------
+// Live Meeting Mode: getDisplayMedia handler (system-audio loopback capture)
+// ---------------------------------------------------------------------------
+//
+// Without this, Electron REJECTS every getDisplayMedia() call from the
+// renderer outright — there is no default picker the way a real browser has
+// one. This mirrors exactly what the standalone probe proved works: pick a
+// screen source programmatically (no UI needed — this app wants "hear the
+// whole system", not "let the user choose which window"), request
+// `audio: 'loopback'` to get the real feature-flagged system-audio path
+// rather than silence, and fail loudly into the callback (never hang) if no
+// source is available so services/meetingCaptureService.ts's caller sees a
+// real rejected promise instead of a stall.
+function setupMeetingCaptureSupport() {
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+      if (!sources.length) {
+        console.error('[meeting-capture] no screen sources available from desktopCapturer — cannot fulfill getDisplayMedia.');
+        callback({});
+        return;
+      }
+      callback({ video: sources[0], audio: 'loopback' });
+    }).catch((err) => {
+      console.error('[meeting-capture] desktopCapturer.getSources failed (likely missing Screen & System Audio Recording permission):', err);
+      callback({});
+    });
+  }, { useSystemPicker: false });
+}
+
+// ---------------------------------------------------------------------------
 // Window
 // ---------------------------------------------------------------------------
 
@@ -244,6 +302,20 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // Echo is now a tray-resident app (like Slack/Raycast/1Password), not
+  // because that's the default Electron pattern but because system-wide
+  // dictation needs the renderer alive even when the user isn't looking at
+  // the window — see the isQuitting comment above. The window's own red
+  // close button / Cmd+W now HIDES it instead of destroying it; the app only
+  // actually exits via the Tray menu's "Quit Echo", Cmd+Q, or the OS. This
+  // is a deliberate, visible behavior change from a plain single-window app.
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -263,8 +335,12 @@ ipcMain.on('echo:get-app-version', (event) => {
 
 app.whenReady().then(() => {
   setupMicPermissions();
+  setupMeetingCaptureSupport();
   createWindow();
   startEchoCore();
+
+  const { setupGlobalInput } = require('./globalInput');
+  setupGlobalInput(() => mainWindow);
 
   // Manual update-check trigger from the renderer (e.g. a "Check for
   // Updates" button), independent of the automatic launch-time check below.
@@ -281,10 +357,15 @@ app.whenReady().then(() => {
     console.error('[updater] failed to initialize:', err);
   }
 
-  // macOS convention: clicking the dock icon when all windows are closed
-  // should re-create a window rather than doing nothing.
+  // macOS convention: clicking the dock icon should bring the app forward.
+  // Now that closing hides rather than destroys the window (see the 'close'
+  // handler above), the common case here is an existing-but-hidden window
+  // that just needs showing — createWindow() is only the fallback for the
+  // rare case the window was genuinely destroyed (e.g. a crash/reload).
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+    } else {
       createWindow();
     }
   });
@@ -304,6 +385,7 @@ app.on('window-all-closed', () => {
 // the one place we can be sure to reach regardless of platform or how quit
 // was triggered, so Echo Core never lingers as an orphaned process.
 app.on('before-quit', () => {
+  isQuitting = true; // let the window's 'close' handler know this is a real quit, not a hide-to-tray
   stopEchoCore();
 });
 

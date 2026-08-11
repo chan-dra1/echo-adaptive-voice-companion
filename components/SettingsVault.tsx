@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     X, Lock, Key, Check, AlertTriangle, Github, Globe, Cpu, User, FileText,
-    Zap, Sparkles, MessageSquare, SlidersHorizontal,
+    Zap, Sparkles, MessageSquare, SlidersHorizontal, Keyboard, ShieldCheck,
+    ShieldAlert, RefreshCw,
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { changePassphrase, getVaultMode } from '../services/cryptoService';
@@ -11,6 +12,7 @@ import { getUiMode, setUiMode, UiMode } from '../services/uiModeService';
 import { echoCloudAuthService } from '../services/echoCloudAuthService';
 import { LIVE_MODEL_OPTIONS, getLiveModelName, setLiveModelName } from '../constants';
 import { Cloud } from 'lucide-react';
+import { desktopAutomationService, HotkeyAccelerators } from '../services/desktopAutomationService';
 
 interface SettingsVaultProps {
     isOpen: boolean;
@@ -35,6 +37,84 @@ const PROVIDERS: ProviderRow[] = [
     { id: 'huggingface', label: 'Hugging Face Inference', storageKey: 'echo_hf_key', placeholder: 'hf_...', free: true },
     { id: 'anthropic', label: 'Anthropic (via localhost proxy)', storageKey: 'echo_anthropic_key', placeholder: 'sk-ant-...' },
 ];
+
+const DEFAULT_HOTKEYS: HotkeyAccelerators = {
+    dictation: 'CommandOrControl+Shift+D',
+    selectionRead: 'CommandOrControl+Shift+R',
+};
+
+/** Converts a captured keydown into an Electron accelerator string (e.g.
+ *  "CommandOrControl+Shift+D"). Returns null while only modifier keys have
+ *  been pressed so far — the recorder keeps listening until a real key
+ *  arrives alongside at least one modifier (a bare unmodified key as a
+ *  global hotkey would swallow every ordinary keystroke system-wide). */
+function formatAccelerator(e: KeyboardEvent): string | null {
+    if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) return null;
+    const parts: string[] = [];
+    if (e.metaKey || e.ctrlKey) parts.push('CommandOrControl');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.altKey) parts.push('Alt');
+    if (parts.length === 0) return null;
+
+    const specialKeys: Record<string, string> = {
+        ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Escape: 'Esc',
+    };
+    const key = e.key.length === 1 ? e.key.toUpperCase() : (specialKeys[e.key] || e.key);
+    parts.push(key);
+    return parts.join('+');
+}
+
+function HotkeyRecorder({
+    label, value, onChange, errorText,
+}: {
+    label: string;
+    value: string;
+    onChange: (accelerator: string) => void;
+    errorText?: string | null;
+}) {
+    const [recording, setRecording] = useState(false);
+
+    useEffect(() => {
+        if (!recording) return;
+        const handler = (e: KeyboardEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.key === 'Escape') { setRecording(false); return; } // cancel, keep the existing binding
+            const accelerator = formatAccelerator(e);
+            if (!accelerator) return; // still just modifiers — keep listening
+            setRecording(false);
+            onChange(accelerator);
+        };
+        // Capture phase — this must win over any other key handler in the
+        // app (e.g. the Escape-closes-settings listener) while recording.
+        window.addEventListener('keydown', handler, true);
+        return () => window.removeEventListener('keydown', handler, true);
+    }, [recording, onChange]);
+
+    return (
+        <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--text-secondary)]">{label}</span>
+                <button
+                    type="button"
+                    onClick={() => setRecording(true)}
+                    className={`font-mono text-[11px] px-2.5 py-1 rounded border transition-colors ${recording
+                        ? 'border-[var(--accent-amber)] text-[var(--accent-amber)] animate-pulse'
+                        : 'border-[var(--border-dim)] text-[var(--text-primary)] hover:border-[var(--border-green)]'
+                        }`}
+                >
+                    {recording ? 'Press keys…' : value}
+                </button>
+            </div>
+            {errorText && (
+                <div className="text-[10px] text-[var(--accent-red)] flex items-center gap-1 font-mono">
+                    <AlertTriangle size={10} />
+                    <span>{errorText}</span>
+                </div>
+            )}
+        </div>
+    );
+}
 
 /* ── Terminal styling primitives (styling only) ─────────────────── */
 
@@ -86,6 +166,17 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
     const [newPassphrase, setNewPassphrase] = useState('');
     const [confirmPassphrase, setConfirmPassphrase] = useState('');
 
+    // System-wide dictation + selection-read (Electron desktop only).
+    // Hotkeys apply immediately on change (like UI mode / Echo Cloud
+    // sign-in above) — a global hotkey needs an immediate main-process
+    // round-trip regardless, so gating it behind the page's "Save & Apply"
+    // button would just mean a stale registration until Save is clicked.
+    const isDesktop = desktopAutomationService.isElectronDesktop();
+    const [hotkeys, setHotkeys] = useState<HotkeyAccelerators>(DEFAULT_HOTKEYS);
+    const [hotkeyErrors, setHotkeyErrors] = useState<{ dictation?: string; selectionRead?: string }>({});
+    const [accessibilityGranted, setAccessibilityGranted] = useState<boolean | null>(null);
+    const [accessibilityChecking, setAccessibilityChecking] = useState(false);
+
     useEffect(() => {
         if (!isOpen) return;
         setGithubToken(localStorage.getItem('echo_github_token') || '');
@@ -107,7 +198,17 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
 
         const examples = getCached<string[]>('echo_style_examples', []);
         setStyleExamples(Array.isArray(examples) ? examples.join('\n\n---\n\n') : '');
-    }, [isOpen]);
+
+        if (isDesktop) {
+            const savedHotkeys = getCached<HotkeyAccelerators>('echo_hotkey_config', DEFAULT_HOTKEYS);
+            setHotkeys(savedHotkeys && savedHotkeys.dictation && savedHotkeys.selectionRead ? savedHotkeys : DEFAULT_HOTKEYS);
+            setHotkeyErrors({});
+            setAccessibilityChecking(true);
+            desktopAutomationService.getAccessibilityStatus()
+                .then(s => setAccessibilityGranted(s.granted))
+                .finally(() => setAccessibilityChecking(false));
+        }
+    }, [isOpen, isDesktop]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -205,6 +306,31 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
         if (key === 'echo_github_token') setGithubToken('');
         if (key === 'VITE_SERP_API_KEY') setSerpApiKey('');
         success('Key cleared');
+    };
+
+    const handleHotkeyChange = async (which: 'dictation' | 'selectionRead', accelerator: string) => {
+        const next = { ...hotkeys, [which]: accelerator };
+        const result = await desktopAutomationService.registerHotkeys(next);
+        if (!result[which]) {
+            // Don't persist or apply a binding the OS rejected (e.g. already
+            // claimed by another app) — keep the previous working value.
+            setHotkeyErrors(prev => ({ ...prev, [which]: 'Could not register — already in use by another app?' }));
+            return;
+        }
+        setHotkeyErrors(prev => ({ ...prev, [which]: undefined }));
+        setHotkeys(next);
+        setCached('echo_hotkey_config', next);
+        success(`${which === 'dictation' ? 'Dictation' : 'Selection-read'} hotkey updated.`);
+    };
+
+    const handleGrantAccessibility = async () => {
+        const result = await desktopAutomationService.requestAccessibilityPermission();
+        setAccessibilityGranted(result.granted);
+        if (result.granted) {
+            success('Accessibility permission granted.');
+        } else {
+            error('Not granted yet — check System Settings, then try again.');
+        }
     };
 
     if (!isOpen) return null;
@@ -441,6 +567,75 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                             </div>
                         ))}
                     </div>
+
+                    {/* System-wide dictation + selection-read (Electron desktop only) */}
+                    {isDesktop && (
+                        <div className={SECTION_CLS}>
+                            <label>
+                                <SectionTitle icon={<Keyboard size={14} />}>System-Wide Dictation</SectionTitle>
+                            </label>
+                            <p className="text-[10px] text-[var(--text-tertiary)]">
+                                Global hotkeys work even when Echo isn't focused — dictate into any app, or grab
+                                whatever's selected elsewhere and send it to Echo as context.
+                            </p>
+
+                            <HotkeyRecorder
+                                label="Dictation (start/stop)"
+                                value={hotkeys.dictation}
+                                onChange={(accel) => void handleHotkeyChange('dictation', accel)}
+                                errorText={hotkeyErrors.dictation}
+                            />
+                            <HotkeyRecorder
+                                label="Read Selection"
+                                value={hotkeys.selectionRead}
+                                onChange={(accel) => void handleHotkeyChange('selectionRead', accel)}
+                                errorText={hotkeyErrors.selectionRead}
+                            />
+
+                            <div className="pt-2 mt-1 border-t border-[var(--border-subtle)] space-y-2">
+                                {accessibilityChecking ? (
+                                    <p className="text-[11px] text-[var(--text-tertiary)] font-mono">Checking Accessibility permission…</p>
+                                ) : accessibilityGranted ? (
+                                    <p className="text-[11px] font-mono flex items-center gap-1.5 text-[var(--accent-green)]">
+                                        <ShieldCheck size={12} /> Accessibility permission granted
+                                    </p>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        <p className="text-[11px] font-mono flex items-center gap-1.5 text-[var(--accent-amber)]">
+                                            <ShieldAlert size={12} /> Accessibility permission not granted
+                                        </p>
+                                        <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">
+                                            Required for typing/reading selections in other apps. macOS may need Echo
+                                            restarted after you grant it in System Settings.
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleGrantAccessibility()}
+                                                className="btn-term ghost text-[11px] px-3 py-1.5"
+                                            >
+                                                Grant Permission
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => desktopAutomationService.openAccessibilitySettings()}
+                                                className="btn-term ghost text-[11px] px-3 py-1.5"
+                                            >
+                                                Open System Settings
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => desktopAutomationService.relaunchApp()}
+                                    className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--accent-green)] transition-colors font-mono"
+                                >
+                                    <RefreshCw size={11} /> Restart Echo
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* YOLO toggle — warning amber */}
                     <div className="space-y-2 p-3 bg-[rgba(255,179,0,0.05)] border border-[rgba(255,179,0,0.25)] rounded-lg">

@@ -74,7 +74,7 @@ export function initMobileAudioBridge(onVisible?: () => void): void {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       void resumeAudioContexts();
-      void wakeLockService.acquire({ useNativeBridge: isNativeShell() });
+      void wakeLockService.acquire('voice', { useNativeBridge: isNativeShell() });
       onVisible?.();
       try {
         window.dispatchEvent(new CustomEvent('echo:app-visible'));
