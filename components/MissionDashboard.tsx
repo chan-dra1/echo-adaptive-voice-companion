@@ -127,7 +127,7 @@ function StepBadge({ step }: { key?: any; step: { tool: string; ok?: boolean; re
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function MissionsTab() {
+function MissionsTab({ onGoToCloud }: { onGoToCloud: () => void }) {
     const [missions, setMissions] = useState<Mission[]>([]);
     const [loading, setLoading] = useState(true);
     const [triggering, setTriggering] = useState<string | null>(null);
@@ -158,12 +158,18 @@ function MissionsTab() {
 
     if (!isCoreConnected()) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)]">
+            <div className="flex flex-col items-center justify-center py-16 text-center text-[var(--text-tertiary)] px-6">
                 <div className="text-3xl mb-3 text-[var(--accent-green)]">⚡</div>
-                <p className="text-sm font-hud uppercase tracking-[0.15em]">Echo Core not connected.</p>
-                <p className="text-xs mt-1 font-hud">
-                    Start it with <code className="text-[var(--accent-green)]">node echo-core/echo.mjs</code> and pair via ⌘K.
+                <p className="text-sm font-hud">This device's local mission runner isn't running right now.</p>
+                <p className="text-xs mt-2 max-w-[30ch]">
+                    No local setup needed if you'd rather run missions in the cloud instead — they'll run on our servers even when Echo isn't open.
                 </p>
+                <button
+                    onClick={onGoToCloud}
+                    className="mt-4 text-xs font-hud uppercase tracking-[0.1em] px-4 py-2 rounded-lg border border-[var(--border-green)] text-[var(--accent-green)] hover:bg-[rgba(0,255,65,0.08)] transition-colors"
+                >
+                    Use Cloud Missions instead
+                </button>
             </div>
         );
     }
@@ -172,12 +178,18 @@ function MissionsTab() {
 
     if (missions.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)]">
+            <div className="flex flex-col items-center justify-center py-16 text-center text-[var(--text-tertiary)] px-6">
                 <div className="text-3xl mb-3 text-[var(--accent-green)]">🤖</div>
-                <p className="text-sm font-hud uppercase tracking-[0.15em]">No missions yet.</p>
-                <p className="text-xs mt-1 font-hud">
-                    Edit <code className="text-[var(--accent-green)]">~/.echo-core/missions.json</code> to add one.
+                <p className="text-sm font-hud">No missions yet.</p>
+                <p className="text-xs mt-2 max-w-[30ch]">
+                    A mission is a goal you hand Echo, with a schedule — it runs on its own and reports back.
                 </p>
+                <button
+                    onClick={onGoToCloud}
+                    className="mt-4 text-xs font-hud uppercase tracking-[0.1em] px-4 py-2 rounded-lg border border-[var(--border-green)] text-[var(--accent-green)] hover:bg-[rgba(0,255,65,0.08)] transition-colors"
+                >
+                    Create your first mission
+                </button>
             </div>
         );
     }
@@ -758,7 +770,7 @@ export default function MissionDashboard({ onClose }: { onClose?: () => void } =
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto relative">
-                {tab === 'missions' && <MissionsTab />}
+                {tab === 'missions' && <MissionsTab onGoToCloud={() => setTab('cloud')} />}
                 {tab === 'running' && <RunningTab live={live} />}
                 {tab === 'history' && <HistoryTab />}
                 {tab === 'cloud'   && <CloudMissionsTab />}

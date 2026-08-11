@@ -33,33 +33,44 @@
 }
 
 /* ─── Design Tokens ─────────────────────────────────────── */
+/* v4.1 — softened for public launch (see the UI/UX redesign plan):
+   same phosphor-green identity, dialed from the dominant visual
+   language down to a supporting accent. Backgrounds lifted off pure
+   black, glows cut roughly in half, secondary/tertiary text raised
+   for plain readability, --accent-pink repurposed as the one warm
+   CTA color for first-impression surfaces (Landing/Onboarding) —
+   reusing an existing token rather than adding a new one. The full
+   CRT intensity (heavier glow classes still exist below unchanged
+   in shape, just quieter numbers) stays available for Advanced-mode
+   and Settings surfaces where the existing power-user audience
+   already expects it. */
 :root {
-  /* Backgrounds — true black with a phosphor cast */
-  --bg-base:       #010502;
-  --bg-raised:     #020a05;
-  --bg-elevated:   #041108;
-  --bg-overlay:    #06180c;
+  /* Backgrounds — lifted off pure black, still dark */
+  --bg-base:       #071309;
+  --bg-raised:     #0b1c0f;
+  --bg-elevated:   #122616;
+  --bg-overlay:    #17301c;
 
-  /* Surfaces — dark CRT glass */
-  --surface-1:     rgba(1, 8, 3, 0.90);
-  --surface-2:     rgba(2, 12, 5, 0.86);
-  --surface-3:     rgba(4, 18, 8, 0.82);
+  /* Surfaces — dark glass, slightly warmer */
+  --surface-1:     rgba(7, 19, 9, 0.90);
+  --surface-2:     rgba(11, 28, 15, 0.86);
+  --surface-3:     rgba(18, 38, 22, 0.82);
 
   /* Accent palette — monochrome phosphor tiers */
   --accent-green:  #00ff41;
   --accent-green2: #00ff41;
   --accent-cyan:   #57ffb0;   /* mint tier — "listening" states */
   --accent-blue:   #00e070;
-  --accent-pink:   #ffc857;   /* warm gold — rare warm accent */
+  --accent-pink:   #ffc857;   /* warm gold — doubles as the Landing/Onboarding primary-CTA color */
   --accent-amber:  #ffb300;
   --accent-purple: #2bd96b;   /* moss tier */
   --accent-red:    #ff3b5c;
 
-  /* Semantic text — pale phosphor, not pure white */
-  --text-primary:   rgba(214, 255, 224, 0.94);
-  --text-secondary: rgba(166, 238, 188, 0.60);
-  --text-tertiary:  rgba(126, 220, 156, 0.34);
-  --text-muted:     rgba(126, 220, 156, 0.15);
+  /* Semantic text — pale phosphor, raised for legibility */
+  --text-primary:   rgba(226, 255, 234, 0.96);
+  --text-secondary: rgba(190, 230, 200, 0.78);
+  --text-tertiary:  rgba(170, 210, 180, 0.55);
+  --text-muted:     rgba(160, 200, 170, 0.22);
 
   /* Border system — green-tinted */
   --border-subtle:  rgba(0, 255, 65, 0.10);
@@ -68,15 +79,15 @@
   --border-green:   rgba(0, 255, 65, 0.35);
   --border-cyan:    rgba(87, 255, 176, 0.28);
 
-  /* Glow system — layered box-shadows */
-  --glow-green-sm:  0 0 12px rgba(0,255,65,0.4), 0 0 35px rgba(0,255,65,0.12);
-  --glow-green-md:  0 0 20px rgba(0,255,65,0.5), 0 0 60px rgba(0,255,65,0.18), 0 0 120px rgba(0,255,65,0.06);
-  --glow-green-lg:  0 0 30px rgba(0,255,65,0.6), 0 0 80px rgba(0,255,65,0.22), 0 0 180px rgba(0,255,65,0.08);
-  --glow-cyan-sm:   0 0 12px rgba(87,255,176,0.4), 0 0 35px rgba(87,255,176,0.12);
-  --glow-cyan-md:   0 0 20px rgba(87,255,176,0.5), 0 0 60px rgba(87,255,176,0.18), 0 0 120px rgba(0,255,65,0.06);
-  --glow-pink-sm:   0 0 12px rgba(255,200,87,0.4), 0 0 35px rgba(255,200,87,0.12);
-  --glow-amber-sm:  0 0 12px rgba(255,179,0,0.4), 0 0 35px rgba(255,179,0,0.12);
-  --glow-panel:     0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,255,65,0.05);
+  /* Glow system — layered box-shadows, ~half the blur/opacity of v4.0 */
+  --glow-green-sm:  0 0 6px rgba(0,255,65,0.22), 0 0 17px rgba(0,255,65,0.07);
+  --glow-green-md:  0 0 10px rgba(0,255,65,0.28), 0 0 30px rgba(0,255,65,0.10), 0 0 60px rgba(0,255,65,0.03);
+  --glow-green-lg:  0 0 15px rgba(0,255,65,0.32), 0 0 40px rgba(0,255,65,0.12), 0 0 90px rgba(0,255,65,0.04);
+  --glow-cyan-sm:   0 0 6px rgba(87,255,176,0.22), 0 0 17px rgba(87,255,176,0.07);
+  --glow-cyan-md:   0 0 10px rgba(87,255,176,0.28), 0 0 30px rgba(87,255,176,0.10), 0 0 60px rgba(0,255,65,0.03);
+  --glow-pink-sm:   0 0 6px rgba(255,200,87,0.22), 0 0 17px rgba(255,200,87,0.07);
+  --glow-amber-sm:  0 0 6px rgba(255,179,0,0.22), 0 0 17px rgba(255,179,0,0.07);
+  --glow-panel:     0 8px 32px rgba(0,0,0,0.65), 0 0 0 1px rgba(0,255,65,0.04);
 
   /* Glass blur */
   --blur-sm:  blur(12px);
@@ -96,9 +107,9 @@
   --radius-pill:9999px;
 
   /* Legacy compat — all remapped into phosphor tiers */
-  --c-bg:      #010502;
-  --c-surface: rgba(1,8,3,0.90);
-  --c-panel:   rgba(2,12,5,0.86);
+  --c-bg:      #071309;
+  --c-surface: rgba(7,19,9,0.90);
+  --c-panel:   rgba(11,28,15,0.86);
   --c-cyan:    #57ffb0;
   --c-green:   #00ff41;
   --c-blue:    #00e070;
@@ -116,11 +127,11 @@
   --echo-primary:   #00ff41;
   --echo-secondary: #57ffb0;
   --echo-accent:    #ffb300;
-  --glass-bg:       rgba(1,8,3,0.85);
+  --glass-bg:       rgba(7,19,9,0.85);
   --glass-border:   rgba(0,255,65,0.14);
   --circadian-accent:  #57ffb0;
   --circadian-accent2: #00ff41;
-  --circadian-bg:      #010502;
+  --circadian-bg:      #071309;
   --circadian-glow:    rgba(0,255,65,0.16);
 }
 
