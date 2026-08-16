@@ -13,7 +13,19 @@ import DecodeText from './fx/DecodeText';
 interface Props {
     onComplete: () => void;
     onSkip?: () => void;
+    /** Opens the "What Echo can do" capability-discovery panel (components/ExplorePanel.tsx). */
+    onExplore?: () => void;
 }
+
+/** A handful of concrete prompts spanning different capability categories,
+ *  shown once on the completion screen — see ExplorePanel.tsx for the full
+ *  browsable list this links out to. */
+const TRY_THESE = [
+    '🗓️  "Plan my week"',
+    '📱  "Post this update to social media for me"',
+    '🎥  "Join my next meeting and take notes"',
+    '⌨️  "Turn on dictation so I can type anywhere by voice"',
+];
 
 // ── STEPS ────────────────────────────────────────────────────────────────────
 type StepType = 'text' | 'choice' | 'multiChoice' | 'apiKey';
@@ -129,7 +141,7 @@ const KEY_INSTRUCTIONS = [
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function OnboardingWizard({ onComplete, onSkip }: Props) {
+export default function OnboardingWizard({ onComplete, onSkip, onExplore }: Props) {
     const [stepIdx, setStepIdx]       = useState(0);
     const [bootLine, setBootLine]     = useState(0);
     const [showInput, setShowInput]   = useState(false);
@@ -139,6 +151,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
     const [subValue, setSubValue]     = useState('');
     const [history, setHistory]       = useState<string[]>([]);
     const [finished, setFinished]     = useState(false);
+    const autoAdvanceRef = useRef<number | null>(null);
     // ── AI-key step state ──
     const [keyStatus, setKeyStatus]   = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
     const [keyMessage, setKeyMessage] = useState('');
@@ -177,9 +190,10 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         if (showInput && inputRef.current) inputRef.current.focus();
     }, [bootLine, showInput, history]);
 
-    // Clear any pending key-validation debounce on unmount
+    // Clear any pending key-validation debounce / completion auto-advance on unmount
     useEffect(() => () => {
         if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+        if (autoAdvanceRef.current !== null) window.clearTimeout(autoAdvanceRef.current);
     }, []);
 
     // ── AI-key validation ────────────────────────────────────────────────────
@@ -319,7 +333,18 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
             });
         }
 
-        setTimeout(onComplete, 2400);
+        autoAdvanceRef.current = window.setTimeout(onComplete, 5200);
+    };
+
+    /** Either CTA on the completion screen — cancels the auto-advance timer
+     *  so it can't also fire onComplete a second time right after. */
+    const finishNow = (explore: boolean) => {
+        if (autoAdvanceRef.current !== null) {
+            window.clearTimeout(autoAdvanceRef.current);
+            autoAdvanceRef.current = null;
+        }
+        if (explore && onExplore) onExplore();
+        else onComplete();
     };
 
     const handleChoiceClick = (i: number) => {
@@ -609,6 +634,41 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                             letterSpacing: '0.4em',
                         }}>
                             ◉ ONLINE
+                        </div>
+
+                        {/* A few concrete things to try — answers "what can this
+                            actually do?" right when it matters most, links out
+                            to the full ExplorePanel rather than duplicating it. */}
+                        <div style={{ marginTop: 32, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}>
+                            <p style={{ color: greenMid, fontSize: 11, letterSpacing: '0.15em', marginBottom: 10, textAlign: 'center' }}>
+                                A FEW THINGS YOU CAN TRY RIGHT NOW
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {TRY_THESE.map((line, i) => (
+                                    <div key={i} style={{ color: greenBright, fontSize: 13, lineHeight: '1.6', textAlign: 'center' }}>
+                                        {line}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                            <button
+                                onClick={() => finishNow(false)}
+                                className="btn-term solid"
+                                style={{ padding: '10px 28px', fontSize: 12 }}
+                            >
+                                START TALKING →
+                            </button>
+                            {onExplore && (
+                                <button
+                                    onClick={() => finishNow(true)}
+                                    className="btn-term ghost"
+                                    style={{ padding: '6px 16px', fontSize: 11 }}
+                                >
+                                    See everything Echo can do →
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}

@@ -9,6 +9,9 @@ import DecodeText from './fx/DecodeText';
 
 interface LandingPageProps {
     onGetStarted: () => void;
+    /** Opens the "What Echo can do" capability panel as a live preview — no
+     *  onboarding required first. */
+    onSeeCapabilities?: () => void;
 }
 
 const ACCENT = '#00ff41';
@@ -58,7 +61,7 @@ const STEPS: { step: string; title: string; body: string }[] = [
     },
 ];
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onSeeCapabilities }) => {
     return (
         <div
             className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden"
@@ -278,6 +281,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         Get Started &mdash; Free
                         <ArrowRight size={18} strokeWidth={2.5} />
                     </button>
+
+                    {onSeeCapabilities && (
+                        <button
+                            type="button"
+                            onClick={onSeeCapabilities}
+                            className="lp-reveal mt-4 text-xs underline-offset-4 hover:underline sm:text-[13px]"
+                            style={{
+                                animationDelay: '0.48s',
+                                color: 'var(--text-secondary)',
+                                fontFamily: 'var(--font-ui)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            See what it can do →
+                        </button>
+                    )}
 
                     <p
                         className="lp-reveal mt-4 text-xs sm:text-[13px]"

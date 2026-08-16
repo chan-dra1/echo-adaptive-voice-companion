@@ -1076,6 +1076,7 @@ export default function App() {
             try { localStorage.setItem('echo_landing_seen', '1'); } catch { /* ignore */ }
             setShowLanding(false);
           }}
+          onSeeCapabilities={() => setShowExplore(true)}
         />
       )}
       {/* Onboarding Wizard — shows on first launch after vault is ready */}
@@ -1083,6 +1084,19 @@ export default function App() {
         <OnboardingWizard
           onComplete={() => { setShowOnboarding(false); refreshKeyState(); fireFirstHello(); }}
           onSkip={() => { setShowOnboarding(false); refreshKeyState(); }}
+          onExplore={() => { setShowOnboarding(false); refreshKeyState(); fireFirstHello(); setShowExplore(true); }}
+        />
+      )}
+      {/* "What Echo can do" — a top-level sibling of Landing/Onboarding (not
+          nested inside the z-20 main-stage wrapper below) so its z-[100]
+          reliably paints above both, including over the Landing page before
+          any vault/onboarding gate has even resolved. Deliberately NOT
+          gated behind isAdvanced — it's the answer to Simple-mode users
+          never being told what Echo can do. */}
+      {showExplore && (
+        <ExplorePanel
+          onClose={() => setShowExplore(false)}
+          onTryPrompt={(text) => setPendingChatInjection({ text, nonce: Date.now() })}
         />
       )}
       <SkillApprovalModal />
@@ -1189,16 +1203,6 @@ export default function App() {
           {/* Files & Drafts (self-positioning floating panel, not a drawer) */}
           {isAdvanced && showFiles && (
             <FilesPanel onClose={() => setShowFiles(false)} />
-          )}
-
-          {/* "What Echo can do" — deliberately NOT gated behind isAdvanced;
-              it's the answer to Simple-mode users never being told what
-              Echo is capable of. */}
-          {showExplore && (
-            <ExplorePanel
-              onClose={() => setShowExplore(false)}
-              onTryPrompt={(text) => setPendingChatInjection({ text, nonce: Date.now() })}
-            />
           )}
 
           {/* Sidebars (Drawers) */}
