@@ -1,12 +1,12 @@
 import React from 'react';
-import { X, Folder, Sparkles, Megaphone, Zap, Rocket, Bot, Ghost, Package, Languages, Ghost as GhostIcon } from 'lucide-react';
+import { X, Folder, Sparkles, Megaphone, Zap, Rocket, Bot, Ghost, Package, Languages, Ghost as GhostIcon, Camera } from 'lucide-react';
 import Tooltip from './Tooltip';
 
 interface PowerToolsMenuProps {
     onClose: () => void;
     onOpen: (which:
         | 'vault' | 'skills' | 'social' | 'automation' | 'missions'
-        | 'subAgents' | 'ghostMode' | 'files'
+        | 'subAgents' | 'ghostMode' | 'files' | 'headshots'
     ) => void;
     runningSubAgents: number;
     isTranslationMode: boolean;
@@ -42,6 +42,7 @@ export default function PowerToolsMenu({
         { key: 'subAgents', icon: <Bot size={16} />, label: 'Sub-Agents', desc: 'Background agents working on your behalf', badge: runningSubAgents },
         { key: 'ghostMode', icon: <Ghost size={16} />, label: 'Ghost Mode', desc: "Configure Echo's interview/professional persona" },
         { key: 'files', icon: <Package size={16} />, label: 'Files & Drafts', desc: 'Everything Echo has made — drafts & campaigns' },
+        { key: 'headshots', icon: <Camera size={16} />, label: 'Headshot Studio', desc: 'Camera photo → professional headshot, encrypted & private' },
     ];
 
     return (

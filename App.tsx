@@ -37,6 +37,7 @@ import MeetingPanel from './components/MeetingPanel';
 import PowerToolsMenu from './components/PowerToolsMenu';
 import FilesPanel from './components/FilesPanel';
 import ExplorePanel from './components/ExplorePanel';
+import HeadshotStudio from './components/HeadshotStudio';
 import * as meetingCaptureService from './services/meetingCaptureService';
 import { dictationService } from './services/dictationService';
 import { desktopAutomationService } from './services/desktopAutomationService';
@@ -223,6 +224,7 @@ export default function App() {
   // previously built but never wired to any trigger anywhere).
   const [showPowerTools, setShowPowerTools] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  const [showHeadshots, setShowHeadshots] = useState(false);
   // "What Echo can do" discovery panel — visible in Simple mode too, since
   // it's the answer to onboarding never explaining Echo's capabilities.
   const [showExplore, setShowExplore] = useState(false);
@@ -653,6 +655,8 @@ export default function App() {
           setShowPowerTools(false);
         } else if (showFiles) {
           setShowFiles(false);
+        } else if (showHeadshots) {
+          setShowHeadshots(false);
         } else if (showExplore) {
           setShowExplore(false);
         } else if (showChat) {
@@ -667,7 +671,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting, showPowerTools, showFiles, showExplore]);
+  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting, showPowerTools, showFiles, showHeadshots, showExplore]);
 
   const handleConnect = useCallback(async () => {
     const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
@@ -1035,7 +1039,7 @@ export default function App() {
 
   const hideBottomChrome = isSettingsOpen || showFileUpload || showExplore || (vaultReady && (showOnboarding || showLanding));
 
-  const handleOpenPowerTool = (which: 'vault' | 'skills' | 'social' | 'automation' | 'missions' | 'subAgents' | 'ghostMode' | 'files') => {
+  const handleOpenPowerTool = (which: 'vault' | 'skills' | 'social' | 'automation' | 'missions' | 'subAgents' | 'ghostMode' | 'files' | 'headshots') => {
     setShowPowerTools(false);
     if (which === 'vault') setShowVaultOrganizer(true);
     else if (which === 'skills') setShowSkillsVault(true);
@@ -1045,6 +1049,7 @@ export default function App() {
     else if (which === 'subAgents') setShowSubAgents(true);
     else if (which === 'ghostMode') setShowGhostMode(true);
     else if (which === 'files') setShowFiles(true);
+    else if (which === 'headshots') setShowHeadshots(true);
   };
 
   // Translation/Stealth also persist to localStorage — matches the existing
@@ -1203,6 +1208,11 @@ export default function App() {
           {/* Files & Drafts (self-positioning floating panel, not a drawer) */}
           {isAdvanced && showFiles && (
             <FilesPanel onClose={() => setShowFiles(false)} />
+          )}
+
+          {/* Headshot Studio (centered modal, same pattern as ExplorePanel) */}
+          {isAdvanced && showHeadshots && (
+            <HeadshotStudio onClose={() => setShowHeadshots(false)} />
           )}
 
           {/* Sidebars (Drawers) */}

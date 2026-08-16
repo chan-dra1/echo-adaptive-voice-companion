@@ -1,8 +1,12 @@
 import { FunctionDeclaration, Type } from '@google/genai';
 import { Skill } from '../services/agentSkillService';
-import { isCoreConnected, coreExec, coreWriteFile } from '../services/echoCoreSync';
+import { isCoreConnected, coreExec } from '../services/echoCoreSync';
+import { generateGeminiImage, hasGeminiKey } from '../services/geminiImageService';
 
 const IMAGE_APIS_KEY = 'echo_image_apis';
+// 'gemini' deliberately excluded from ALL_PROVIDERS — it needs no separate
+// key (reuses echo_api_key) and no Echo Core/CORS workaround, so it's
+// handled as a special case rather than going through save_image_api_key.
 const ALL_PROVIDERS = ['openai', 'stability', 'together'];
 
 // ── Tool declarations ─────────────────────────────────────────────────────────
@@ -30,7 +34,7 @@ const saveImageApiKeyDeclaration: FunctionDeclaration = {
 const generateImageDeclaration: FunctionDeclaration = {
     name: 'generate_image',
     description:
-        "Generate an AI image from a text prompt using the user's own API key — no SaaS subscription needed. Replaces Midjourney / Adobe Firefly style services. Requires Echo Core to be running (for CORS bypass). Default provider is OpenAI DALL-E 3.",
+        "Generate an AI image from a text prompt. Default provider is 'gemini' — it reuses the user's existing Gemini key (the same one used for chat and voice), needs no separate API key, and works without Echo Core. 'openai' (DALL-E 3), 'stability', and 'together' are also available but need their own API key and Echo Core running (for CORS bypass).",
     parameters: {
         type: Type.OBJECT,
         properties: {
@@ -40,7 +44,7 @@ const generateImageDeclaration: FunctionDeclaration = {
             },
             provider: {
                 type: Type.STRING,
-                description: "Image provider: 'openai' (default), 'stability', or 'together'.",
+                description: "Image provider: 'gemini' (default, no extra key needed), 'openai', 'stability', or 'together'.",
             },
             size: {
                 type: Type.STRING,
@@ -95,7 +99,7 @@ function saveApiKeys(keys: Record<string, string>): void {
 export const mediaStudioSkill: Skill = {
     name: 'mediaStudioSkill',
     description:
-        'AI image generation using your own API keys — replaces Vid.AI / Midjourney-style SaaS. Supports OpenAI DALL-E 3, Stability AI, and Together AI. Requires Echo Core running locally for CORS bypass.',
+        'AI image generation — replaces Vid.AI / Midjourney-style SaaS. Default provider is Gemini, reusing the existing free Gemini key with no setup and no Echo Core needed. OpenAI DALL-E 3, Stability AI, and Together AI are also available with their own API keys, routed through Echo Core for CORS bypass.',
     tools: [saveImageApiKeyDeclaration, generateImageDeclaration, listImageProvidersDeclaration],
 
     execute: async (toolName: string, args: any): Promise<any> => {
@@ -124,13 +128,38 @@ export const mediaStudioSkill: Skill = {
         // ── generate_image ────────────────────────────────────────────────────
         if (toolName === 'generate_image') {
             const prompt: string = String(args.prompt || '').trim();
-            const provider: string = String(args.provider || 'openai').toLowerCase().trim();
+            const provider: string = String(args.provider || 'gemini').toLowerCase().trim();
             const size: string = String(args.size || '1024x1024').trim();
             const style: string | undefined = args.style ? String(args.style).trim() : undefined;
             const saveToDesktop: boolean = !!args.save_to_desktop;
 
             if (!prompt) {
                 return { error: 'A prompt is required to generate an image.' };
+            }
+
+            // Gemini needs no separate key and works directly from the browser
+            // (no CORS block, no Echo Core) — handle it before the other
+            // providers' shared key/Core-connection checks below.
+            if (provider === 'gemini') {
+                if (!hasGeminiKey()) {
+                    return {
+                        error: 'No Gemini key saved yet. Add one in Settings — the same free key used for chat and voice.',
+                    };
+                }
+                try {
+                    const result = await generateGeminiImage(prompt);
+                    return {
+                        success: true,
+                        provider: 'gemini',
+                        prompt,
+                        image_data_url: `data:${result.mimeType};base64,${result.imageBase64}`,
+                        note: 'Generated with your existing Gemini key — no extra API key or Echo Core needed.',
+                        ...(result.text ? { model_notes: result.text } : {}),
+                        ...(saveToDesktop ? { note2: 'save_to_desktop is not supported for the gemini provider yet — the image is returned inline instead.' } : {}),
+                    };
+                } catch (err) {
+                    return { error: (err as Error).message };
+                }
             }
 
             // Resolve API key
@@ -145,11 +174,12 @@ export const mediaStudioSkill: Skill = {
                 };
             }
 
-            // All image APIs block browser CORS — route through Echo Core
+            // The remaining providers (openai/stability/together) all block
+            // browser CORS — route through Echo Core.
             if (!isCoreConnected()) {
                 return {
                     error:
-                        'Echo Core required for image generation (browser CORS). Start echo-core/echo.mjs and pair it.',
+                        'Echo Core required for image generation (browser CORS). Start echo-core/echo.mjs and pair it — or say "generate an image with gemini" instead, which works without Echo Core.',
                 };
             }
 
@@ -331,9 +361,12 @@ export const mediaStudioSkill: Skill = {
             const configured = ALL_PROVIDERS.filter(p => !!keys[p]);
 
             return {
-                configured,
-                all_providers: ALL_PROVIDERS,
-                setup_tip: 'Say "save my OpenAI key ABC123" to get started',
+                configured: hasGeminiKey() ? ['gemini', ...configured] : configured,
+                all_providers: ['gemini', ...ALL_PROVIDERS],
+                default_provider: 'gemini',
+                setup_tip: hasGeminiKey()
+                    ? 'gemini is ready to go — it reuses your existing Gemini key, no setup needed. Say "save my OpenAI key ABC123" to add another provider.'
+                    : 'Add a Gemini key in Settings to generate images with no extra setup, or say "save my OpenAI key ABC123" for another provider.',
             };
         }
 

@@ -72,7 +72,7 @@ const CATEGORIES: Category[] = [
         key: 'career',
         icon: Briefcase,
         title: 'Career & job hunt',
-        blurb: 'Tailor your resume to a listing, track applications, and prep for interviews.',
+        blurb: 'Tailor your resume to a listing, track applications, prep for interviews, and generate a private AI headshot from your camera (Power Tools → Headshot Studio).',
         examples: [
             'Find remote product manager jobs',
             'Tailor my resume for this job posting',
@@ -172,7 +172,7 @@ const CATEGORIES: Category[] = [
         key: 'creative',
         icon: ImageIcon,
         title: 'Images & storefront',
-        blurb: 'Generate images from a description and build a simple page to sell your work.',
+        blurb: 'Generate images from a description using your existing Gemini key — no extra setup — and build a simple page to sell your work.',
         examples: [
             'Generate an image of a cozy coffee shop logo',
             'Build me a storefront page for my digital products',
