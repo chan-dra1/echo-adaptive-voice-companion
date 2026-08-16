@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Ear, Heart, Zap, RotateCcw, ChevronUp, Video } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Ear, Heart, Zap, RotateCcw, ChevronUp, Video, Compass } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION, LIVE_MODEL_OPTIONS, getLiveModelName, setLiveModelName, LiveModelId } from './constants';
 import { useToast } from './hooks/useToast';
@@ -36,6 +36,7 @@ import { subAgentService } from './services/subAgentService';
 import MeetingPanel from './components/MeetingPanel';
 import PowerToolsMenu from './components/PowerToolsMenu';
 import FilesPanel from './components/FilesPanel';
+import ExplorePanel from './components/ExplorePanel';
 import * as meetingCaptureService from './services/meetingCaptureService';
 import { dictationService } from './services/dictationService';
 import { desktopAutomationService } from './services/desktopAutomationService';
@@ -222,6 +223,9 @@ export default function App() {
   // previously built but never wired to any trigger anywhere).
   const [showPowerTools, setShowPowerTools] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  // "What Echo can do" discovery panel — visible in Simple mode too, since
+  // it's the answer to onboarding never explaining Echo's capabilities.
+  const [showExplore, setShowExplore] = useState(false);
   // Live running-count for the sidebar badge, independent of whether the
   // panel itself is open — this is what makes background work visible even
   // when you're not looking at the panel.
@@ -649,6 +653,8 @@ export default function App() {
           setShowPowerTools(false);
         } else if (showFiles) {
           setShowFiles(false);
+        } else if (showExplore) {
+          setShowExplore(false);
         } else if (showChat) {
           setShowChat(false);
         } else if (showMemory) {
@@ -661,7 +667,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting, showPowerTools, showFiles]);
+  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting, showPowerTools, showFiles, showExplore]);
 
   const handleConnect = useCallback(async () => {
     const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
@@ -1027,7 +1033,7 @@ export default function App() {
     setTimeout(() => setShowChat(true), 800);
   }, [currentConvoId]);
 
-  const hideBottomChrome = isSettingsOpen || showFileUpload || (vaultReady && (showOnboarding || showLanding));
+  const hideBottomChrome = isSettingsOpen || showFileUpload || showExplore || (vaultReady && (showOnboarding || showLanding));
 
   const handleOpenPowerTool = (which: 'vault' | 'skills' | 'social' | 'automation' | 'missions' | 'subAgents' | 'ghostMode' | 'files') => {
     setShowPowerTools(false);
@@ -1185,6 +1191,16 @@ export default function App() {
             <FilesPanel onClose={() => setShowFiles(false)} />
           )}
 
+          {/* "What Echo can do" — deliberately NOT gated behind isAdvanced;
+              it's the answer to Simple-mode users never being told what
+              Echo is capable of. */}
+          {showExplore && (
+            <ExplorePanel
+              onClose={() => setShowExplore(false)}
+              onTryPrompt={(text) => setPendingChatInjection({ text, nonce: Date.now() })}
+            />
+          )}
+
           {/* Sidebars (Drawers) */}
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showChat ? 'translate-x-0' : '-translate-x-full'}`}>
             <ChatPanel
@@ -1319,6 +1335,16 @@ export default function App() {
                 aria-label="Memory bank"
               >
                 <Brain size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="What Echo Can Do">
+              <button
+                onClick={() => setShowExplore(true)}
+                className={`sidebar-btn ${showExplore ? 'active' : ''}`}
+                aria-label="What Echo can do"
+              >
+                <Compass size={18} />
               </button>
             </Tooltip>
 
@@ -1696,6 +1722,7 @@ export default function App() {
                     {([
                       { icon: MessageSquare, label: 'Chat',      action: () => { setShowChat(true);          setShowMobileMenu(false); } },
                       { icon: Brain,        label: 'Memory',     action: () => { setShowMemory(true);         setShowMobileMenu(false); } },
+                      { icon: Compass,      label: 'Explore',    action: () => { setShowExplore(true);        setShowMobileMenu(false); } },
                       { icon: Heart,        label: 'Companion',  action: () => { setShowCompanionPanel(true); setShowMobileMenu(false); } },
                       { icon: Video,        label: 'Meeting',    action: () => { setShowMeeting(true);        setShowMobileMenu(false); } },
                       { icon: Zap,          label: 'Power Tools',advanced: true, action: () => { setShowPowerTools(true);     setShowMobileMenu(false); } },
