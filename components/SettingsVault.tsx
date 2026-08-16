@@ -18,6 +18,7 @@ interface SettingsVaultProps {
     isOpen: boolean;
     onClose: () => void;
     onSaved?: () => void;
+    onOpenVoiceVault?: () => void;
 }
 
 interface ProviderRow {
@@ -130,7 +131,7 @@ function SectionTitle({ icon, children }: { icon: React.ReactNode; children: Rea
     );
 }
 
-export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaultProps) {
+export default function SettingsVault({ isOpen, onClose, onSaved, onOpenVoiceVault }: SettingsVaultProps) {
     const { success, error } = useToast();
 
     // Existing simple keys
@@ -737,6 +738,25 @@ export default function SettingsVault({ isOpen, onClose, onSaved }: SettingsVaul
                             AI Studio Flash Live only (low cost). Disconnect and reconnect after changing. Hands-free + native app required for mic while screen locked.
                         </p>
                     </div>
+
+                    {/* Voice Cloning */}
+                    {onOpenVoiceVault && (
+                        <div className={SECTION_CLS}>
+                            <label>
+                                <SectionTitle icon={<Lock size={14} />}>Voice Cloning (beta)</SectionTitle>
+                            </label>
+                            <p className="text-[10px] text-[var(--text-tertiary)]">
+                                Record training samples to teach Echo your voice. Stored encrypted, locally only.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => { onOpenVoiceVault(); onClose(); }}
+                                className="btn-term ghost w-full text-xs py-2"
+                            >
+                                Open Voice Vault →
+                            </button>
+                        </div>
+                    )}
 
                     {/* Style examples */}
                     <div className={SECTION_CLS}>

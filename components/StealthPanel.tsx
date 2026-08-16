@@ -33,7 +33,7 @@ const StealthPanel: React.FC<StealthPanelProps> = ({ history, isThinking, onClos
                 <span className="term-dots" />
                 <div className="flex items-center gap-2 flex-1" style={{ color: 'var(--accent-cyan)' }}>
                     <Ghost size={14} aria-hidden="true" />
-                    <span className="text-xs font-[var(--font-term)] font-bold tracking-[0.2em] uppercase">GHOST.MODE</span>
+                    <span className="text-xs font-[var(--font-term)] font-bold tracking-[0.2em] uppercase">STEALTH.SYS</span>
                 </div>
                 <button onClick={onClose} className="text-[var(--text-tertiary)] hover:text-[var(--accent-cyan)] transition-colors" aria-label="Close ghost mode panel">
                     <X size={16} />

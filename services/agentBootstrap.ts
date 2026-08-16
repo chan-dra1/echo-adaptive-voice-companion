@@ -39,6 +39,7 @@ import outreachSkill from '../skills/outreachSkill';
 import contentSkill from '../skills/contentSkill';
 import automationSkill from '../skills/automationSkill';
 import meetingSkill from '../skills/meetingSkill';
+import draftsSkill from '../skills/draftsSkill';
 import inboxSkill from '../skills/inboxSkill';
 import careerSkill from '../skills/careerSkill';
 import seoSkill from '../skills/seoSkill';
@@ -209,6 +210,7 @@ export async function bootstrapAgent(): Promise<void> {
         agentSkillService.registerSkill(contentSkill);
         agentSkillService.registerSkill(automationSkill);
         agentSkillService.registerSkill(meetingSkill);
+        agentSkillService.registerSkill(draftsSkill);
         agentSkillService.registerSkill(inboxSkill);
         agentSkillService.registerSkill(careerSkill);
         agentSkillService.registerSkill(seoSkill);

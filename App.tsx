@@ -13,7 +13,7 @@ import FileUploadPopup from './components/FileUploadPopup';
 import ToastContainer from './components/ToastContainer';
 import Tooltip from './components/Tooltip';
 import Button from './components/Button';
-import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Ghost, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Folder, Ear, Heart, Sparkles, Megaphone, Zap, Rocket, RotateCcw, ChevronUp, Bot, Video } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, Terminal, MessageSquare, Database, Monitor, MonitorOff, Lock, Menu, Globe, Brain, User, Paperclip, Camera, Plus, Clock, Headphones, Ear, Heart, Zap, RotateCcw, ChevronUp, Video } from 'lucide-react';
 import { MemoryItem, ChatMessage, ConnectionStatus } from './types';
 import { VOICE_OPTIONS, ECHO_SYSTEM_INSTRUCTION, LIVE_MODEL_OPTIONS, getLiveModelName, setLiveModelName, LiveModelId } from './constants';
 import { useToast } from './hooks/useToast';
@@ -27,13 +27,15 @@ import MatrixRain from './components/MatrixRain';
 import VoiceOrb from './components/VoiceOrb';
 import { ghostAgent } from './services/ghostAgentService';
 import SkillApprovalModal from './components/SkillApprovalModal';
-import { initVault, isUnlocked, resetVaultKeys, getCached } from './services/cryptoService';
+import { initVault, isUnlocked, resetVaultKeys, getCached, setCached } from './services/cryptoService';
 import { bootstrapAgent } from './services/agentBootstrap';
 import { taskMissionService } from './services/taskMissionService';
 import VaultOrganizerPanel from './components/VaultOrganizerPanel';
 import SubAgentPanel from './components/SubAgentPanel';
 import { subAgentService } from './services/subAgentService';
 import MeetingPanel from './components/MeetingPanel';
+import PowerToolsMenu from './components/PowerToolsMenu';
+import FilesPanel from './components/FilesPanel';
 import * as meetingCaptureService from './services/meetingCaptureService';
 import { dictationService } from './services/dictationService';
 import { desktopAutomationService } from './services/desktopAutomationService';
@@ -213,6 +215,13 @@ export default function App() {
   const [showGhostMode, setShowGhostMode] = useState(false);
   const [showVaultOrganizer, setShowVaultOrganizer] = useState(false);
   const [showSubAgents, setShowSubAgents] = useState(false);
+  // Power Tools: a single sidebar entry launching a small floating menu
+  // (components/PowerToolsMenu.tsx) instead of 7+ flat always-visible
+  // icons — see the UI redesign plan's Stage 2. showFiles is the one
+  // genuinely new panel in that menu (FilesPanel — drafts/campaigns viewer,
+  // previously built but never wired to any trigger anywhere).
+  const [showPowerTools, setShowPowerTools] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
   // Live running-count for the sidebar badge, independent of whether the
   // panel itself is open — this is what makes background work visible even
   // when you're not looking at the panel.
@@ -636,6 +645,10 @@ export default function App() {
           setShowSubAgents(false);
         } else if (showMeeting) {
           setShowMeeting(false);
+        } else if (showPowerTools) {
+          setShowPowerTools(false);
+        } else if (showFiles) {
+          setShowFiles(false);
         } else if (showChat) {
           setShowChat(false);
         } else if (showMemory) {
@@ -648,7 +661,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting]);
+  }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting, showPowerTools, showFiles]);
 
   const handleConnect = useCallback(async () => {
     const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
@@ -1016,6 +1029,37 @@ export default function App() {
 
   const hideBottomChrome = isSettingsOpen || showFileUpload || (vaultReady && (showOnboarding || showLanding));
 
+  const handleOpenPowerTool = (which: 'vault' | 'skills' | 'social' | 'automation' | 'missions' | 'subAgents' | 'ghostMode' | 'files') => {
+    setShowPowerTools(false);
+    if (which === 'vault') setShowVaultOrganizer(true);
+    else if (which === 'skills') setShowSkillsVault(true);
+    else if (which === 'social') setShowSocial(true);
+    else if (which === 'automation') setShowAutomation(true);
+    else if (which === 'missions') setShowMissions(true);
+    else if (which === 'subAgents') setShowSubAgents(true);
+    else if (which === 'ghostMode') setShowGhostMode(true);
+    else if (which === 'files') setShowFiles(true);
+  };
+
+  // Translation/Stealth also persist to localStorage — matches the existing
+  // fallback SettingsVault.tsx's checkboxes already read on connect
+  // (persistedTranslation/persistedStealth in handleConnect above), so
+  // toggling here and toggling there stay consistent with each other.
+  const handleToggleTranslation = () => {
+    setIsTranslationMode(v => {
+      const next = !v;
+      try { localStorage.setItem('echo_translation_mode', String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const handleToggleStealth = () => {
+    setIsStealthMode(v => {
+      const next = !v;
+      try { localStorage.setItem('echo_stealth_mode', String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   return (
 
     <div className={`relative w-screen h-screen overflow-hidden flex flex-col selection:bg-[#00ff41]/20${isMobileCoarse ? ' mobile-lite' : ''}`} style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}>
@@ -1079,6 +1123,7 @@ export default function App() {
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
             onSaved={refreshKeyState}
+            onOpenVoiceVault={() => setShowVoiceVault(true)}
           />
 
           {/* File Upload Popup (Modal) */}
@@ -1112,6 +1157,34 @@ export default function App() {
             <MeetingPanel onClose={() => setShowMeeting(false)} />
           )}
 
+          {/* Power Tools launcher (self-positioning floating panel, not a drawer) */}
+          {isAdvanced && showPowerTools && (
+            <PowerToolsMenu
+              onClose={() => setShowPowerTools(false)}
+              onOpen={handleOpenPowerTool}
+              runningSubAgents={runningSubAgents}
+              isTranslationMode={isTranslationMode}
+              onToggleTranslation={handleToggleTranslation}
+              isStealthMode={isStealthMode}
+              onToggleStealth={handleToggleStealth}
+            />
+          )}
+
+          {/* Live Translation / Stealth View — shown for as long as the mode is
+              active, not tied to any drawer open/close state (toggled from
+              Power Tools or Settings, either one flips the same state). */}
+          {isTranslationMode && (
+            <TranslationPanel onClose={handleToggleTranslation} history={chatHistory} isThinking={isThinking} />
+          )}
+          {isStealthMode && (
+            <StealthPanel onClose={handleToggleStealth} history={chatHistory} isThinking={isThinking} />
+          )}
+
+          {/* Files & Drafts (self-positioning floating panel, not a drawer) */}
+          {isAdvanced && showFiles && (
+            <FilesPanel onClose={() => setShowFiles(false)} />
+          )}
+
           {/* Sidebars (Drawers) */}
           <div className={`fixed top-0 bottom-0 left-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showChat ? 'translate-x-0' : '-translate-x-full'}`}>
             <ChatPanel
@@ -1140,7 +1213,10 @@ export default function App() {
 
           {/* Companion Panel */}
           <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showCompanionPanel ? 'translate-x-0' : 'translate-x-full'}`}>
-            <CompanionPanel onClose={() => setShowCompanionPanel(false)} />
+            <CompanionPanel
+              onClose={() => setShowCompanionPanel(false)}
+              onOpenPersonalizedLearning={() => setShowPersonalizedLearning(true)}
+            />
           </div>
 
           {isAdvanced && (
@@ -1172,6 +1248,24 @@ export default function App() {
               onClose={() => setShowVoiceVault(false)}
               isLocalVoiceEnabled={isLocalVoiceEnabled}
               onToggleLocalVoice={setIsLocalVoiceEnabled}
+            />
+          </div>
+
+          <div className={`fixed top-0 bottom-0 right-0 z-40 w-full sm:w-[400px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${showPersonalizedLearning ? 'translate-x-0' : 'translate-x-full'}`}>
+            <PersonalizedLearningPanel
+              onClose={() => setShowPersonalizedLearning(false)}
+              onApplyPersonalization={(prompt) => {
+                // Reuses the SAME echo_style_examples pipeline SettingsVault's
+                // "Your voice — style examples" already feeds into every
+                // model call (services/modelContextBuilder.ts) — no new
+                // prompt-injection path, just another entry in that array.
+                // The [Personalized] marker means re-activating replaces the
+                // old entry instead of accumulating duplicates forever.
+                const existing = getCached<string[]>('echo_style_examples', []);
+                const next = [...existing.filter(e => !e.startsWith('[Personalized]')), `[Personalized] ${prompt}`];
+                setCached('echo_style_examples', next);
+                success('Personalization applied — Echo will mirror your communication style from now on.');
+              }}
             />
           </div>
 
@@ -1228,83 +1322,6 @@ export default function App() {
               </button>
             </Tooltip>
 
-            {isAdvanced && (
-              <>
-                <Tooltip content="Vault Organizer">
-                  <button
-                    onClick={() => setShowVaultOrganizer(true)}
-                    className={`sidebar-btn ${showVaultOrganizer ? 'active-cyan' : ''}`}
-                    aria-label="Vault organizer"
-                  >
-                    <Folder size={18} />
-                  </button>
-                </Tooltip>
-
-                <Tooltip content="Skills Vault">
-                  <button
-                    onClick={() => setShowSkillsVault(true)}
-                    className={`sidebar-btn ${showSkillsVault ? 'active' : ''}`}
-                    aria-label="Skills vault"
-                  >
-                    <Sparkles size={18} />
-                  </button>
-                </Tooltip>
-
-                <Tooltip content="Social Autopilot">
-                  <button
-                    onClick={() => setShowSocial(true)}
-                    className={`sidebar-btn ${showSocial ? 'active' : ''}`}
-                    aria-label="Social autopilot"
-                  >
-                    <Megaphone size={18} />
-                  </button>
-                </Tooltip>
-
-                <Tooltip content="Automation Hub">
-                  <button
-                    onClick={() => setShowAutomation(true)}
-                    className={`sidebar-btn ${showAutomation ? 'active' : ''}`}
-                    aria-label="Automation hub"
-                  >
-                    <Zap size={18} />
-                  </button>
-                </Tooltip>
-
-                <Tooltip content="Autonomous Missions">
-                  <button
-                    onClick={() => setShowMissions(true)}
-                    className={`sidebar-btn ${showMissions ? 'active' : ''}`}
-                    aria-label="Autonomous missions"
-                  >
-                    <Rocket size={18} />
-                  </button>
-                </Tooltip>
-
-                <Tooltip content={runningSubAgents > 0 ? `Sub-Agents (${runningSubAgents} running)` : 'Sub-Agents'}>
-                  <button
-                    onClick={() => setShowSubAgents(true)}
-                    className={`sidebar-btn relative ${showSubAgents ? 'active-cyan' : ''}`}
-                    aria-label="Sub-agents"
-                  >
-                    <Bot size={18} />
-                    {runningSubAgents > 0 && (
-                      <span
-                        className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full text-[9px] font-bold font-mono"
-                        style={{
-                          minWidth: 14, height: 14, padding: '0 3px',
-                          background: 'var(--accent-cyan)', color: '#001505',
-                          boxShadow: 'var(--glow-cyan-sm)',
-                        }}
-                        aria-hidden="true"
-                      >
-                        {runningSubAgents}
-                      </span>
-                    )}
-                  </button>
-                </Tooltip>
-              </>
-            )}
-
             <Tooltip content={isMeetingRecording ? 'Live Meeting (recording)' : 'Live Meeting Mode'}>
               <button
                 onClick={() => setShowMeeting(true)}
@@ -1360,15 +1377,31 @@ export default function App() {
             </Tooltip>
 
             {isAdvanced && (
-              <Tooltip content="Ghost Mode">
-                <button
-                  onClick={() => setShowGhostMode(true)}
-                  className={`sidebar-btn ${isStealthMode ? 'active-cyan' : ''}`}
-                  aria-label="Ghost mode"
-                >
-                  <Ghost size={18} />
-                </button>
-              </Tooltip>
+              <>
+                <div style={{ width: '60%', height: 1, background: 'var(--border-subtle)', margin: '10px 0' }} />
+                <Tooltip content="Power Tools">
+                  <button
+                    onClick={() => setShowPowerTools(true)}
+                    className={`sidebar-btn relative ${showPowerTools ? 'active-cyan' : ''}`}
+                    aria-label="Power tools"
+                  >
+                    <Zap size={18} />
+                    {runningSubAgents > 0 && !showPowerTools && (
+                      <span
+                        className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full text-[9px] font-bold font-mono"
+                        style={{
+                          minWidth: 14, height: 14, padding: '0 3px',
+                          background: 'var(--accent-cyan)', color: '#001505',
+                          boxShadow: 'var(--glow-cyan-sm)',
+                        }}
+                        aria-hidden="true"
+                      >
+                        {runningSubAgents}
+                      </span>
+                    )}
+                  </button>
+                </Tooltip>
+              </>
             )}
 
             {/* Spacer */}
@@ -1663,15 +1696,9 @@ export default function App() {
                     {([
                       { icon: MessageSquare, label: 'Chat',      action: () => { setShowChat(true);          setShowMobileMenu(false); } },
                       { icon: Brain,        label: 'Memory',     action: () => { setShowMemory(true);         setShowMobileMenu(false); } },
-                      { icon: Folder,       label: 'Vault',      advanced: true, action: () => { setShowVaultOrganizer(true); setShowMobileMenu(false); } },
-                      { icon: Sparkles,     label: 'Skills',     advanced: true, action: () => { setShowSkillsVault(true);    setShowMobileMenu(false); } },
-                      { icon: Megaphone,    label: 'Social',     advanced: true, action: () => { setShowSocial(true);         setShowMobileMenu(false); } },
-                      { icon: Zap,          label: 'Automations',advanced: true, action: () => { setShowAutomation(true);     setShowMobileMenu(false); } },
-                      { icon: Rocket,       label: 'Missions',   advanced: true, action: () => { setShowMissions(true);       setShowMobileMenu(false); } },
-                      { icon: Bot,          label: 'Sub-Agents', advanced: true, action: () => { setShowSubAgents(true);     setShowMobileMenu(false); } },
                       { icon: Heart,        label: 'Companion',  action: () => { setShowCompanionPanel(true); setShowMobileMenu(false); } },
                       { icon: Video,        label: 'Meeting',    action: () => { setShowMeeting(true);        setShowMobileMenu(false); } },
-                      { icon: Ghost,        label: 'Ghost',      advanced: true, action: () => { setShowGhostMode(true);      setShowMobileMenu(false); } },
+                      { icon: Zap,          label: 'Power Tools',advanced: true, action: () => { setShowPowerTools(true);     setShowMobileMenu(false); } },
                       { icon: User,         label: 'Settings',   action: () => { setIsSettingsOpen(true);     setShowMobileMenu(false); } },
                       { icon: Monitor,      label: 'Screen',     action: () => {
                         setShowMobileMenu(false);

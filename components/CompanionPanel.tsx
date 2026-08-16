@@ -47,14 +47,15 @@ import {
 import {
     Heart, Target, Calendar, Zap, CheckCircle, Circle,
     Flame, Star, ChevronDown, ChevronUp, Volume2, VolumeX,
-    Clock, AlertTriangle, Smile, Meh, Frown, X, Info,
+    Clock, AlertTriangle, Smile, Meh, Frown, X, Info, Brain,
 } from 'lucide-react';
 
 interface Props {
     onClose: () => void;
+    onOpenPersonalizedLearning?: () => void;
 }
 
-export default function CompanionPanel({ onClose }: Props) {
+export default function CompanionPanel({ onClose, onOpenPersonalizedLearning }: Props) {
     const [tab, setTab] = useState<'briefing' | 'habits' | 'goals' | 'settings'>('briefing');
     const [habits, setHabits] = useState(getHabits());
     const [goals, setGoals] = useState(getActiveGoals());
@@ -366,6 +367,23 @@ export default function CompanionPanel({ onClose }: Props) {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Personalized Learning */}
+                        {onOpenPersonalizedLearning && (
+                            <div className="mt-4">
+                                <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wide font-medium mb-2">Personalization</p>
+                                <button
+                                    onClick={onOpenPersonalizedLearning}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[var(--border-dim)] hover:border-[var(--border-base)] text-left transition-colors"
+                                >
+                                    <Brain size={16} className="text-[var(--accent-green)]" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium text-[var(--text-secondary)]">Learn my communication style</div>
+                                        <div className="text-[var(--text-tertiary)] text-xs truncate">Echo starts sounding more like you, from your conversations</div>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -428,3 +446,51 @@ function GoalCard({ goal }: { goal: Goal }) {
         </div>
     );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
