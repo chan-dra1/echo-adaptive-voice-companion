@@ -107,6 +107,19 @@ export class GeminiLiveService {
   private stream: MediaStream | null = null;
   private nextStartTime = 0;
   private sources = new Set<AudioBufferSourceNode>();
+  // Serializes handleMessage() calls. Without this, onmessage invokes
+  // handleMessage per WS frame with no queueing — since handleMessage awaits
+  // decodeAudioData() per audio chunk, that await yields the event loop, and
+  // a fast-arriving next message starts its OWN handleMessage before the
+  // first one resumes. Both read/write the shared nextStartTime field across
+  // that gap, so their scheduled AudioBufferSourceNodes can overlap —
+  // audible as stutter/garbled audio mid-sentence. An exception from that
+  // race (or any other cause) inside one handleMessage call also went
+  // uncaught, silently abandoning the rest of that message's playback —
+  // audible as a mid-sentence cutoff into silence. Chaining every call onto
+  // this promise forces strict in-order processing and gives every call a
+  // .catch, fixing both symptoms at the root instead of patching around them.
+  private messageQueue: Promise<void> = Promise.resolve();
   private sessionPromise: Promise<any> | null = null;
   private liveSession: any = null;
   private reconnectTimer: number | null = null;
@@ -383,6 +396,9 @@ export class GeminiLiveService {
       this.intentionalDisconnect = false;
       this.authFailure = false;
       this.sessionOpened = false;
+      // Fresh chain for a fresh session — don't let a straggling handler
+      // from the previous socket's tail delay this one's first message.
+      this.messageQueue = Promise.resolve();
 
       this.sessionPromise = this.ai.live.connect({
         model: liveModel,
@@ -424,7 +440,13 @@ export class GeminiLiveService {
               this.handleOpen();
             })();
           },
-          onmessage: this.handleMessage.bind(this),
+          onmessage: (message: LiveServerMessage) => {
+            // See messageQueue's declaration — this chain is what prevents
+            // overlapping handleMessage() calls from racing on nextStartTime.
+            this.messageQueue = this.messageQueue
+              .then(() => this.handleMessage(message))
+              .catch((err) => console.error('[GeminiLive] handleMessage failed:', err));
+          },
           onerror: (e) => {
             console.error('[GeminiLive] WebSocket Error Object:', e);
             const err = new Error(`WebSocket Error: ${e instanceof Error ? e.message : 'Check console for details'}`);
@@ -1353,26 +1375,35 @@ export class GeminiLiveService {
         this.updateMediaSession('listening');
       } else {
         for (const base64Audio of audioParts) {
-          const audioBytes = base64ToArrayBuffer(base64Audio);
-          const audioBuffer = await decodeAudioData(new Uint8Array(audioBytes), this.outputAudioContext);
-          this.updateMediaSession('speaking');
+          // One malformed/undersized chunk throwing here used to abort this
+          // whole for-of loop silently (no catch on the onmessage callback) —
+          // audible as Echo cutting off mid-sentence into silence, with the
+          // rest of the reply's audio parts never scheduled. Skip just the
+          // bad chunk and keep going instead.
+          try {
+            const audioBytes = base64ToArrayBuffer(base64Audio);
+            const audioBuffer = await decodeAudioData(new Uint8Array(audioBytes), this.outputAudioContext);
+            this.updateMediaSession('speaking');
 
-          const now = this.outputAudioContext.currentTime;
-          if (this.nextStartTime < now) {
-            this.nextStartTime = now + 0.05;
+            const now = this.outputAudioContext.currentTime;
+            if (this.nextStartTime < now) {
+              this.nextStartTime = now + 0.05;
+            }
+
+            const source = this.outputAudioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(this.outputAnalyser); // Analyser is already connected to Gain -> Destination
+
+            source.addEventListener('ended', () => {
+              this.sources.delete(source);
+            });
+
+            source.start(this.nextStartTime);
+            this.nextStartTime += audioBuffer.duration;
+            this.sources.add(source);
+          } catch (err) {
+            console.error('[GeminiLive] Failed to decode/schedule one audio chunk — skipping it:', err);
           }
-
-          const source = this.outputAudioContext.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(this.outputAnalyser); // Analyser is already connected to Gain -> Destination
-
-          source.addEventListener('ended', () => {
-            this.sources.delete(source);
-          });
-
-          source.start(this.nextStartTime);
-          this.nextStartTime += audioBuffer.duration;
-          this.sources.add(source);
         }
       }
     }
