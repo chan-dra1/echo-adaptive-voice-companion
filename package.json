@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.1",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/status-bar": "^8.0.3",
     "@google/genai": "^2.8.0",
     "@huggingface/transformers": "^4.2.0",
     "@nut-tree-fork/nut-js": "^4.2.6",

@@ -38,6 +38,7 @@ import PowerToolsMenu from './components/PowerToolsMenu';
 import FilesPanel from './components/FilesPanel';
 import ExplorePanel from './components/ExplorePanel';
 import HeadshotStudio from './components/HeadshotStudio';
+import { registerCapacitorBackButton } from './mobile/capacitorBridge';
 import * as meetingCaptureService from './services/meetingCaptureService';
 import { dictationService } from './services/dictationService';
 import { desktopAutomationService } from './services/desktopAutomationService';
@@ -672,6 +673,52 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showVoiceVault, showChat, showMemory, showMobileMenu, showPersonalizedLearning, showGhostMode, showVaultOrganizer, showSubAgents, showMeeting, showPowerTools, showFiles, showHeadshots, showExplore]);
+
+  // Hardware/gesture back button (Android): without this, back exits the
+  // whole app instead of closing whatever panel is open — see
+  // mobile/capacitorBridge.ts's registerCapacitorBackButton for why. This
+  // covers every panel in the app (a superset of the two ESC-key handlers
+  // above, which only cover part of the set) so back always does something
+  // sensible no matter what's on screen.
+  //
+  // Registered ONCE (empty deps) via a ref rather than re-subscribing on
+  // every state change — @capacitor/app's addListener has no synchronous
+  // handle to key a per-render cleanup off of, so re-registering on each
+  // dependency change (the ESC effect's pattern) would stack up a new
+  // listener every time any tracked panel opens or closes, and every stale
+  // closure would keep firing on each future back press.
+  const closeTopPanelRef = useRef<() => boolean>(() => false);
+  closeTopPanelRef.current = () => {
+    if (showFileUpload) { setShowFileUpload(false); return true; }
+    if (isSettingsOpen) { setIsSettingsOpen(false); return true; }
+    if (showHeadshots) { setShowHeadshots(false); return true; }
+    if (showExplore) { setShowExplore(false); return true; }
+    if (showVoiceVault) { setShowVoiceVault(false); return true; }
+    if (showPersonalizedLearning) { setShowPersonalizedLearning(false); return true; }
+    if (showGhostMode) { setShowGhostMode(false); return true; }
+    if (showVaultOrganizer) { setShowVaultOrganizer(false); return true; }
+    if (showSkillsVault) { setShowSkillsVault(false); return true; }
+    if (showSocial) { setShowSocial(false); return true; }
+    if (showAutomation) { setShowAutomation(false); return true; }
+    if (showMissions) { setShowMissions(false); return true; }
+    if (showSubAgents) { setShowSubAgents(false); return true; }
+    if (showMeeting) { setShowMeeting(false); return true; }
+    if (showPowerTools) { setShowPowerTools(false); return true; }
+    if (showFiles) { setShowFiles(false); return true; }
+    if (showCompanionPanel) { setShowCompanionPanel(false); return true; }
+    if (showChat) { setShowChat(false); return true; }
+    if (showMemory) { setShowMemory(false); return true; }
+    if (isTranslationMode) { handleToggleTranslation(); return true; }
+    if (isStealthMode) { handleToggleStealth(); return true; }
+    if (showMobileMenu) { setShowMobileMenu(false); return true; }
+    return false;
+  };
+  useEffect(() => {
+    registerCapacitorBackButton(() => closeTopPanelRef.current());
+    // Intentionally no cleanup/removeAllListeners: this effect runs once for
+    // the lifetime of the app shell, matching how the wake-lock bridge is
+    // registered once in index.tsx.
+  }, []);
 
   const handleConnect = useCallback(async () => {
     const geminiKey = (localStorage.getItem('echo_api_key') || apiKey || '').trim();
