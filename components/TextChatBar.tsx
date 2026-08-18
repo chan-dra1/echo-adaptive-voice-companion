@@ -16,9 +16,15 @@ interface TextChatBarProps {
      *  in a row still re-opens/re-focuses instead of being silently
      *  swallowed by a same-value comparison. */
     injectedText?: { text: string; nonce: number } | null;
+    /** Fires whenever the panel opens/closes — lets App.tsx fold this into
+     *  hideBottomChrome so the floating mic/camera dock (echo-dock, z-50)
+     *  doesn't sit visible on top of this panel while it's open. This
+     *  component owns `isOpen` itself (not lifted state), so without this
+     *  callback the parent has no way to know. */
+    onOpenChange?: (open: boolean) => void;
 }
 
-export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = false, injectedText }: TextChatBarProps) {
+export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = false, injectedText, onOpenChange }: TextChatBarProps) {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<ChatTurn[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -26,6 +32,10 @@ export default function TextChatBar({ onApiKeyMissing, onNewMessage, embedded = 
     const [error, setError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        onOpenChange?.(isOpen);
+    }, [isOpen]);
 
     useEffect(() => {
         if (isOpen && !embedded) {

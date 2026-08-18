@@ -70,6 +70,7 @@ const KNOWN_KEYS: string[] = [
     'echo_active_conversation',
     'echo_market_alerts',
     'echo_daily_briefing',
+    'echo_night_receipts',
     'echo_checkins',
     'echo_goals',
     'echo_habits',
@@ -81,6 +82,7 @@ const KNOWN_KEYS: string[] = [
     'echo_feature_tickets',
     'echo_campaigns',
     'echo_hotkey_config',
+    'echo_upload_history',
 ];
 
 interface VaultState {

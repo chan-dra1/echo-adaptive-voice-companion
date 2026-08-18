@@ -53,7 +53,7 @@ async function tavilySearch(query: string, apiKey: string, max: number): Promise
     }
 }
 
-const searchWebDeclaration: FunctionDeclaration = {
+export const searchWebDeclaration: FunctionDeclaration = {
     name: 'search_web',
     description:
         'Search the web for current information — news, facts, documentation, prices, scores, or any real-time data beyond training knowledge. Returns titles, URLs, and summaries. Google Search grounding is built-in for quick lookups; use this tool when you need explicit structured results to reason over.',

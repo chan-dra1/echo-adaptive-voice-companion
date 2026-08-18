@@ -50,6 +50,17 @@
 import { chat, LlmMessage, LlmProvider, LlmToolCall } from './llmRouter';
 import { agentSkillService, ToolDefinition } from './agentSkillService';
 import { FunctionDeclaration, Type } from '@google/genai';
+import {
+    RoleId,
+    ROLE_HOP_CAP,
+    isRoleId,
+    filterToolsForRole,
+    roleAllowsTool,
+    buildRoleSystemPrompt,
+    recordReceipt,
+    ROLES,
+} from './roleAgentService';
+import { pickCheapModel } from './costPolicy';
 
 /** Tool round-trip cap per sub-agent run. Higher than the parent's
  *  MAX_TOOL_HOPS=4 (see echoChatService.ts) because a sub-agent is off the
@@ -113,6 +124,8 @@ export interface SpawnSubAgentOptions {
      *  sites — spawnSubAgent sets it to 0 by default and increments it for
      *  sub-agents that spawn their own children via the tool loop. */
     depth?: number;
+    /** Named specialist with a locked tool list. Role agents do not recurse. */
+    role?: RoleId;
 }
 
 export interface SubAgentRun {
@@ -131,6 +144,7 @@ export interface SubAgentRun {
     result?: string;
     /** Error/timeout message, present once status is 'failed' | 'timeout'. */
     error?: string;
+    role?: RoleId;
 }
 
 /** Fired on window as 'echo:subagent:started' | 'echo:subagent:completed' |
@@ -229,7 +243,7 @@ class SubAgentService {
         const contextMode: SubAgentContextMode = opts.contextMode ?? 'isolated';
         const run: SubAgentRun = {
             id,
-            label: opts.label?.trim() || truncateLabel(opts.task),
+            label: opts.label?.trim() || (opts.role ? `${ROLES[opts.role].label}: ${truncateLabel(opts.task, 40)}` : truncateLabel(opts.task)),
             task: opts.task,
             status: 'running',
             contextMode,
@@ -238,6 +252,7 @@ class SubAgentService {
             depth,
             hopsUsed: 0,
             createdAt: Date.now(),
+            role: opts.role,
         };
         this.runs.set(id, run);
         this.cancelFlags.set(id, false);
@@ -256,10 +271,13 @@ class SubAgentService {
 
         try {
             const messages = buildInitialMessages(opts, run.contextMode);
-            const tools = buildToolsForDepth(run.depth);
+            const tools = run.role
+                ? filterToolsForRole(agentSkillService.getTools(), run.role)
+                : buildToolsForDepth(run.depth);
+            const hopCap = run.role ? ROLE_HOP_CAP : MAX_SUBAGENT_HOPS;
 
             let finalText = '';
-            for (let hop = 0; hop < MAX_SUBAGENT_HOPS; hop++) {
+            for (let hop = 0; hop < hopCap; hop++) {
                 if (this.cancelFlags.get(run.id)) {
                     this.finish(run, 'cancelled', undefined, 'Cancelled by caller.');
                     return;
@@ -269,7 +287,7 @@ class SubAgentService {
                     return;
                 }
 
-                const isLastPossibleHop = hop === MAX_SUBAGENT_HOPS - 1;
+                const isLastPossibleHop = hop === hopCap - 1;
                 const result = await chat({
                     messages,
                     provider: opts.provider,
@@ -282,7 +300,7 @@ class SubAgentService {
                 if (result.toolCalls?.length && !isLastPossibleHop) {
                     messages.push({ role: 'assistant', content: result.text, toolCalls: result.toolCalls });
                     for (const tc of result.toolCalls) {
-                        const toolResult = await this.executeSubAgentTool(tc, run.depth).catch((e: any) => ({
+                        const toolResult = await this.executeSubAgentTool(tc, run).catch((e: any) => ({
                             error: e?.message || 'Tool execution failed',
                         }));
                         messages.push({
@@ -317,9 +335,13 @@ class SubAgentService {
     /** A sub-agent's own tool calls go through the same agentSkillService
      *  registry as the main agent, PLUS spawn_sub_agent itself when depth
      *  allows further recursion (see buildToolsForDepth). */
-    private async executeSubAgentTool(tc: LlmToolCall, depth: number): Promise<any> {
+    private async executeSubAgentTool(tc: LlmToolCall, run: SubAgentRun): Promise<any> {
         if (tc.name === SPAWN_SUBAGENT_TOOL_NAME) {
-            return executeSpawnSubAgentTool(tc.name, { ...tc.args, depth: depth + 1 });
+            if (run.role) return { error: 'Role agents cannot spawn further sub-agents.' };
+            return executeSpawnSubAgentTool(tc.name, { ...tc.args, depth: run.depth + 1 });
+        }
+        if (run.role && !roleAllowsTool(run.role, tc.name)) {
+            return { error: `${ROLES[run.role].label} cannot use ${tc.name}.` };
         }
         return agentSkillService.executeTool(tc.name, tc.args);
     }
@@ -334,6 +356,17 @@ class SubAgentService {
         run.finishedAt = Date.now();
         this.cancelFlags.delete(run.id);
         this.emit();
+        if (run.role && (status === 'done' || status === 'failed' || status === 'timeout')) {
+            try {
+                recordReceipt({
+                    role: run.role,
+                    title: run.label,
+                    summary: (status === 'done' ? run.result : run.error) || status,
+                    source: 'chat',
+                    status: status === 'done' ? 'done' : 'failed',
+                });
+            } catch { /* receipts are best-effort */ }
+        }
         if (status === 'done') emitWindowEvent('echo:subagent:completed', run);
         else if (status === 'cancelled') emitWindowEvent('echo:subagent:cancelled', run);
         else emitWindowEvent('echo:subagent:failed', run); // failed | timeout
@@ -350,7 +383,8 @@ function truncateLabel(task: string, max = 60): string {
  *  narrative built for the conversational voice persona) — a sub-agent is a
  *  worker, not "Echo talking to the user," and keeping its system prompt
  *  small keeps every one of its (up to MAX_SUBAGENT_HOPS) hops cheap. */
-function buildSubAgentSystemPrompt(depth: number): string {
+function buildSubAgentSystemPrompt(depth: number, role?: RoleId): string {
+    if (role) return buildRoleSystemPrompt(role);
     const recursionNote = depth >= MAX_SPAWN_DEPTH
         ? ''
         : ' You may delegate independent sub-steps to spawn_sub_agent if useful.';
@@ -365,7 +399,7 @@ function buildSubAgentSystemPrompt(depth: number): string {
 
 function buildInitialMessages(opts: SpawnSubAgentOptions, contextMode: SubAgentContextMode): LlmMessage[] {
     const depth = opts.depth ?? 0;
-    const system: LlmMessage = { role: 'system', content: buildSubAgentSystemPrompt(depth) };
+    const system: LlmMessage = { role: 'system', content: buildSubAgentSystemPrompt(depth, opts.role) };
 
     if (contextMode === 'fork' && opts.parentContext?.length) {
         // Fork mode: replay the caller-supplied context verbatim, then the
@@ -404,15 +438,12 @@ const SPAWN_SUBAGENT_TOOL_NAME = 'spawn_sub_agent';
 export const spawnSubAgentToolDeclaration: FunctionDeclaration = {
     name: SPAWN_SUBAGENT_TOOL_NAME,
     description:
-        'Delegate a SLOW or MULTI-STEP task to a background sub-agent instead of doing it ' +
-        'inline. Use this for things like: multi-source research, cross-referencing several ' +
-        'facts, long document analysis, or any task that would take several tool calls and ' +
-        'noticeably delay your reply to the user. Returns immediately with a run id — the ' +
-        'sub-agent keeps working after your turn ends, and its result arrives later as a ' +
-        'push notification (do not poll or block waiting for it in this turn; tell the user ' +
-        'you\'ll follow up). Do NOT use this for anything answerable in one or two quick tool ' +
-        'calls (a single lookup, a simple calculation, one file read) — spawning a sub-agent ' +
-        'for trivial work is slower and more expensive than just doing it yourself right now.',
+        'Delegate a SLOW or MULTI-STEP task to a background specialist instead of doing it ' +
+        'inline. ALWAYS set `role` when the work fits: researcher (web), operator (files/shell/GitHub), ' +
+        'outreach (email/social/drafts), companion (tasks/reminders). Role agents have a locked tool ' +
+        'list and cannot recurse. Returns immediately with a run id — do not wait; tell the user which ' +
+        'role you assigned. Results also land in the Companion briefing as receipts. Do NOT spawn for ' +
+        'one or two quick tool calls.',
     parameters: {
         type: Type.OBJECT,
         properties: {
@@ -423,6 +454,10 @@ export const spawnSubAgentToolDeclaration: FunctionDeclaration = {
                     'self-contained instructions (it will not see this conversation unless ' +
                     'contextMode is "fork"). Include everything it needs: what to find/do, and ' +
                     'what shape the final answer should take.',
+            },
+            role: {
+                type: Type.STRING,
+                description: 'Specialist to assign: researcher | operator | outreach | companion. Prefer always setting this.',
             },
             label: {
                 type: Type.STRING,
@@ -454,19 +489,24 @@ export async function executeSpawnSubAgentTool(toolName: string, args: any): Pro
         throw new Error(`executeSpawnSubAgentTool: unexpected tool "${toolName}"`);
     }
     try {
+        const role = isRoleId(args?.role) ? args.role : undefined;
+        const cheap = role ? pickCheapModel('tool_reason') : undefined;
         const run = subAgentService.spawnSubAgent({
             task: args?.task,
             label: args?.label,
+            role,
             contextMode: args?.contextMode === 'fork' ? 'fork' : 'isolated',
             parentContext: Array.isArray(args?.parentContext) ? args.parentContext : undefined,
-            provider: args?.provider,
-            model: args?.model,
+            provider: args?.provider || cheap?.provider,
+            model: args?.model || cheap?.model,
             depth: typeof args?.depth === 'number' ? args.depth : 0,
         });
+        const who = run.role ? ROLES[run.role].label : 'Sub-agent';
         return {
             runId: run.id,
             status: run.status,
-            message: `Sub-agent "${run.label}" started in the background (run ${run.id}). ` +
+            role: run.role || null,
+            message: `${who} "${run.label}" started in the background (run ${run.id}). ` +
                 `You'll be notified when it completes — do not block this turn waiting on it.`,
         };
     } catch (e: any) {

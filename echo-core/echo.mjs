@@ -34,6 +34,7 @@ import * as research from './research.mjs';
 import * as smarthome from './smarthome.mjs';
 import * as weather from './weather.mjs';
 import * as news from './news.mjs';
+import { startNightShift } from './nightShift.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_PORT = Number(process.env.ECHO_WEB_PORT || 3030);
@@ -143,6 +144,13 @@ async function main() {
         try { const ha = await smarthome.statusLine(); if (ha) parts.push(ha); } catch { /* ignore */ }
         try { const wx = await weather.statusLine(); if (wx) parts.push(wx); } catch { /* ignore */ }
         try { const top = await news.statusLine(); if (top) parts.push(top); } catch { /* ignore */ }
+
+        const overnight = store.all('receipts')
+            .filter(r => Date.now() - (r.createdAt || 0) < 18 * 3600 * 1000)
+            .slice(-4);
+        if (overnight.length) {
+            parts.push('Overnight: ' + overnight.map(r => `${r.role} — ${String(r.summary || r.title || '').slice(0, 80)}`).join(' '));
+        }
         return parts.join(' ');
     }
 
@@ -158,6 +166,7 @@ async function main() {
 
     const sched = createScheduler(store, { deliver });
     sched.start();
+    const nightShift = startNightShift({ store, llm, hub, research, tasks, C });
 
     // Shared handling for a non-command line — typed OR spoken (via /listen).
     // Routes to: remember a fact · draft something · or ask Echo.
@@ -243,6 +252,7 @@ ${C.grn}${C.b}  ╚══════╝ ╚═════╝╚═╝  ╚═�
                 case 'help':
                     console.log(`${C.dim}  /remind <when> <msg>   e.g. /remind 8am call mom · /remind in 10m stretch
   /briefing [when]       run a briefing now, or schedule it (every day at 8am)
+  /nightshift            run the overnight specialist jobs now (receipts → briefing)
   /schedule              list scheduled reminders & briefings
   /unschedule <id>       cancel one
   remember <fact>        remember something ("remember my dog is Mango")
@@ -297,6 +307,15 @@ ${C.grn}${C.b}  ╚══════╝ ╚═════╝╚═╝  ╚═�
                     }
                     const text = await composeBriefing();
                     console.log(`${C.cyn}  ${text}${C.rst}`); voice.speak(text); hub.speak(text);
+                    break;
+                }
+                case 'nightshift': case 'night-shift': {
+                    try {
+                        const receipts = await nightShift.runNow();
+                        console.log(receipts.length
+                            ? receipts.map(r => `  ${C.cyn}${r.role}${C.rst} ${r.title}\n    ${C.dim}${r.summary}${C.rst}`).join('\n')
+                            : `${C.dim}  night shift produced no receipts${C.rst}`);
+                    } catch (e) { console.log(`${C.yel}  ${e.message}${C.rst}`); }
                     break;
                 }
                 case 'schedule': case 'schedules': {

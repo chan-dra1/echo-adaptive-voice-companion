@@ -37,6 +37,7 @@ function emit(name: string, detail: any) { window.dispatchEvent(new CustomEvent(
 export function isCoreConnected(): boolean { return connected; }
 export function hasCoreToken(): boolean { return !!localStorage.getItem(TOKEN_KEY); }
 export function getCoreSnapshot(): Snapshot { return snapshot; }
+export function getCoreReceipts(): any[] { return snapshot.receipts || []; }
 export function getCoreDrafts(): any[] { return snapshot.drafts || []; }
 export function getCoreCampaigns(): any[] { return snapshot.campaigns || []; }
 export function getCoreSchedules(): any[] { return snapshot.schedules || []; }
@@ -86,7 +87,8 @@ export function connectCore(): void {
             case 'change': {
                 const { collection, op, item } = msg;
                 if (!snapshot[collection]) snapshot[collection] = [];
-                if (op === 'add') snapshot[collection] = [...snapshot[collection], item];
+                if (op === 'add') snapshot[collection] = [...snapshot[collection].filter((x: any) => x.id !== item.id), item];
+                else if (op === 'update') snapshot[collection] = snapshot[collection].map((x: any) => x.id === item.id ? item : x);
                 else if (op === 'remove') snapshot[collection] = snapshot[collection].filter((x: any) => x.id !== item.id);
                 emit('echocore:change', { collection, op, item });
                 break;

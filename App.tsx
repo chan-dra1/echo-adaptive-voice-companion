@@ -39,6 +39,8 @@ import FilesPanel from './components/FilesPanel';
 import ExplorePanel from './components/ExplorePanel';
 import HeadshotStudio from './components/HeadshotStudio';
 import { registerCapacitorBackButton } from './mobile/capacitorBridge';
+import { recordUpload } from './services/uploadHistoryService';
+import { notify, vibrateTap } from './services/notificationService';
 import * as meetingCaptureService from './services/meetingCaptureService';
 import { dictationService } from './services/dictationService';
 import { desktopAutomationService } from './services/desktopAutomationService';
@@ -357,6 +359,12 @@ export default function App() {
   }, [isCameraActive, cameraFacing]);
 
   const [showFileUpload, setShowFileUpload] = useState(false);
+  // TextChatBar owns its own open/closed toggle internally (see its isOpen
+  // state) — mirrored here via its onOpenChange prop purely so the floating
+  // mic/camera dock can hide itself while text chat is open instead of the
+  // two floating control surfaces visually competing for the same bottom
+  // screen space.
+  const [isTextChatOpen, setIsTextChatOpen] = useState(false);
   const [currentConvoId, setCurrentConvoId] = useState<string | null>(() => {
     const id = getActiveConversationId();
     if (!id) {
@@ -545,6 +553,10 @@ export default function App() {
       if (!run) return;
       success(`Sub-agent finished: ${run.label}`);
       injectSubAgentMessage(`🤖 Background task "${run.label}" finished:\n\n${run.result || '(no output)'}`);
+      // A real OS notification matters here specifically — background work
+      // finishing is exactly the case where the user may not have the tab/
+      // app focused to see the in-app toast.
+      void notify({ title: 'Echo finished a background task', body: run.label });
     };
     const onSubAgentFailed = (e: Event) => {
       const run = (e as CustomEvent<{ run: SubAgentRun }>).detail?.run;
@@ -552,6 +564,7 @@ export default function App() {
       const reason = run.status === 'timeout' ? 'timed out' : 'failed';
       warning(`Sub-agent ${reason}: ${run.label}`);
       injectSubAgentMessage(`⚠️ Background task "${run.label}" ${reason}: ${run.error || 'unknown error'}`);
+      void notify({ title: `Background task ${reason}`, body: run.label });
     };
     const onSubAgentCancelled = (e: Event) => {
       const run = (e as CustomEvent<{ run: SubAgentRun }>).detail?.run;
@@ -737,12 +750,14 @@ export default function App() {
     if (geminiKey !== apiKey) setApiKey(geminiKey);
 
     if (status === ConnectionStatus.CONNECTED || status === ConnectionStatus.CONNECTING) {
+      void vibrateTap();
       await serviceRef.current?.disconnect();
       serviceRef.current = null; // Clean up ref to prevent memory leaks
       info("Disconnected from Echo");
       return;
     }
 
+    void vibrateTap();
     setStatus(ConnectionStatus.CONNECTING);
     setMicPermissionDenied(false);
 
@@ -1084,7 +1099,20 @@ export default function App() {
     setTimeout(() => setShowChat(true), 800);
   }, [currentConvoId]);
 
-  const hideBottomChrome = isSettingsOpen || showFileUpload || showExplore || (vaultReady && (showOnboarding || showLanding));
+  // Every drawer/panel below renders `w-full` on mobile (only `sm:` and up
+  // gets a fixed side-panel width) — on a real phone each one covers the
+  // whole screen, including the bottom area where the floating mic/camera
+  // dock (echo-dock, z-50) lives. hideBottomChrome previously only covered 4
+  // of these, so opening anything else (Memory, Companion, Power Tools,
+  // Headshot Studio, ...) left the dock rendered on top of the panel —
+  // visible and tappable through content that should have been full-screen.
+  const hideBottomChrome =
+    isSettingsOpen || showFileUpload || showExplore ||
+    showChat || showMemory || showVoiceVault || showPersonalizedLearning ||
+    showGhostMode || showVaultOrganizer || showCompanionPanel || showSkillsVault ||
+    showSocial || showAutomation || showMissions || showSubAgents || showMeeting ||
+    showPowerTools || showFiles || showHeadshots || showMobileMenu ||
+    (vaultReady && (showOnboarding || showLanding));
 
   const handleOpenPowerTool = (which: 'vault' | 'skills' | 'social' | 'automation' | 'missions' | 'subAgents' | 'ghostMode' | 'files' | 'headshots') => {
     setShowPowerTools(false);
@@ -1206,6 +1234,7 @@ export default function App() {
                 onSendFile={async (file, instruction) => {
                   if (!serviceRef.current) return;
                   await serviceRef.current.sendFile(file, instruction);
+                  recordUpload({ name: file.name, type: file.type || 'file', size: file.size, destination: 'chat' });
                   success(`Sent ${file.name} to Echo`);
                   setShowFileUpload(false);
                   setFileToUpload(null);
@@ -1885,6 +1914,7 @@ export default function App() {
                 <TextChatBar
                   onApiKeyMissing={() => setIsSettingsOpen(true)}
                   injectedText={pendingChatInjection}
+                  onOpenChange={setIsTextChatOpen}
                   onNewMessage={(role, text) => {
                     const message: ChatMessage = {
                       id: crypto.randomUUID(),
@@ -1904,7 +1934,10 @@ export default function App() {
                   }}
                 />
 
-                {/* PREMIUM FLOATING DOCK */}
+                {/* PREMIUM FLOATING DOCK — hidden while text chat is open so
+                    the two floating control surfaces don't compete for the
+                    same bottom screen space (see isTextChatOpen above). */}
+                {!isTextChatOpen && (
                 <div
                   className={`absolute z-50 pointer-events-auto echo-dock ${
                     status === ConnectionStatus.CONNECTED ? 'connected' : ''
@@ -2079,6 +2112,7 @@ export default function App() {
                     </button>
                   </Tooltip>
                 </div>
+                )}
               </>
             )}
           </main>

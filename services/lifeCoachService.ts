@@ -12,6 +12,7 @@
 
 import { getCached, setCached } from './cryptoService';
 import { getCompanionState } from './companionPersonaService';
+import { getOvernightReceipts } from './roleAgentService';
 
 // ─── Habit ───────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ export interface DailyBriefing {
     moodContext: string;             // based on recent check-ins
     streakNote: string;
     generatedAt: number;
+    overnightReceipts: Array<{ role: string; title: string; summary: string; status: string; createdAt: number }>;
 }
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
@@ -319,6 +321,13 @@ export function generateDailyBriefing(upcomingDeadlines: Array<{ title: string; 
         moodContext,
         streakNote,
         generatedAt: Date.now(),
+        overnightReceipts: getOvernightReceipts().map(r => ({
+            role: r.role,
+            title: r.title,
+            summary: r.summary,
+            status: r.status,
+            createdAt: r.createdAt,
+        })),
     };
 
     setCached(BRIEFING_KEY, briefing);

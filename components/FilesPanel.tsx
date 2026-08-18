@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Megaphone, FolderGit2, Download, Package, RefreshCw, Inbox } from 'lucide-react';
+import { X, FileText, Megaphone, FolderGit2, Download, Package, RefreshCw, Inbox, Upload, Trash2 } from 'lucide-react';
 import {
     getDrafts, getCampaigns, listProjects,
     draftToMarkdown, draftFilename, campaignFilename, downloadText,
@@ -10,16 +10,18 @@ import {
 import type { StoredCampaign } from '../services/campaignStudioService';
 import { isHandsConnected, handsCall } from '../services/handsBridgeService';
 import { isCoreConnected, getCoreDrafts, getCoreCampaigns } from '../services/echoCoreSync';
+import { getUploadHistory, removeUploadEntry, type UploadHistoryEntry } from '../services/uploadHistoryService';
 
 interface Props { onClose: () => void; }
 
-type Tab = 'drafts' | 'campaigns' | 'projects';
+type Tab = 'drafts' | 'campaigns' | 'projects' | 'uploads';
 
 export default function FilesPanel({ onClose }: Props) {
     const [tab, setTab] = useState<Tab>('drafts');
     const [drafts, setDrafts] = useState<DraftItem[]>([]);
     const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
     const [projects, setProjects] = useState<ProjectInfo[]>([]);
+    const [uploads, setUploads] = useState<UploadHistoryEntry[]>([]);
     const [busy, setBusy] = useState(false);
     const handsOn = isHandsConnected();
 
@@ -34,6 +36,7 @@ export default function FilesPanel({ onClose }: Props) {
         setDrafts(mergeById(getDrafts(), coreDrafts).sort((a, b) => b.createdAt - a.createdAt));
         setCampaigns(mergeById(getCampaigns(), coreCampaigns).sort((a, b) => b.createdAt - a.createdAt));
         if (handsOn) setProjects(await listProjects());
+        setUploads(getUploadHistory());
     };
     useEffect(() => {
         refresh();
@@ -47,15 +50,21 @@ export default function FilesPanel({ onClose }: Props) {
         /* eslint-disable-next-line */
     }, []);
 
-    const counts = { drafts: drafts.length, campaigns: campaigns.length, projects: projects.length };
-    const total = counts.drafts + counts.campaigns + counts.projects;
+    const counts = { drafts: drafts.length, campaigns: campaigns.length, projects: projects.length, uploads: uploads.length };
+    const total = counts.drafts + counts.campaigns + counts.projects + counts.uploads;
 
     const wrap = async (fn: () => any | Promise<any>) => { setBusy(true); try { await fn(); } finally { setBusy(false); } };
+
+    const removeUpload = (id: string) => {
+        removeUploadEntry(id);
+        setUploads(u => u.filter(d => d.id !== id));
+    };
 
     const TABS: { id: Tab; label: string; icon: React.ReactNode; n: number }[] = [
         { id: 'drafts', label: 'Drafts', icon: <FileText size={14} />, n: counts.drafts },
         { id: 'campaigns', label: 'Campaigns', icon: <Megaphone size={14} />, n: counts.campaigns },
         { id: 'projects', label: 'Projects', icon: <FolderGit2 size={14} />, n: counts.projects },
+        { id: 'uploads', label: 'Uploads', icon: <Upload size={14} />, n: counts.uploads },
     ];
 
     return (
@@ -167,6 +176,31 @@ export default function FilesPanel({ onClose }: Props) {
                                 ))}
                             </Section>
                         )
+                    )}
+
+                    {tab === 'uploads' && (
+                        <Section empty={uploads.length === 0} emptyText="No files uploaded yet. Drop a file, or use the + button to send one to Echo.">
+                            {uploads.map(d => (
+                                <div key={d.id} className="group relative p-3 rounded-lg bg-[rgba(0,255,65,0.03)] border border-[var(--border-dim)] hover:border-[var(--accent-cyan)]/30 transition">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-sm text-[var(--text-primary)] truncate">{d.name}</div>
+                                            <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest mt-0.5">
+                                                {d.destination === 'knowledge' ? 'knowledge base' : 'sent to chat'} · {new Date(d.createdAt).toLocaleDateString()} {new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => removeUpload(d.id)}
+                                            className="p-2 rounded-md bg-[rgba(255,60,60,0.08)] border border-[var(--accent-red)]/30 hover:bg-[rgba(255,60,60,0.16)] transition flex-shrink-0"
+                                            style={{ color: 'var(--accent-red)' }}
+                                            title="Remove from history"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </Section>
                     )}
                 </div>
             </div>

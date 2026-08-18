@@ -24,6 +24,7 @@ import marketingPlannerSkill from '../skills/marketingPlannerSkill';
 import calcSkill from '../skills/calcSkill';
 import screenIntelSkill from '../skills/screenIntelSkill';
 import jobHuntSkill from '../skills/jobHuntSkill';
+import { searchWebDeclaration } from '../skills/searchSkill';
 import { personalizedLearning } from './personalizedLearningService';
 import { bootstrapAgent } from './agentBootstrap';
 // MOBILE-AGENT: additive hook — lifecycle/idle/silence/hard-cap timers.
@@ -375,7 +376,15 @@ export class GeminiLiveService {
 
       // VOICE CORE: keep Live tiny. Full skill registry + Google Search + a
       // 20k+ system prompt is what made Echo "connected" but silent or slow.
-      // Text chat still gets the full brain. Voice only remembers facts + time.
+      // Text chat still gets the full brain. Voice remembers facts + time,
+      // plus ONE extra small tool (search_web, ~2 params) — without it, any
+      // spoken question needing live info ("what's the BTC price?") had
+      // nothing to call and Echo correctly said it couldn't help, which read
+      // as voice mode being broken/limited rather than a deliberate
+      // tradeoff. This one tool is a small fraction of the full registry's
+      // schema size, so it shouldn't reintroduce the slow/silent regression
+      // that cutting the whole registry fixed — but if voice connections
+      // get slow or silent again, this is the first thing to revert.
       let memorySlice = '';
       try {
         const mem = generateContextString('cloud');
@@ -391,7 +400,7 @@ export class GeminiLiveService {
 
       console.log(`[GeminiLive] Model: ${liveModel}, voice: ${voiceName}, pre-roll frames: ${this.maxPreRollFrames}`);
       console.log(`[GeminiLive] System Instruction Length: ${fullSystemInstruction.length} chars (voice-slim)`);
-      console.log('[GeminiLive] Tools: updateMemory, get_current_time only');
+      console.log('[GeminiLive] Tools: updateMemory, get_current_time, search_web');
 
       this.intentionalDisconnect = false;
       this.authFailure = false;
@@ -406,7 +415,7 @@ export class GeminiLiveService {
           responseModalities: this.useLocalVoice ? [Modality.TEXT] : [Modality.AUDIO],
           systemInstruction: fullSystemInstruction,
           tools: [
-            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration] },
+            { functionDeclarations: [memoryToolDeclaration, timeToolDeclaration, searchWebDeclaration] },
           ],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName } }

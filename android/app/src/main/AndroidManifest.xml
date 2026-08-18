@@ -42,6 +42,18 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- @capacitor/haptics needs this to buzz the device at all — without
+         it Haptics.impact()/notification() silently no-op on Android. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Android 13+ (API 33) requires this in the manifest before the app
+         can even runtime-request notification permission — without it,
+         @capacitor/local-notifications' requestPermissions() is a silent
+         no-op and every notify() call gets dropped with no visible reason. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- local-notifications schedules with an exact fire time (see
+         notificationService.ts's `new Date(Date.now() + 50)`); Android
+         13+ needs this for that scheduling API to actually fire reliably. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

@@ -30,7 +30,7 @@ const DIR = path.join(os.homedir(), '.echo-core');
 const KEY_FILE = path.join(DIR, 'key');
 const STATE_FILE = path.join(DIR, 'state.enc');
 
-const COLLECTIONS = ['drafts', 'campaigns', 'projects', 'memories', 'history', 'schedules', 'tasks'];
+const COLLECTIONS = ['drafts', 'campaigns', 'projects', 'memories', 'history', 'schedules', 'tasks', 'receipts'];
 const ENC_ALGO = 'aes-256-gcm';
 
 function getOrCreateKey() {

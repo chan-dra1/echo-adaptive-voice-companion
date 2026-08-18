@@ -17,6 +17,7 @@ import { buildLifeCoachContext } from './lifeCoachService';
 import { buildDeadlineContext } from './deadlineGuardianService';
 import { buildMonthPlanContext } from './monthlyPlannerService';
 import { formatRagContext } from './ragService';
+import { buildRoleCrewInstruction } from './roleAgentService';
 
 // Cache the last RAG context so we can inject it synchronously.
 // ragService.query() is async — callers set this before buildSystemContext().
@@ -101,6 +102,7 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
         : '';
 
     const extra = opts.extraInstructions ? `\n\n${opts.extraInstructions}` : '';
+    const roleCrewBlock = `\n\n${buildRoleCrewInstruction()}`;
 
     // Companion persona — always local (contains personal data)
     const companionInstruction = `\n\n[COMPANION PERSONA]\n${getCompanionModeInstruction()}\n${getPersonalityInstruction()}`;
@@ -139,7 +141,8 @@ export function buildSystemContext(opts: BuildContextOptions): BuildContextResul
         monthPlanBlock +
         knowledge +
         styleBlock +
-        extra;
+        extra +
+        roleCrewBlock;
 
     const systemInstruction = cacheableSystemPrefix + ragBlock;
 

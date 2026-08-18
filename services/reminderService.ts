@@ -8,6 +8,7 @@
  */
 
 import { getCached, setCached } from './cryptoService';
+import { notify, requestNotificationPermission } from './notificationService';
 
 const REMINDERS_KEY = 'echo_reminders';
 const BG_TASKS_KEY = 'echo_background_tasks';
@@ -79,16 +80,11 @@ function resolveFireTime(time: string): string {
 }
 
 function fireReminder(r: Reminder) {
-    try {
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(r.title, {
-                body: r.description || 'Reminder from Echo',
-                icon: '/logo192.png',
-                tag: r.id,
-            });
-        }
-    } catch { /* notification API not available — toast still fires */ }
-
+    // notificationService covers both native (real OS tray notification +
+    // haptic buzz, via @capacitor/local-notifications + @capacitor/haptics —
+    // the old direct `new Notification(...)` call here was web-only and
+    // silently did nothing inside the Capacitor WebView) and web.
+    void notify({ title: r.title, body: r.description || 'Reminder from Echo' });
     window.dispatchEvent(new CustomEvent('echo-reminder', { detail: r }));
 }
 
@@ -159,9 +155,9 @@ export const reminderService = {
     list(): Reminder[] { return getReminders(); },
 
     async create(input: { title: string; time: string; description?: string; recurring?: Reminder['recurring']; }): Promise<Reminder> {
-        if ('Notification' in window && Notification.permission === 'default') {
-            try { await Notification.requestPermission(); } catch { /* ignore */ }
-        }
+        // Ask now, at the moment the user is explicitly creating something
+        // that needs to notify them later — not unconditionally at boot.
+        try { await requestNotificationPermission(); } catch { /* ignore */ }
         const r: Reminder = {
             id: crypto.randomUUID(),
             title: input.title,

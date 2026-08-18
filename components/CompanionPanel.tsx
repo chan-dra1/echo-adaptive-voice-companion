@@ -45,6 +45,13 @@ import {
     BACKGROUND_LIMITATIONS,
 } from '../services/ambientModeService';
 import {
+    getOvernightReceipts,
+    ROLES,
+    type RoleId,
+    type WorkReceipt,
+} from '../services/roleAgentService';
+import { vibrateTap } from '../services/notificationService';
+import {
     Heart, Target, Calendar, Zap, CheckCircle, Circle,
     Flame, Star, ChevronDown, ChevronUp, Volume2, VolumeX,
     Clock, AlertTriangle, Smile, Meh, Frown, X, Info, Brain,
@@ -66,6 +73,7 @@ export default function CompanionPanel({ onClose, onOpenPersonalizedLearning }: 
     const [ambientStatus, setAmbientStatus] = useState(ambientModeService.currentStatus);
     const [showBackgroundInfo, setShowBackgroundInfo] = useState(false);
     const [completingId, setCompletingId] = useState<string | null>(null);
+    const [receipts, setReceipts] = useState<WorkReceipt[]>(() => getOvernightReceipts());
 
     const refresh = useCallback(() => {
         setHabits(getHabits());
@@ -80,7 +88,24 @@ export default function CompanionPanel({ onClose, onOpenPersonalizedLearning }: 
         return () => window.removeEventListener('ambient:status-change', onAmbient);
     }, []);
 
+    useEffect(() => {
+        const refreshReceipts = () => setReceipts(getOvernightReceipts());
+        window.addEventListener('echo:receipt:added', refreshReceipts);
+        window.addEventListener('echocore:snapshot', refreshReceipts);
+        window.addEventListener('echocore:change', refreshReceipts);
+        window.addEventListener('echo:subagent:completed', refreshReceipts);
+        window.addEventListener('echo:subagent:failed', refreshReceipts);
+        return () => {
+            window.removeEventListener('echo:receipt:added', refreshReceipts);
+            window.removeEventListener('echocore:snapshot', refreshReceipts);
+            window.removeEventListener('echocore:change', refreshReceipts);
+            window.removeEventListener('echo:subagent:completed', refreshReceipts);
+            window.removeEventListener('echo:subagent:failed', refreshReceipts);
+        };
+    }, []);
+
     const handleCompleteHabit = async (id: string) => {
+        void vibrateTap();
         setCompletingId(id);
         setTimeout(() => {
             completeHabit(id);
@@ -162,6 +187,31 @@ export default function CompanionPanel({ onClose, onOpenPersonalizedLearning }: 
                             {briefing.streakNote && <p className="text-xs mt-1" style={{ color: 'var(--accent-pink)' }}>{briefing.streakNote}</p>}
                             <p className="text-[var(--text-tertiary)] text-xs mt-2 italic">{briefing.motivationalQuote}</p>
                         </div>
+
+                        {receipts.length > 0 && (
+                            <div className="bg-[rgba(0,255,65,0.03)] rounded-xl p-4 border border-[var(--border-dim)]">
+                                <p className="text-[var(--text-secondary)] text-sm font-medium mb-2 flex items-center gap-1.5">
+                                    <Clock size={14} style={{ color: 'var(--accent-cyan)' }} />
+                                    Overnight
+                                </p>
+                                <div className="space-y-2.5">
+                                    {receipts.map(r => {
+                                        const label = ROLES[r.role as RoleId]?.label || r.role;
+                                        return (
+                                            <div key={r.id} className="text-xs">
+                                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                                    <span className="uppercase tracking-wider text-[10px]" style={{ color: r.status === 'failed' ? 'var(--accent-red)' : 'var(--accent-cyan)' }}>
+                                                        {label}
+                                                    </span>
+                                                    <span className="truncate">{r.title}</span>
+                                                </div>
+                                                <p className="mt-0.5 text-[var(--text-tertiary)] leading-relaxed whitespace-pre-wrap line-clamp-3">{r.summary}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Mood check-in */}
                         {!moodLogged && !latestMood && (
@@ -446,6 +496,8 @@ function GoalCard({ goal }: { goal: Goal }) {
         </div>
     );
 }
+
+
 
 
 

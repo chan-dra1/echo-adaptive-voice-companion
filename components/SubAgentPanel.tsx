@@ -88,6 +88,11 @@ const SubAgentPanel: React.FC<SubAgentPanelProps> = ({ onClose }) => {
                                     </span>
                                     <span className="text-[var(--text-primary)] truncate">{run.label}</span>
                                 </div>
+                                {run.role && (
+                                    <span className="flex-shrink-0 uppercase tracking-wider text-[10px]" style={{ color: 'var(--accent-cyan)' }}>
+                                        {run.role}
+                                    </span>
+                                )}
                                 {run.status === 'running' && (
                                     <button
                                         onClick={() => subAgentService.cancel(run.id)}

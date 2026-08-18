@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useToast } from '../hooks/useToast';
 import { knowledgeService } from '../services/knowledgeService';
+import { recordUpload } from '../services/uploadHistoryService';
 import { UploadCloud, FileText, CheckCircle, Loader2, BookOpen } from 'lucide-react';
 
 export default function KnowledgeDropZone({ children, onFileDrop }: { children: React.ReactNode, onFileDrop?: (file: File) => void }) {
@@ -45,6 +46,7 @@ export default function KnowledgeDropZone({ children, onFileDrop }: { children: 
             try {
                 for (const file of kbFiles) {
                     await knowledgeService.addDocument(file);
+                    recordUpload({ name: file.name, type: file.type || 'document', size: file.size, destination: 'knowledge' });
                 }
                 addToast(`Knowledge Base Updated: ${kbFiles.length} docs added.`, 'success');
             } catch (error) {
