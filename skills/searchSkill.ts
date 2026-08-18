@@ -1,5 +1,6 @@
 import { FunctionDeclaration, Type } from '@google/genai';
 import { Skill } from '../services/agentSkillService';
+import { groundedSearch, hasGroundedSearchKey } from '../services/groundedSearchService';
 
 interface SearchResult {
     title: string;
@@ -56,7 +57,7 @@ async function tavilySearch(query: string, apiKey: string, max: number): Promise
 export const searchWebDeclaration: FunctionDeclaration = {
     name: 'search_web',
     description:
-        'Search the web for current information — news, facts, documentation, prices, scores, or any real-time data beyond training knowledge. Returns titles, URLs, and summaries. Google Search grounding is built-in for quick lookups; use this tool when you need explicit structured results to reason over.',
+        'Search the web for current information — news, facts, documentation, prices, scores, or any real-time data beyond training knowledge. Backed by real Google Search results. Always call this instead of guessing or refusing when the answer depends on current/live data.',
     parameters: {
         type: Type.OBJECT,
         properties: {
@@ -75,7 +76,7 @@ export const searchWebDeclaration: FunctionDeclaration = {
 
 export const searchSkill: Skill = {
     name: 'searchSkill',
-    description: 'Web search via DuckDuckGo (keyless) or Tavily API (if echo_tavily_key is set in localStorage).',
+    description: 'Web search — grounded via Gemini\'s real Google Search (uses the existing Gemini key, no setup) when available, falling back to Tavily API (if echo_tavily_key is set) or DuckDuckGo (keyless, weaker) otherwise.',
     tools: [searchWebDeclaration],
 
     execute: async (toolName: string, args: any) => {
@@ -85,8 +86,29 @@ export const searchSkill: Skill = {
         if (!query) return { error: 'No query provided.' };
 
         const max = Math.min(10, Math.max(1, Number(args.num_results) || 5));
-        const tavilyKey = localStorage.getItem('echo_tavily_key')?.trim() || '';
 
+        // Real Google Search grounding (via a Gemini call isolated from
+        // function-calling — see groundedSearchService.ts for why it has to
+        // be isolated) gives genuinely current, reliable answers to ANY
+        // real-time question, unlike DuckDuckGo's Instant-Answer API below
+        // which only covers a narrow curated set of topics and returns
+        // nothing for most real-world queries (prices, scores, current
+        // events...). Try it first whenever a Gemini key is available.
+        if (hasGroundedSearchKey()) {
+            try {
+                const grounded = await groundedSearch(query);
+                const results: SearchResult[] = [
+                    { title: 'Answer', url: '', snippet: grounded.answer },
+                    ...grounded.sources.slice(0, max - 1).map(s => ({ title: s.title, url: s.url, snippet: '' })),
+                ];
+                return { query, results, source: 'google-grounded', count: results.length };
+            } catch (e) {
+                console.warn('[searchSkill] Grounded search failed, falling back:', e);
+                // fall through to Tavily/DDG below
+            }
+        }
+
+        const tavilyKey = localStorage.getItem('echo_tavily_key')?.trim() || '';
         const results = tavilyKey
             ? await tavilySearch(query, tavilyKey, max)
             : await ddgSearch(query, max);
